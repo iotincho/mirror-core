@@ -4,6 +4,7 @@ from functools import lru_cache
 
 from src.config import get_settings
 from src.graph.neo4j_store import Neo4jGraphStore
+from src.services.audio_note_store import FileAudioNoteStore
 from src.services.claim_embedding_store import ClaimEmbeddingStore
 from src.services.document_embedding_store import DocumentEmbeddingStore
 from src.services.document_store import FileDocumentStore
@@ -12,12 +13,17 @@ from src.services.extraction_store import FileExtractionStore
 from src.services.openai_embedding_provider import OpenAIEmbeddingProvider
 from src.services.openai_extractor import OpenAIExtractor
 from src.services.openai_reflection_provider import OpenAIReflectionProvider
+from src.services.openai_transcription_provider import OpenAITranscriptionProvider
 from src.services.reflection_context_store import ReflectionContextStore
 from src.services.reflection_provider import ReflectionProvider, UnavailableReflectionProvider
 from src.services.reflection_store import FileReflectionStore
 from src.services.structured_extractor import (
     StructuredExtractor,
     UnavailableStructuredExtractor,
+)
+from src.services.transcription_provider import (
+    TranscriptionProvider,
+    UnavailableTranscriptionProvider,
 )
 from src.use_cases.embed_claims import EmbedClaims
 from src.use_cases.embed_documents import EmbedDocument
@@ -30,12 +36,19 @@ from src.use_cases.ingest_document_file import IngestDocumentFile
 from src.use_cases.resolve_question import ResolveQuestion
 from src.use_cases.search_semantically import SearchSemantically
 from src.use_cases.search_similar_claims import SearchSimilarClaims
+from src.use_cases.transcribe_audio_note import CreateAudioNote, TranscribeAudioNote
 
 
 @lru_cache
 def get_document_store() -> FileDocumentStore:
     """Provide the local development adapter for original documents."""
     return FileDocumentStore(get_settings().documents_path)
+
+
+@lru_cache
+def get_audio_note_store() -> FileAudioNoteStore:
+    """Provide durable storage for raw audio and transcription status."""
+    return FileAudioNoteStore(get_settings().audio_notes_path)
 
 
 @lru_cache
@@ -51,6 +64,19 @@ def get_structured_extractor() -> StructuredExtractor:
     if settings.llm_provider == "openai":
         return OpenAIExtractor(settings.openai_api_key, settings.openai_model)
     return UnavailableStructuredExtractor(settings.llm_provider)
+
+
+@lru_cache
+def get_transcription_provider() -> TranscriptionProvider:
+    settings = get_settings()
+    if settings.llm_provider == "openai":
+        return OpenAITranscriptionProvider(
+            settings.openai_api_key, settings.openai_transcription_model
+        )
+    return UnavailableTranscriptionProvider(
+        settings.llm_provider,
+        settings.openai_transcription_model,
+    )
 
 
 @lru_cache
@@ -122,6 +148,14 @@ def close_graph_store() -> None:
 async def get_ingest_document() -> IngestDocument:
     """Build the application operation used by any delivery interface."""
     return IngestDocument(get_document_store())
+
+
+async def get_create_audio_note() -> CreateAudioNote:
+    return CreateAudioNote(get_audio_note_store(), get_settings().audio_max_upload_bytes)
+
+
+async def get_transcribe_audio_note() -> TranscribeAudioNote:
+    return TranscribeAudioNote(get_audio_note_store(), get_transcription_provider())
 
 
 async def get_ingest_document_file() -> IngestDocumentFile:

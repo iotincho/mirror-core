@@ -23,6 +23,9 @@ app = FastAPI(
     title="El Espejo",
     description="Personal AI-assisted introspection proof of concept.",
     version="0.1.0",
+    # Nginx exposes this application under /api while proxying that prefix away.
+    # Keep generated OpenAPI and Swagger UI URLs on the public path.
+    root_path="/api",
     lifespan=lifespan,
 )
 app.include_router(api_router)

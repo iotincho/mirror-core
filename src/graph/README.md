@@ -1,14 +1,26 @@
-# Persistencia en Neo4j
+# Persistencia de grafo
+
+ArcadeDB `26.9.1` es el graph store objetivo. Su schema se administra de forma explícita,
+versionada e independiente del runtime mediante:
+
+```bash
+docker compose run --rm arcadedb-schema
+```
+
+Compose ejecuta el mismo inicializador antes de iniciar la API. La migración base crea los tipos,
+propiedades, restricciones e índices vectoriales para la especificación de embeddings configurada.
+El registro `SchemaMigration` usa la versión `v1:<embedding_suffix>`, por lo que una nueva
+combinación de proveedor, modelo o dimensiones puede convivir con las anteriores.
+
+La implementación runtime continúa temporalmente en `Neo4jGraphStore` mientras se desarrolla
+`ArcadeDBGraphStore`; los casos de uso sólo dependen de los contratos de aplicación.
+
+## Modelo inicial
 
 La fase de grafo persiste únicamente una extracción que ya fue validada contra el
 contenido original. La escritura ocurre después de que el `ExtractionRun` se
-guarda localmente; si Neo4j falla, el documento y la corrida siguen disponibles,
+guarda localmente; si el graph store falla, el documento y la corrida siguen disponibles,
 pero la API responde `503` con el `run_id` para permitir reintento y diagnóstico.
-
-`Neo4jGraphStore` es un adaptador de infraestructura. Los casos de uso dependen
-del puerto `GraphStore`, no del driver ni de Cypher.
-
-## Modelo inicial
 
 ```text
 (:Document)-[:HAS_EXTRACTION]->(:ExtractionRun)
@@ -33,9 +45,10 @@ El adaptador usa `MERGE` con IDs estables y crea restricciones únicas para
 `Document`, `ExtractionRun`, `Concept`, `Entity`, `Claim` y `Evidence`. Repetir
 la escritura de una misma corrida no duplica el subgrafo.
 
-## Inspección manual
+## Inspección manual durante la transición
 
-Abrí Neo4j Browser en `http://localhost:7474` y ejecutá, por ejemplo:
+ArcadeDB Studio queda disponible en `http://localhost:2480`. Las consultas Cypher de inspección
+siguen siendo:
 
 ```cypher
 MATCH (document:Document)-[:HAS_EXTRACTION]->(run:ExtractionRun)

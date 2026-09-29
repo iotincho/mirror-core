@@ -24,6 +24,24 @@ services:
     depends_on:
       arcadedb:
         condition: service_healthy
+      arcadedb-schema:
+        condition: service_completed_successfully
+
+  arcadedb-schema:
+    build:
+      context: .
+    env_file:
+      - .env.local
+    command: python -m src.graph.arcadedb.schema
+    environment:
+      ARCADEDB_HTTP_URL: http://arcadedb:2480
+      ARCADEDB_DATABASE: ${ARCADEDB_DATABASE:-el_espejo}
+      ARCADEDB_USERNAME: root
+      ARCADEDB_ROOT_PASSWORD: ${ARCADEDB_ROOT_PASSWORD:-el-espejo-local-password}
+    depends_on:
+      arcadedb:
+        condition: service_healthy
+    restart: "no"
 
   pwa:
     build:

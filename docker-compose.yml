@@ -10,8 +10,7 @@ services:
       DOCUMENTS_PATH: /data/documents
       EXTRACTIONS_PATH: /data/extractions
     volumes:
-      - core_documents:/data/documents
-      - core_extractions:/data/extractions
+      - core_data:/data
       - ./src:/app/src
     healthcheck:
       test:
@@ -76,5 +75,4 @@ volumes:
   neo4j_data:
   neo4j_logs:
   pwa_node_modules:
-  core_documents:
-  core_extractions:
+  core_data:

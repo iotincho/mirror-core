@@ -21,6 +21,9 @@ class Settings(BaseSettings):
         default="el-espejo-local-password", validation_alias="NEO4J_PASSWORD", repr=False
     )
     documents_path: Path = Field(default=Path("data/documents"), validation_alias="DOCUMENTS_PATH")
+    audio_notes_path: Path = Field(
+        default=Path("data/audio-notes"), validation_alias="AUDIO_NOTES_PATH"
+    )
     extractions_path: Path = Field(
         default=Path("data/extractions"), validation_alias="EXTRACTIONS_PATH"
     )
@@ -30,6 +33,12 @@ class Settings(BaseSettings):
     llm_provider: str = Field(default="openai", validation_alias="LLM_PROVIDER")
     openai_api_key: str | None = Field(default=None, validation_alias="OPENAI_API_KEY", repr=False)
     openai_model: str | None = Field(default=None, validation_alias="OPENAI_MODEL")
+    openai_transcription_model: str = Field(
+        default="gpt-transcribe", validation_alias="OPENAI_TRANSCRIPTION_MODEL"
+    )
+    audio_max_upload_bytes: int = Field(
+        default=25 * 1024 * 1024, validation_alias="AUDIO_MAX_UPLOAD_BYTES", gt=0
+    )
     reflection_provider: str = Field(default="openai", validation_alias="REFLECTION_PROVIDER")
     openai_reflection_model: str | None = Field(
         default=None, validation_alias="OPENAI_REFLECTION_MODEL"

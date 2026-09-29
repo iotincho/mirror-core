@@ -4,6 +4,12 @@ Decisiones, hipótesis y mejoras que aparecen durante la POC pero no pertenecen
 necesariamente a la etapa que está en curso. Cada punto debe convertirse en una
 decisión explícita, un experimento o una tarea antes de implementarse.
 
+## Notas de voz
+
+- [ ] Diseñar la corrección de transcripciones. Debe preservar el audio y la
+  transcripción literal originales, versionar toda corrección y reprocesar el
+  documento sin sobrescribir silenciosamente la evidencia fuente.
+
 ## Búsqueda semántica
 
 - [ ] Definir una política de relevancia para la recuperación vectorial. La

@@ -3,13 +3,14 @@
 from functools import lru_cache
 
 from src.config import get_settings
-from src.graph.neo4j_store import Neo4jGraphStore
+from src.graph.arcadedb.store import ArcadeDBGraphStore
 from src.services.audio_note_store import FileAudioNoteStore
 from src.services.claim_embedding_store import ClaimEmbeddingStore
 from src.services.document_embedding_store import DocumentEmbeddingStore
 from src.services.document_store import FileDocumentStore
 from src.services.embedding_provider import EmbeddingProvider, UnavailableEmbeddingProvider
 from src.services.extraction_store import FileExtractionStore
+from src.services.graph_store import GraphBackend
 from src.services.openai_embedding_provider import OpenAIEmbeddingProvider
 from src.services.openai_extractor import OpenAIExtractor
 from src.services.openai_reflection_provider import OpenAIReflectionProvider
@@ -80,28 +81,29 @@ def get_transcription_provider() -> TranscriptionProvider:
 
 
 @lru_cache
-def get_graph_store() -> Neo4jGraphStore:
-    """Provide the Neo4j adapter while keeping Cypher out of application use cases."""
+def get_graph_store() -> GraphBackend:
+    """Provide the configured graph backend without exposing it to application use cases."""
     settings = get_settings()
-    return Neo4jGraphStore(
-        settings.neo4j_uri,
-        settings.neo4j_username,
-        settings.neo4j_password,
+    return ArcadeDBGraphStore(
+        settings.arcadedb_http_url,
+        settings.arcadedb_database,
+        settings.arcadedb_username,
+        settings.arcadedb_password,
     )
 
 
 def get_claim_embedding_store() -> ClaimEmbeddingStore:
-    """Reuse Neo4j for the graph and claim-vector persistence boundaries."""
+    """Reuse the configured graph backend for claim-vector persistence."""
     return get_graph_store()
 
 
 def get_document_embedding_store() -> DocumentEmbeddingStore:
-    """Reuse Neo4j for document-vector persistence and retrieval."""
+    """Reuse the configured graph backend for document-vector persistence and retrieval."""
     return get_graph_store()
 
 
 def get_reflection_context_store() -> ReflectionContextStore:
-    """Expose graph relations without leaking Neo4j into reflection orchestration."""
+    """Expose graph relations without leaking the concrete database into orchestration."""
     return get_graph_store()
 
 
@@ -137,11 +139,9 @@ def get_embedding_provider() -> EmbeddingProvider:
 
 
 def close_graph_store() -> None:
-    """Release the Neo4j driver when the API process stops."""
+    """Release graph-backend resources when the API process stops."""
     graph_store = get_graph_store()
-    close = getattr(graph_store, "close", None)
-    if close is not None:
-        close()
+    graph_store.close()
     get_graph_store.cache_clear()
 
 
@@ -169,7 +169,7 @@ async def get_extract_document() -> ExtractDocument:
 
 
 async def get_extract_and_persist_document() -> ExtractAndPersistDocument:
-    """Build the extraction flow that also makes completed runs queryable in Neo4j."""
+    """Build the extraction flow that makes completed runs queryable in the graph."""
     return ExtractAndPersistDocument(await get_extract_document(), get_graph_store())
 
 
@@ -183,12 +183,12 @@ async def get_extract_persist_and_embed_document() -> ExtractPersistAndEmbedDocu
 
 
 async def get_search_similar_claims() -> SearchSimilarClaims:
-    """Build semantic retrieval without exposing providers or Neo4j to routes."""
+    """Build semantic retrieval without exposing providers or graph engines to routes."""
     return SearchSimilarClaims(get_embedding_provider(), get_claim_embedding_store())
 
 
 async def get_search_semantically() -> SearchSemantically:
-    """Build mixed document and claim retrieval without leaking Neo4j to routes."""
+    """Build mixed document and claim retrieval without leaking graph engines to routes."""
     return SearchSemantically(
         get_embedding_provider(),
         get_claim_embedding_store(),

@@ -10,8 +10,6 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.115,<1.0",
-    "neo4j>=5.28,<7.0",
-    "neo4j-graphrag>=1.9,<2.0",
     "openai>=1.0,<3.0",
     "pydantic-settings>=2.6,<3.0",
     "python-multipart>=0.0.20,<1.0",

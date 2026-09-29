@@ -10,7 +10,7 @@ class DocumentEmbeddingStoreError(RuntimeError):
 
 
 class DocumentEmbeddingStore(Protocol):
-    """Vector persistence boundary implemented by Neo4j in this POC."""
+    """Database-independent boundary for document vector persistence and retrieval."""
 
     def persist_document_embedding(
         self,

@@ -136,7 +136,7 @@ def _extraction_failed_response(error: ExtractionRunFailedError) -> HTTPExceptio
 
 
 def _graph_persistence_failed_response(error: GraphPersistenceFailedError) -> HTTPException:
-    """Tell callers the source and extraction exist but are not queryable in Neo4j yet."""
+    """Tell callers the source and extraction exist but are not queryable in the graph yet."""
     return HTTPException(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         detail={

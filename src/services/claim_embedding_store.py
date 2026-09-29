@@ -10,7 +10,7 @@ class ClaimEmbeddingStoreError(RuntimeError):
 
 
 class ClaimEmbeddingStore(Protocol):
-    """Vector persistence boundary implemented by Neo4j in this POC."""
+    """Database-independent boundary for claim vector persistence and retrieval."""
 
     def persist_claim_embeddings(
         self,

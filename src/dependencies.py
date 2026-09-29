@@ -10,6 +10,7 @@ from src.services.document_embedding_store import DocumentEmbeddingStore
 from src.services.document_store import FileDocumentStore
 from src.services.embedding_provider import EmbeddingProvider, UnavailableEmbeddingProvider
 from src.services.extraction_store import FileExtractionStore
+from src.services.graph_store import GraphBackend
 from src.services.openai_embedding_provider import OpenAIEmbeddingProvider
 from src.services.openai_extractor import OpenAIExtractor
 from src.services.openai_reflection_provider import OpenAIReflectionProvider
@@ -80,8 +81,8 @@ def get_transcription_provider() -> TranscriptionProvider:
 
 
 @lru_cache
-def get_graph_store() -> Neo4jGraphStore:
-    """Provide the Neo4j adapter while keeping Cypher out of application use cases."""
+def get_graph_store() -> GraphBackend:
+    """Provide the configured graph backend without exposing it to application use cases."""
     settings = get_settings()
     return Neo4jGraphStore(
         settings.neo4j_uri,
@@ -91,17 +92,17 @@ def get_graph_store() -> Neo4jGraphStore:
 
 
 def get_claim_embedding_store() -> ClaimEmbeddingStore:
-    """Reuse Neo4j for the graph and claim-vector persistence boundaries."""
+    """Reuse the configured graph backend for claim-vector persistence."""
     return get_graph_store()
 
 
 def get_document_embedding_store() -> DocumentEmbeddingStore:
-    """Reuse Neo4j for document-vector persistence and retrieval."""
+    """Reuse the configured graph backend for document-vector persistence and retrieval."""
     return get_graph_store()
 
 
 def get_reflection_context_store() -> ReflectionContextStore:
-    """Expose graph relations without leaking Neo4j into reflection orchestration."""
+    """Expose graph relations without leaking the concrete database into orchestration."""
     return get_graph_store()
 
 
@@ -137,11 +138,9 @@ def get_embedding_provider() -> EmbeddingProvider:
 
 
 def close_graph_store() -> None:
-    """Release the Neo4j driver when the API process stops."""
+    """Release graph-backend resources when the API process stops."""
     graph_store = get_graph_store()
-    close = getattr(graph_store, "close", None)
-    if close is not None:
-        close()
+    graph_store.close()
     get_graph_store.cache_clear()
 
 

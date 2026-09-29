@@ -15,24 +15,20 @@ from src.embeddings.contracts import (
 )
 from src.extraction.contracts import ExtractionResult
 from src.reflection.contracts import ClaimRelation
-from src.services.claim_embedding_store import ClaimEmbeddingStore, ClaimEmbeddingStoreError
+from src.services.claim_embedding_store import ClaimEmbeddingStoreError
 from src.services.document_embedding_store import (
-    DocumentEmbeddingStore,
     DocumentEmbeddingStoreError,
 )
 from src.services.extraction_store import ExtractionRun
-from src.services.graph_store import GraphPersistenceError, GraphStore
+from src.services.graph_store import GraphBackend, GraphPersistenceError
 from src.services.reflection_context_store import (
-    ReflectionContextStore,
     ReflectionContextStoreError,
 )
 
 logger = logging.getLogger(__name__)
 
 
-class Neo4jGraphStore(
-    GraphStore, ClaimEmbeddingStore, DocumentEmbeddingStore, ReflectionContextStore
-):
+class Neo4jGraphStore(GraphBackend):
     """Persist each immutable extraction run without canonicalizing knowledge yet."""
 
     def __init__(self, uri: str, username: str, password: str, driver: Any | None = None) -> None:
@@ -45,7 +41,7 @@ class Neo4jGraphStore(
 
     def persist(self, document: Document, extraction: ExtractionRun) -> None:
         if extraction.status != "completed" or extraction.result is None:
-            raise GraphPersistenceError("Only completed extractions can be persisted in Neo4j")
+            raise GraphPersistenceError("Only completed extractions can be persisted in the graph")
 
         driver = self._get_driver()
         result = extraction.result

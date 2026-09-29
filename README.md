@@ -321,6 +321,24 @@ el_espejo/
 
 La arquitectura debe mantenerse limpia y tipada, pero sin sobreingeniería mientras se descubre el modelo conceptual.
 
+La persistencia de grafo se conecta mediante contratos de aplicación. Los casos de uso no
+importan drivers ni adaptadores concretos. La estructura objetivo para incorporar ArcadeDB es:
+
+```text
+src/graph/
+├── arcadedb/
+│   ├── store.py       # implementación de los contratos y mapeo al dominio
+│   ├── schema.py      # tipos, propiedades, constraints e índices
+│   └── queries.py     # SQL y Cypher propios de ArcadeDB
+├── neo4j_store.py         # adaptador actual, removible tras validar ArcadeDB
+└── README.md
+```
+
+`dependencies.py` es el único punto que selecciona y construye el adaptador. El schema se
+inicializa y versiona por separado de las operaciones normales del store. El directorio
+`arcadedb/` se incorporará al implementar ese adaptador; esta estructura documenta la frontera
+antes de iniciar el reemplazo.
+
 ## Fases de implementación
 
 1. **Foundation:** proyecto Python, dependencias, Docker Compose, Neo4j, configuración, logging y tests básicos. Sin LLM.

@@ -56,6 +56,9 @@ class FakeGraphStore(GraphStore):
     def persist(self, document: Document, extraction: object) -> None:
         self.persisted.append((document, extraction))
 
+    def delete_document(self, document_id: str) -> None:
+        return None
+
     def persist_claim_embeddings(self, records, spec) -> None:
         return None
 

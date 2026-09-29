@@ -6,7 +6,10 @@ services:
       - .env.local
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
     environment:
-      NEO4J_URI: bolt://neo4j:7687
+      # Temporary compatibility variables until ArcadeDBGraphStore replaces Neo4jGraphStore.
+      NEO4J_URI: bolt://arcadedb:7687
+      NEO4J_USERNAME: root
+      NEO4J_PASSWORD: ${ARCADEDB_ROOT_PASSWORD:-el-espejo-local-password}
       DOCUMENTS_PATH: /data/documents
       EXTRACTIONS_PATH: /data/extractions
     volumes:
@@ -19,7 +22,7 @@ services:
       timeout: 30s
       retries: 10
     depends_on:
-      neo4j:
+      arcadedb:
         condition: service_healthy
 
   pwa:
@@ -55,24 +58,28 @@ services:
       - --token
       - ${CLOUDFLARE_TUNNEL_TOKEN:?Tunnel token is required}
 
-  neo4j:
-    image: neo4j:5-community
+  arcadedb:
+    image: arcadedata/arcadedb:26.9.1
+    hostname: arcadedb
     environment:
-      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-el-espejo-local-password}
+      ARCADEDB_SETTINGS: >-
+        -Darcadedb.server.rootPassword=${ARCADEDB_ROOT_PASSWORD:-el-espejo-local-password}
+        -Darcadedb.server.defaultDatabases=${ARCADEDB_DATABASE:-el_espejo}[]
+        -Darcadedb.server.plugins=Bolt:com.arcadedb.bolt.BoltProtocolPlugin
+        -Darcadedb.bolt.defaultDatabase=${ARCADEDB_DATABASE:-el_espejo}
     ports:
-      - "${NEO4J_BOLT_PORT:-7687}:7687"
-      - "${NEO4J_HTTP_PORT:-7474}:7474"
+      - "${ARCADEDB_BOLT_PORT:-7687}:7687"
+      - "${ARCADEDB_HTTP_PORT:-2480}:2480"
     volumes:
-      - neo4j_data:/data
-      - neo4j_logs:/logs
+      - arcadedb_data:/home/arcadedb/databases
     healthcheck:
-      test: ["CMD-SHELL", "cypher-shell -u neo4j -p \"$${NEO4J_AUTH#*/}\" 'RETURN 1'"]
+      test: ["CMD-SHELL", "wget --quiet --spider http://127.0.0.1:2480/api/v1/ready"]
       interval: 5s
       timeout: 5s
-      retries: 12
+      retries: 20
+      start_period: 15s
 
 volumes:
-  neo4j_data:
-  neo4j_logs:
+  arcadedb_data:
   pwa_node_modules:
   core_data:

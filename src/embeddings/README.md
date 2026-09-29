@@ -1,6 +1,6 @@
 # Embeddings semánticos
 
-Cada carga completa dos representaciones semánticas, conservadas en Neo4j y
+Cada carga completa dos representaciones semánticas, conservadas en ArcadeDB y
 versionadas por proveedor, modelo y dimensiones:
 
 - El documento original completo, para encontrar una nota aunque la extracción

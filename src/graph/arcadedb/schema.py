@@ -2,22 +2,18 @@
 
 from __future__ import annotations
 
-import base64
-import json
 import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Protocol
-from urllib.error import HTTPError, URLError
-from urllib.parse import quote
-from urllib.request import Request, urlopen
 
 from src.embeddings.contracts import EmbeddingSpec
+from src.graph.arcadedb.client import ArcadeDBClientError, ArcadeDBHTTPClient
 
 SCHEMA_VERSION = "v1"
 
 
-class ArcadeDBSchemaError(RuntimeError):
+class ArcadeDBSchemaError(ArcadeDBClientError):
     """Raised when ArcadeDB rejects or cannot execute a schema migration."""
 
 
@@ -48,59 +44,6 @@ class ArcadeDBSchemaConfig:
                 dimensions=int(os.getenv("OPENAI_EMBEDDING_DIMENSIONS", "1536")),
             ),
         )
-
-
-class ArcadeDBHTTPClient:
-    """Minimal HTTP client used only for schema administration."""
-
-    def __init__(self, config: ArcadeDBSchemaConfig) -> None:
-        self._base_url = config.http_url
-        self._database = quote(config.database, safe="")
-        credentials = f"{config.username}:{config.password}".encode()
-        self._authorization = f"Basic {base64.b64encode(credentials).decode()}"
-
-    def command(
-        self,
-        statement: str,
-        params: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        return self._post("command", statement, params)
-
-    def query(
-        self,
-        statement: str,
-        params: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        return self._post("query", statement, params)
-
-    def _post(
-        self,
-        operation: str,
-        statement: str,
-        params: dict[str, Any] | None,
-    ) -> dict[str, Any]:
-        payload: dict[str, Any] = {"language": "sql", "command": statement}
-        if params:
-            payload["params"] = params
-        request = Request(
-            f"{self._base_url}/api/v1/{operation}/{self._database}",
-            data=json.dumps(payload).encode(),
-            headers={
-                "Authorization": self._authorization,
-                "Content-Type": "application/json",
-            },
-            method="POST",
-        )
-        try:
-            with urlopen(request, timeout=30) as response:
-                return json.load(response)
-        except HTTPError as error:
-            detail = error.read().decode(errors="replace")
-            raise ArcadeDBSchemaError(
-                f"ArcadeDB rejected schema statement with HTTP {error.code}: {detail}"
-            ) from error
-        except (URLError, TimeoutError) as error:
-            raise ArcadeDBSchemaError("ArcadeDB is unavailable during schema setup") from error
 
 
 def migration_version(spec: EmbeddingSpec) -> str:
@@ -301,7 +244,13 @@ def apply_schema(client: SchemaClient, spec: EmbeddingSpec) -> bool:
 
 def main() -> int:
     config = ArcadeDBSchemaConfig.from_environment()
-    applied = apply_schema(ArcadeDBHTTPClient(config), config.embedding_spec)
+    client = ArcadeDBHTTPClient(
+        config.http_url,
+        config.database,
+        config.username,
+        config.password,
+    )
+    applied = apply_schema(client, config.embedding_spec)
     action = "applied" if applied else "already active"
     print(f"ArcadeDB schema {migration_version(config.embedding_spec)} {action}")
     return 0

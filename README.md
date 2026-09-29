@@ -266,8 +266,7 @@ Ejemplo de salida deseada:
 Python
 FastAPI
 Pydantic
-Neo4j
-neo4j-graphrag
+ArcadeDB
 OpenAI API
 Docker Compose
 pytest
@@ -275,9 +274,10 @@ pytest
 
 `Ollama` queda como experimento opcional para modelos y embeddings locales. La máquina de desarrollo cuenta con una RTX 2060 de aproximadamente 6 GB de VRAM: sirve para experimentar con modelos pequeños cuantizados, pero la primera POC debería priorizar una API para reducir complejidad.
 
-Neo4j, FastAPI y la orquestación no requieren GPU.
+ArcadeDB, FastAPI y la orquestación no requieren GPU.
 
-LlamaIndex no es requisito inicial. Más adelante se podría comparar `Neo4j + neo4j-graphrag` con `LlamaIndex + Neo4j` para evaluar qué simplifica y qué oculta cada abstracción.
+LlamaIndex no es requisito inicial. La aplicación mantiene contratos propios para no acoplar los
+casos de uso a un framework de RAG ni a un motor de grafo concreto.
 
 ## Estrategia de entrada
 
@@ -322,29 +322,29 @@ el_espejo/
 La arquitectura debe mantenerse limpia y tipada, pero sin sobreingeniería mientras se descubre el modelo conceptual.
 
 La persistencia de grafo se conecta mediante contratos de aplicación. Los casos de uso no
-importan drivers ni adaptadores concretos. La estructura objetivo para incorporar ArcadeDB es:
+importan drivers ni adaptadores concretos. La implementación de ArcadeDB se organiza así:
 
 ```text
 src/graph/
 ├── arcadedb/
+│   ├── client.py      # cliente HTTP y transacciones
 │   ├── store.py       # implementación de los contratos y mapeo al dominio
 │   ├── schema.py      # tipos, propiedades, constraints e índices
 │   └── queries.py     # SQL y Cypher propios de ArcadeDB
-├── neo4j_store.py         # adaptador actual, removible tras validar ArcadeDB
 └── README.md
 ```
 
 `dependencies.py` es el único punto que selecciona y construye el adaptador. El schema se
 inicializa y versiona por separado de las operaciones normales del store. El directorio
-`arcadedb/` se incorporará al implementar ese adaptador; esta estructura documenta la frontera
-antes de iniciar el reemplazo.
+`arcadedb/` contiene el adaptador activo; esta frontera permite reemplazar el motor sin modificar
+los casos de uso.
 
 ## Fases de implementación
 
-1. **Foundation:** proyecto Python, dependencias, Docker Compose, Neo4j, configuración, logging y tests básicos. Sin LLM.
+1. **Foundation:** proyecto Python, dependencias, Docker Compose, ArcadeDB, configuración, logging y tests básicos. Sin LLM.
 2. **Ingestion:** Markdown/TXT a `Document`, con IDs estables, contenido original, fecha y metadatos de fuente.
 3. **Knowledge extraction:** `Document` a conceptos, entidades, afirmaciones y relaciones mediante salida estructurada.
-4. **Graph persistence:** persistencia en Neo4j y consultas Cypher básicas para inspección manual.
+4. **Graph persistence:** persistencia en ArcadeDB y consultas de inspección manual.
 5. **Embeddings:** embeddings de documentos o afirmaciones y búsqueda semántica básica.
 6. **Reflection:** una función `answer(question)` que combine grafo, vectores, evidencia y LLM.
 7. **Experiments:** batería de preguntas reales para evaluar utilidad, precisión y alucinaciones.
@@ -360,7 +360,7 @@ Con 20–50 notas personales reales, el sistema debe poder:
 
 1. Ingerir las notas.
 2. Extraer conceptos, entidades, afirmaciones y relaciones.
-3. Persistirlos en Neo4j.
+3. Persistirlos en ArcadeDB.
 4. Mantener enlaces de evidencia a los documentos originales.
 5. Generar embeddings.
 6. Hacer búsqueda semántica.

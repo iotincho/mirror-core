@@ -4,6 +4,7 @@ from uuid import uuid4
 import httpx
 import pytest
 
+from src.auth.session import require_authenticated
 from src.dependencies import get_extract_persist_and_embed_document
 from src.domain.documents import Document
 from src.embeddings.contracts import EmbeddingSpec, EmbeddingVector
@@ -110,6 +111,7 @@ async def test_create_extraction_persists_the_completed_run_in_the_graph(tmp_pat
     app.dependency_overrides[get_extract_persist_and_embed_document] = (
         override_extract_persist_and_embed_document
     )
+    app.dependency_overrides[require_authenticated] = lambda: "test-user"
     try:
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:

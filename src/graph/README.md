@@ -12,8 +12,18 @@ propiedades, restricciones e índices vectoriales para la especificación de emb
 El registro `SchemaMigration` usa la versión `v1:<embedding_suffix>`, por lo que una nueva
 combinación de proveedor, modelo o dimensiones puede convivir con las anteriores.
 
-La implementación runtime continúa temporalmente en `Neo4jGraphStore` mientras se desarrolla
-`ArcadeDBGraphStore`; los casos de uso sólo dependen de los contratos de aplicación.
+La integración completa del store es opt-in para que la suite normal no dependa de Docker:
+
+```bash
+ARCADEDB_INTEGRATION=1 python -m pytest -q tests/integration/test_arcadedb_live.py
+```
+
+La prueba crea datos con IDs aleatorios, verifica idempotencia, embeddings, búsqueda, relaciones
+y borrado, y limpia el documento temporal aun cuando una aserción falle.
+
+La implementación runtime es `ArcadeDBGraphStore`. Usa Cypher para escrituras y recorridos del
+grafo, SQL nativo para `vector.neighbors()` y transacciones HTTP para preservar atómicamente cada
+extracción. Los casos de uso sólo dependen de los contratos de aplicación.
 
 ## Modelo inicial
 

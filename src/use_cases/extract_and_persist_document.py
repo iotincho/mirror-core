@@ -11,11 +11,11 @@ logger = logging.getLogger(__name__)
 
 
 class GraphPersistenceFailedError(RuntimeError):
-    """Signals that an extraction was saved locally but not in Neo4j."""
+    """Signals that an extraction was saved locally but not in the graph store."""
 
     def __init__(self, run_id: UUID) -> None:
         self.run_id = run_id
-        super().__init__(f"Extraction run {run_id} could not be persisted in Neo4j")
+        super().__init__(f"Extraction run {run_id} could not be persisted in the graph store")
 
 
 class ExtractAndPersistDocument:

@@ -34,7 +34,7 @@ async def create_extraction(
         Depends(get_extract_persist_and_embed_document),
     ],
 ) -> ExtractionRun:
-    """Run a selected profile and persist its validated result in Neo4j."""
+    """Run a selected profile and persist its validated result in the graph store."""
     try:
         return use_case.execute(document_id, request.profile)
     except DocumentNotFoundError as error:

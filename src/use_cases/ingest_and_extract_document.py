@@ -34,6 +34,11 @@ class IngestAndExtractDocument:
 
     def execute(self, new_document: NewDocument) -> ProcessedDocument:
         document = self._ingest_document.execute(new_document)
+        return self.process_existing(document.id)
+
+    def process_existing(self, document_id: object) -> ProcessedDocument:
+        """Process an already persisted document without creating a duplicate."""
+        document = self._ingest_document.get(document_id)
         extraction = self._extract_document.execute(document.id)
         if extraction.result is not None:
             logger.info(

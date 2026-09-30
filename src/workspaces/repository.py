@@ -29,6 +29,12 @@ class WorkspaceRepository:
             statement = statement.with_for_update()
         return await self._session.scalar(statement)
 
+    async def list_active_user_ids(self) -> list[UUID]:
+        statement = select(UserWorkspace.user_id).where(
+            UserWorkspace.status == WorkspaceStatus.ACTIVE
+        )
+        return list((await self._session.scalars(statement)).all())
+
     async def get_or_create(
         self,
         user_id: UUID,

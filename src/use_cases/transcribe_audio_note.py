@@ -1,4 +1,4 @@
-"""Create and transcribe persisted voice notes without creating Documents yet."""
+"""Create, transcribe, and persist voice notes as searchable Documents."""
 
 import logging
 from datetime import datetime
@@ -6,8 +6,11 @@ from pathlib import Path
 from uuid import UUID
 
 from src.domain.audio_notes import AudioNote, new_audio_note
+from src.domain.documents import NewDocument
 from src.services.audio_note_store import AudioNoteStore
+from src.services.document_store import DocumentAlreadyExistsError
 from src.services.transcription_provider import TranscriptionProvider
+from src.use_cases.ingest_and_extract_document import IngestAndExtractDocument
 
 logger = logging.getLogger(__name__)
 
@@ -51,14 +54,22 @@ class CreateAudioNote:
 
 
 class TranscribeAudioNote:
-    def __init__(self, store: AudioNoteStore, provider: TranscriptionProvider) -> None:
+    def __init__(
+        self,
+        store: AudioNoteStore,
+        provider: TranscriptionProvider,
+        document_processor: IngestAndExtractDocument,
+    ) -> None:
         self._store = store
         self._provider = provider
+        self._document_processor = document_processor
 
     def execute(self, note_id: UUID) -> AudioNote:
         note = self._store.get(note_id)
-        if note.status == "completed":
+        if note.status == "completed" and note.document_id is not None:
             return note
+        if note.status == "completed" and note.transcript is not None:
+            return self._persist_transcript(note)
         transcribing = note.model_copy(update={"status": "transcribing", "error": None})
         self._store.save(transcribing)
         try:
@@ -79,8 +90,47 @@ class TranscribeAudioNote:
             }
         )
         self._store.save(completed)
-        logger.info("audio_transcription_completed audio_note_id=%s", note_id)
+        return self._persist_transcript(completed)
+
+    def _persist_transcript(self, note: AudioNote) -> AudioNote:
+        assert note.transcript is not None
+        try:
+            new_document = NewDocument(
+                id=note.id,
+                content=note.transcript,
+                source="pwa_audio",
+                metadata={
+                    "audio_note_id": str(note.id),
+                    "filename": note.filename,
+                    "media_type": note.media_type,
+                    "transcription_provider": note.transcription_provider or "unknown",
+                    "transcription_model": note.transcription_model or "unknown",
+                },
+                authored_at=note.authored_at,
+            )
+            processed = self._document_processor.execute(new_document)
+        except DocumentAlreadyExistsError:
+            try:
+                processed = self._document_processor.process_existing(note.id)
+            except Exception:
+                return self._document_processing_failed(note)
+        except Exception:
+            return self._document_processing_failed(note)
+
+        completed = note.model_copy(
+            update={"document_id": processed.document.id, "document_error": None}
+        )
+        self._store.save(completed)
+        logger.info("audio_transcription_completed audio_note_id=%s", note.id)
         return completed
+
+    def _document_processing_failed(self, note: AudioNote) -> AudioNote:
+        logger.exception("audio_document_persistence_failed audio_note_id=%s", note.id)
+        failed_document = note.model_copy(
+            update={"document_error": "document_processing_failed"}
+        )
+        self._store.save(failed_document)
+        return failed_document
 
 
 def validate_audio_upload(

@@ -3,6 +3,7 @@ from uuid import UUID
 import pytest
 
 from src.config import Settings
+from src.workspaces import provisioning
 from src.workspaces.arcade_admin import RUNTIME_GROUP, ArcadeDBAdminClient, ArcadeDBAdminError
 from src.workspaces.repository import workspace_database_name, workspace_graph_username
 from src.workspaces.secrets import WorkspaceSecretCipher, WorkspaceSecretError
@@ -32,7 +33,9 @@ def test_workspace_secret_cipher_rejects_an_invalid_explicit_key() -> None:
         WorkspaceSecretCipher(workspace_settings(workspace_secret_key="not-a-fernet-key"))
 
 
-def test_admin_configures_a_crud_only_runtime_principal(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_admin_configures_a_schema_capable_runtime_principal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     admin = ArcadeDBAdminClient("http://arcade.test", "root", "root-password")
     calls: list[tuple[str, str, dict[str, object] | None]] = []
 
@@ -59,7 +62,7 @@ def test_admin_configures_a_crud_only_runtime_principal(monkeypatch: pytest.Monk
     group_payload = calls[0][2]
     assert group_payload is not None
     assert group_payload["name"] == RUNTIME_GROUP
-    assert group_payload["access"] == []
+    assert group_payload["access"] == ["updateSchema"]
     assert group_payload["types"] == {
         "*": {"access": ["createRecord", "readRecord", "updateRecord", "deleteRecord"]}
     }
@@ -96,3 +99,45 @@ def test_admin_rejects_an_unexpected_runtime_database_scope(
             username="es_u_123",
             password="technical-password",
         )
+
+
+@pytest.mark.anyio
+async def test_reconciliation_forces_active_workspaces_to_refresh_principals(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first_user = UUID("e3f4e7a0-5555-4f28-a7a0-9178d227a4c8")
+    second_user = UUID("181328cb-dba0-4b0d-b691-ee9f0b9a90f7")
+    provisioned: list[tuple[UUID, bool]] = []
+
+    class Session:
+        async def __aenter__(self) -> "Session":
+            return self
+
+        async def __aexit__(self, *args: object) -> None:
+            return None
+
+    class SessionMaker:
+        def __call__(self) -> Session:
+            return Session()
+
+    class Repository:
+        def __init__(self, session: Session) -> None:
+            pass
+
+        async def list_active_user_ids(self) -> list[UUID]:
+            return [first_user, second_user]
+
+    class Provisioner:
+        def __init__(self, *args: object) -> None:
+            pass
+
+        async def provision(self, user_id: UUID, *, force: bool = False) -> None:
+            provisioned.append((user_id, force))
+
+    monkeypatch.setattr(provisioning, "get_session_maker", lambda: SessionMaker())
+    monkeypatch.setattr(provisioning, "WorkspaceRepository", Repository)
+    monkeypatch.setattr(provisioning, "WorkspaceProvisioner", Provisioner)
+
+    await provisioning.reconcile_active_workspaces()
+
+    assert provisioned == [(first_user, True), (second_user, True)]

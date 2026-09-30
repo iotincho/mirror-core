@@ -1,6 +1,8 @@
 """HTTP entrypoint for the El Espejo POC."""
 
-from contextlib import asynccontextmanager
+import asyncio
+import logging
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
 
@@ -9,14 +11,30 @@ from src.config import get_settings
 from src.dependencies import close_graph_store
 from src.logging import configure_logging
 from src.user_management.database import close_database
+from src.workspaces.provisioning import reconcile_active_workspaces
+
+logger = logging.getLogger(__name__)
+
+
+async def _reconcile_workspaces_at_startup() -> None:
+    try:
+        await reconcile_active_workspaces()
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        logger.exception("workspace_reconciliation_failed")
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     configure_logging(get_settings().log_level)
+    reconciliation = asyncio.create_task(_reconcile_workspaces_at_startup())
     try:
         yield
     finally:
+        reconciliation.cancel()
+        with suppress(asyncio.CancelledError):
+            await reconciliation
         close_graph_store()
         await close_database()
 

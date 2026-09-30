@@ -75,3 +75,32 @@ async def get_audio_note(
     except AudioNoteNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
     return AudioNoteResponse(**note.model_dump())
+
+
+@router.post(
+    "/{audio_note_id}/documents",
+    response_model=AudioNoteResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def retry_audio_document_persistence(
+    audio_note_id: UUID,
+    background_tasks: BackgroundTasks,
+    store: Annotated[FileAudioNoteStore, Depends(get_audio_note_store)],
+    transcribe_use_case: Annotated[TranscribeAudioNote, Depends(get_transcribe_audio_note)],
+) -> AudioNoteResponse:
+    """Retry document creation for an already transcribed audio note."""
+    try:
+        note = store.get(audio_note_id)
+    except AudioNoteNotFoundError as error:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+
+    if note.status != "completed" or note.transcript is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Audio transcription has not completed",
+        )
+    if note.document_id is not None:
+        return AudioNoteResponse(**note.model_dump())
+
+    background_tasks.add_task(transcribe_use_case.execute, note.id)
+    return AudioNoteResponse(**note.model_dump())

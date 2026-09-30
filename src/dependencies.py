@@ -156,12 +156,6 @@ async def get_create_audio_note(
     return CreateAudioNote(audio_note_store, get_settings().audio_max_upload_bytes)
 
 
-async def get_transcribe_audio_note(
-    audio_note_store: Annotated[FileAudioNoteStore, Depends(get_audio_note_store)],
-) -> TranscribeAudioNote:
-    return TranscribeAudioNote(audio_note_store, get_transcription_provider())
-
-
 async def get_ingest_document_file(
     document_store: Annotated[FileDocumentStore, Depends(get_document_store)],
 ) -> IngestDocumentFile:
@@ -244,6 +238,21 @@ async def get_ingest_and_extract_document(
     return IngestAndExtractDocument(
         IngestDocument(document_store),
         extract_persist_and_embed,
+    )
+
+
+async def get_transcribe_audio_note(
+    audio_note_store: Annotated[FileAudioNoteStore, Depends(get_audio_note_store)],
+    document_processor: Annotated[
+        IngestAndExtractDocument,
+        Depends(get_ingest_and_extract_document),
+    ],
+) -> TranscribeAudioNote:
+    """Keep audio transcription and its derived document in the same workspace."""
+    return TranscribeAudioNote(
+        audio_note_store,
+        get_transcription_provider(),
+        document_processor,
     )
 
 

@@ -13,6 +13,10 @@ from src.graph.arcadedb.client import ArcadeDBClientError, ArcadeDBHTTPClient
 
 RUNTIME_GROUP = "el_espejo_runtime"
 _CRUD_ACCESS = ["createRecord", "readRecord", "updateRecord", "deleteRecord"]
+# ArcadeDB 26.9.1 validates schema access while executing the parameterized Cypher
+# MERGE statements used by the graph writer. The principal is server-owned and can
+# access only one per-user database, so this permission cannot cross tenant bounds.
+_DATABASE_ACCESS = ["updateSchema"]
 
 
 class ArcadeDBAdminError(ArcadeDBClientError):
@@ -57,7 +61,7 @@ class ArcadeDBAdminClient:
             payload={
                 "database": database_name,
                 "name": RUNTIME_GROUP,
-                "access": [],
+                "access": _DATABASE_ACCESS,
                 "types": {"*": {"access": _CRUD_ACCESS}},
                 "resultSetLimit": -1,
                 "readTimeout": -1,

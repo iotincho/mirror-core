@@ -73,7 +73,7 @@ class WorkspaceProvisioner:
                 arcadedb_instance_key=self._settings.arcadedb_instance_key,
                 graph_secret_ciphertext=self._cipher.encrypt(secrets.token_urlsafe(32)),
             )
-            if workspace.status == WorkspaceStatus.ACTIVE:
+            if workspace.status == WorkspaceStatus.ACTIVE and not force:
                 return None, workspace
             if workspace.status == WorkspaceStatus.PROVISIONING and not force:
                 return None, workspace
@@ -161,3 +161,18 @@ async def provision_workspace_for_user(user_id: UUID) -> UserWorkspace:
     """Registration hook. Failures are persisted as workspace state, not raised to auth."""
     provisioner = WorkspaceProvisioner(get_session_maker(), get_settings())
     return await provisioner.provision(user_id)
+
+
+async def reconcile_active_workspaces() -> None:
+    """Refresh the server-owned ArcadeDB principal for every active workspace.
+
+    Group definitions are not stored in PostgreSQL, so this repairs permission policy
+    changes for workspaces that predate the currently running application version.
+    """
+    session_maker = get_session_maker()
+    async with session_maker() as session:
+        user_ids = await WorkspaceRepository(session).list_active_user_ids()
+
+    provisioner = WorkspaceProvisioner(session_maker, get_settings())
+    for user_id in user_ids:
+        await provisioner.provision(user_id, force=True)

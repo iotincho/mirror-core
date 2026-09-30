@@ -76,6 +76,25 @@ class Settings(BaseSettings):
         validation_alias="WORKSPACE_SECRET_KEY",
         repr=False,
     )
+    google_oauth_client_id: str | None = Field(
+        default=None,
+        validation_alias="GOOGLE_OAUTH_CLIENT_ID",
+        repr=False,
+    )
+    google_oauth_client_secret: str | None = Field(
+        default=None,
+        validation_alias="GOOGLE_OAUTH_CLIENT_SECRET",
+        repr=False,
+    )
+    google_oauth_redirect_url: str | None = Field(
+        default=None,
+        validation_alias="GOOGLE_OAUTH_REDIRECT_URL",
+    )
+    google_oauth_state_secret: str | None = Field(
+        default=None,
+        validation_alias="GOOGLE_OAUTH_STATE_SECRET",
+        repr=False,
+    )
     auth_session_ttl_seconds: int = Field(
         default=604800,
         validation_alias="AUTH_SESSION_TTL_SECONDS",

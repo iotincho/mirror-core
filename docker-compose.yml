@@ -13,6 +13,7 @@ services:
       ARCADEDB_ROOT_PASSWORD: ${ARCADEDB_ROOT_PASSWORD:-el-espejo-local-password}
       DOCUMENTS_PATH: /data/documents
       EXTRACTIONS_PATH: /data/extractions
+      WORKSPACES_PATH: /data/users
     volumes:
       - core_data:/data
       - ./src:/app/src

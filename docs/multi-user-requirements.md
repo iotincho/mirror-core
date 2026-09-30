@@ -1,10 +1,10 @@
 # Requisitos multiusuario
 
-Estado: arquitectura inicial acordada
+Estado: etapas 1 a 4 implementadas; aislamiento offline de la PWA pendiente
 Fecha: 2026-09-30
 
-Este documento registra las definiciones acordadas y las decisiones pendientes para convertir El
-Espejo en una aplicación multiusuario. No describe una implementación terminada.
+Este documento registra las definiciones acordadas, lo ya implementado y las decisiones pendientes
+para convertir El Espejo en una aplicación multiusuario.
 
 ## Objetivos
 
@@ -126,6 +126,10 @@ Los casos de uso no reciben nombres de base, credenciales ni tipos de autenticac
   local sólo porque coincida el email.
 - La asociación de Google a una cuenta local existente requiere una sesión válida de esa cuenta.
 
+Implementado en las etapas 1 y 2: usuarios UUID en PostgreSQL, migraciones Alembic, cookie
+revocable, login/registro/logout local y `GET /auth/session`. La tabla de cuentas OAuth está
+preparada, pero el proveedor Google aún no se expone.
+
 FastAPI Users está en modo mantenimiento: continúa recibiendo actualizaciones de seguridad y
 dependencias, pero no funcionalidades nuevas. Por eso su encapsulación es un requisito y no sólo una
 preferencia de organización.
@@ -167,6 +171,11 @@ cambiar el contrato de la aplicación.
 Los nombres son opacos, generados por el backend y nunca derivados del email ni proporcionados por
 el frontend. La contraseña técnica de ArcadeDB es aleatoria, diferente de la contraseña de login y
 se almacena cifrada o mediante una referencia a un secret store.
+
+Implementado en etapa 3 como `user_graphs`: los nombres son deterministas y opacos a partir del
+UUID, mientras que la contraseña técnica se genera aleatoriamente y se guarda con Fernet. Puede
+configurarse con `WORKSPACE_SECRET_KEY`; si se omite, se deriva una clave separada de
+`AUTH_SESSION_SECRET`. Ninguno de esos valores llega a la API ni a los casos de uso.
 
 ## Aislamiento del grafo
 
@@ -248,14 +257,17 @@ Aunque el grafo sea una base independiente, también se requiere:
 
 ## Plan por etapas
 
-1. **Módulo de usuarios:** PostgreSQL, Alembic y FastAPI Users encapsulado en
+1. **Módulo de usuarios (implementada):** PostgreSQL, Alembic y FastAPI Users encapsulado en
    `src/user_management`.
-2. **Contrato de sesión:** `AuthenticatedUser`, `GET /auth/session` y redirección de la PWA ante
-   `401`.
-3. **Workspaces:** tabla `user_graphs`, `UserWorkspace` y provisionador idempotente de bases y
-   principales restringidos.
-4. **Backend aislado:** construcción de graph store y file stores por workspace; propagación segura
-   del contexto a procesos en background.
+2. **Contrato de sesión (implementada):** `AuthenticatedUser`, `GET /auth/session` y retorno de
+   la PWA al login cuando la sesión inicial es inválida.
+3. **Workspaces (implementada):** tabla `user_graphs`, `UserWorkspace` y provisionador idempotente
+   de bases y principales restringidos. El registro crea el usuario y solicita el aprovisionamiento;
+   un fallo queda en estado `failed` y no invalida la cuenta.
+4. **Backend aislado (implementada):** cada request resuelve su `UserWorkspace` activo desde la
+   sesión; construye graph, documentos, audio, extracciones y reflexiones bajo
+   `WORKSPACES_PATH/<user_id>/`. Los procesos de background conservan el store ya limitado al
+   usuario que los originó. El backend no usa el grafo ni directorios globales en rutas protegidas.
 5. **PWA aislada:** sesión con `user_id`, Dexie por usuario, cierre del contexto anterior y manejo
    global de `401`.
 6. **Google:** login OAuth y asociación explícita con una cuenta autenticada.

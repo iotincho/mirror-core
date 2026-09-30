@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     reflections_path: Path = Field(
         default=Path("data/reflections"), validation_alias="REFLECTIONS_PATH"
     )
+    workspaces_path: Path = Field(
+        default=Path("data/users"),
+        validation_alias="WORKSPACES_PATH",
+    )
     llm_provider: str = Field(default="openai", validation_alias="LLM_PROVIDER")
     openai_api_key: str | None = Field(default=None, validation_alias="OPENAI_API_KEY", repr=False)
     openai_model: str | None = Field(default=None, validation_alias="OPENAI_MODEL")

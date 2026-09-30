@@ -37,6 +37,13 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, UUID]):
 
     async def on_after_register(self, user: User, request: Request | None = None) -> None:
         logger.info("user_registered user_id=%s", user.id)
+        # This is an event boundary: user_management neither exposes nor owns the
+        # workspace implementation. A provisioning failure is represented in
+        # PostgreSQL and can be reconciled without invalidating the new account.
+        from src.workspaces.provisioning import provision_workspace_for_user
+
+        workspace = await provision_workspace_for_user(user.id)
+        logger.info("workspace_registration_result user_id=%s status=%s", user.id, workspace.status)
 
 
 async def get_user_manager(

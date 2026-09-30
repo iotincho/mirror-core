@@ -30,6 +30,10 @@ class Settings(BaseSettings):
         validation_alias="ARCADEDB_ROOT_PASSWORD",
         repr=False,
     )
+    arcadedb_instance_key: str = Field(
+        default="primary",
+        validation_alias="ARCADEDB_INSTANCE_KEY",
+    )
     documents_path: Path = Field(default=Path("data/documents"), validation_alias="DOCUMENTS_PATH")
     audio_notes_path: Path = Field(
         default=Path("data/audio-notes"), validation_alias="AUDIO_NOTES_PATH"
@@ -61,6 +65,11 @@ class Settings(BaseSettings):
     auth_session_secret: str | None = Field(
         default=None,
         validation_alias="AUTH_SESSION_SECRET",
+        repr=False,
+    )
+    workspace_secret_key: str | None = Field(
+        default=None,
+        validation_alias="WORKSPACE_SECRET_KEY",
         repr=False,
     )
     auth_session_ttl_seconds: int = Field(

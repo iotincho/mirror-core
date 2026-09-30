@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Resumable baseline loader with a timeout suitable for synchronous extraction."""
+"""Resumable baseline loader using an explicit authenticated session cookie."""
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
@@ -11,7 +12,6 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from ingest_alex_diary import load_fixtures
-
 
 API_URL = os.environ.get("API_URL", "http://localhost:8080/api").rstrip("/")
 REQUEST_TIMEOUT_SECONDS = 180
@@ -26,19 +26,14 @@ def post(path: str, payload: dict, cookie: str | None = None):
 
 
 def main() -> int:
-    username = os.environ.get("AUTH_USERNAME")
-    password = os.environ.get("AUTH_PASSWORD")
-    if not username or not password:
-        print("Missing El Espejo authentication environment variables", file=sys.stderr)
-        return 2
-
-    with post("/auth/login", {"username": username, "password": password}) as response:
-        cookie = response.headers["Set-Cookie"].split(";", 1)[0]
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--cookie", required=True, help="Authenticated el_espejo_session cookie")
+    args = parser.parse_args()
 
     for _, payload in load_fixtures(Path("data/fixtures/alex-diary"), "baseline"):
         note = payload["metadata"]["note_number"]
         try:
-            with post("/documents", payload, cookie) as response:
+            with post("/documents", payload, args.cookie) as response:
                 print(f"LOADED {note}: HTTP {response.status}", flush=True)
         except HTTPError as error:
             if error.code == 409:

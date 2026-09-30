@@ -8,6 +8,7 @@ from src.api.router import api_router
 from src.config import get_settings
 from src.dependencies import close_graph_store
 from src.logging import configure_logging
+from src.user_management.database import close_database
 
 
 @asynccontextmanager
@@ -17,6 +18,7 @@ async def lifespan(_: FastAPI):
         yield
     finally:
         close_graph_store()
+        await close_database()
 
 
 app = FastAPI(

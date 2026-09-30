@@ -6,6 +6,7 @@ services:
       - .env.local
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
     environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-el_espejo}:${POSTGRES_PASSWORD:-el-espejo-local-password}@postgres:5432/${POSTGRES_DB:-el_espejo}
       ARCADEDB_HTTP_URL: http://arcadedb:2480
       ARCADEDB_DATABASE: ${ARCADEDB_DATABASE:-el_espejo}
       ARCADEDB_USERNAME: root
@@ -26,6 +27,21 @@ services:
         condition: service_healthy
       arcadedb-schema:
         condition: service_completed_successfully
+      database-migrations:
+        condition: service_completed_successfully
+
+  database-migrations:
+    build:
+      context: .
+    env_file:
+      - .env.local
+    command: alembic upgrade head
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-el_espejo}:${POSTGRES_PASSWORD:-el-espejo-local-password}@postgres:5432/${POSTGRES_DB:-el_espejo}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
 
   arcadedb-schema:
     build:
@@ -94,7 +110,23 @@ services:
       retries: 20
       start_period: 15s
 
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-el_espejo}
+      POSTGRES_USER: ${POSTGRES_USER:-el_espejo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-el-espejo-local-password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-el_espejo} -d ${POSTGRES_DB:-el_espejo}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
 volumes:
   arcadedb_data:
   pwa_node_modules:
   core_data:
+  postgres_data:

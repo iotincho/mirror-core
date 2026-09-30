@@ -14,6 +14,11 @@ class Settings(BaseSettings):
 
     environment: str = Field(default="development", validation_alias="ENVIRONMENT")
     log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
+    database_url: str = Field(
+        default="postgresql+asyncpg://el_espejo:el-espejo-local-password@localhost:5432/el_espejo",
+        validation_alias="DATABASE_URL",
+        repr=False,
+    )
     arcadedb_http_url: str = Field(
         default="http://localhost:2480",
         validation_alias="ARCADEDB_HTTP_URL",
@@ -53,8 +58,6 @@ class Settings(BaseSettings):
         default="text-embedding-3-small",
         validation_alias="OPENAI_EMBEDDING_MODEL",
     )
-    auth_username: str | None = Field(default=None, validation_alias="AUTH_USERNAME")
-    auth_password: str | None = Field(default=None, validation_alias="AUTH_PASSWORD", repr=False)
     auth_session_secret: str | None = Field(
         default=None,
         validation_alias="AUTH_SESSION_SECRET",

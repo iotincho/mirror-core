@@ -21,6 +21,13 @@ class RelationshipType(str, Enum):
     SUPPORTS = "SUPPORTS"
     CONTRADICTS = "CONTRADICTS"
     ABOUT = "ABOUT"
+    EXPRESSES_EMOTION = "EXPRESSES_EMOTION"
+    DESIRES = "DESIRES"
+    FEARS = "FEARS"
+    VALUES = "VALUES"
+    QUESTIONS = "QUESTIONS"
+    DECIDES = "DECIDES"
+    ASSOCIATES_WITH = "ASSOCIATES_WITH"
 
 
 class ExtractionModel(BaseModel):

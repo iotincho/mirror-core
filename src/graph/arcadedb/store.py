@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from contextlib import AbstractContextManager
 from typing import Any, Protocol
 
+from src.constellation.contracts import CrossDocumentLink
 from src.domain.documents import Document
 from src.embeddings.contracts import (
     ClaimEmbeddingRecord,
@@ -30,7 +32,10 @@ from src.services.reflection_context_store import ReflectionContextStoreError
 logger = logging.getLogger(__name__)
 
 _ITEM_TYPES = {"Concept", "Entity", "Claim"}
-_RELATION_TYPES = {"ABOUT", "RELATES_TO", "SUPPORTS", "CONTRADICTS"}
+_RELATION_TYPES = {
+    "ABOUT", "RELATES_TO", "SUPPORTS", "CONTRADICTS", "EXPRESSES_EMOTION",
+    "DESIRES", "FEARS", "VALUES", "QUESTIONS", "DECIDES", "ASSOCIATES_WITH",
+}
 
 
 class ArcadeDBCommandClient(Protocol):
@@ -248,6 +253,38 @@ class ArcadeDBGraphStore(GraphBackend):
         except Exception as error:
             raise ReflectionContextStoreError(
                 "ArcadeDB reflection context retrieval failed"
+            ) from error
+
+    def persist_cross_document_links(self, links: list[CrossDocumentLink]) -> None:
+        """Persist proposed links atomically inside the current user's database."""
+        if not links:
+            return
+        rows = []
+        for link in links:
+            if link.source_document_id == link.target_document_id:
+                raise GraphPersistenceError("Cross-document links require distinct documents")
+            identity = ":".join((link.profile, link.source_claim_id, link.target_claim_id,
+                                 link.relation_type.value))
+            rows.append({
+                "id": hashlib.sha256(identity.encode()).hexdigest(),
+                "source_claim_id": link.source_claim_id,
+                "target_claim_id": link.target_claim_id,
+                "source_document_id": link.source_document_id,
+                "target_document_id": link.target_document_id,
+                "relation_type": link.relation_type.value,
+                "profile": link.profile,
+                "evidence_json": json.dumps({
+                    "source": [item.model_dump() for item in link.source_evidence],
+                    "target": [item.model_dump() for item in link.target_evidence],
+                }, ensure_ascii=False),
+            })
+        try:
+            with self._client.transaction() as transaction:
+                transaction.command(queries.CROSS_DOCUMENT_LINKS, {"rows": rows},
+                                    language="cypher")
+        except Exception as error:
+            raise GraphPersistenceError(
+                "ArcadeDB cross-document link persistence failed"
             ) from error
 
     def delete_document(self, document_id: str) -> None:

@@ -2,11 +2,13 @@ from contextlib import contextmanager
 from datetime import UTC, datetime
 from uuid import uuid4
 
+from src.constellation.contracts import CrossDocumentLink, LinkType
 from src.domain.documents import Document
 from src.embeddings.contracts import (
     ClaimEmbeddingRecord,
     DocumentEmbeddingRecord,
     EmbeddingSpec,
+    EvidenceReference,
 )
 from src.extraction.contracts import (
     Claim,
@@ -123,6 +125,28 @@ def test_persist_writes_full_extraction_inside_one_transaction() -> None:
     assert "relationship:ABOUT" in joined
     assert "MERGE (evidence:Evidence" in joined
     assert all(language == "cypher" for _, _, language in client.commands)
+
+
+def test_cross_document_links_keep_both_evidence_spans_in_one_transaction() -> None:
+    client = FakeArcadeDBClient()
+    link = CrossDocumentLink(
+        source_claim_id="run-a:claim:1", target_claim_id="run-b:claim:2",
+        source_document_id="doc-a", target_document_id="doc-b",
+        relation_type=LinkType.REVISITS,
+        source_evidence=[EvidenceReference(quote="Quiero pintar")],
+        target_evidence=[EvidenceReference(quote="Volví a pintar")],
+        similarity=0.81,
+    )
+
+    build_store(client).persist_cross_document_links([link, link])
+
+    assert client.transaction_count == 1
+    statement, params, language = client.commands[0]
+    assert "CROSS_DOCUMENT_LINK" in statement
+    assert language == "cypher"
+    assert params["rows"][0]["id"] == params["rows"][1]["id"]
+    assert '"source": [{"quote": "Quiero pintar"' in params["rows"][0]["evidence_json"]
+    assert '"target": [{"quote": "Volví a pintar"' in params["rows"][0]["evidence_json"]
 
 
 def test_claim_embedding_search_preserves_neighbor_order_and_hydrates_context() -> None:

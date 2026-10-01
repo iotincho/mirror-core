@@ -121,10 +121,12 @@ RETURN claim.id AS claim_id,
 """
 
 CLAIM_RELATIONS = """
-MATCH (source:Claim)-[relationship:ABOUT|RELATES_TO|SUPPORTS|CONTRADICTS]->(target)
+MATCH (source:Claim)-[relationship:ABOUT|RELATES_TO|SUPPORTS|CONTRADICTS|
+    EXPRESSES_EMOTION|DESIRES|FEARS|VALUES|QUESTIONS|DECIDES|
+    ASSOCIATES_WITH|CROSS_DOCUMENT_LINK]->(target)
 WHERE source.id IN $claim_ids
 RETURN source.id AS source_claim_id,
-       type(relationship) AS relation_type,
+       coalesce(relationship.relation_type, type(relationship)) AS relation_type,
        target.id AS target_id,
        CASE
            WHEN target:Claim THEN 'claim'
@@ -134,6 +136,17 @@ RETURN source.id AS source_claim_id,
        END AS target_kind,
        coalesce(target.text, target.name) AS target_text
 ORDER BY source_claim_id, relation_type, target_id
+"""
+
+CROSS_DOCUMENT_LINKS = """
+UNWIND $rows AS row
+MATCH (source:Claim {id: row.source_claim_id}), (target:Claim {id: row.target_claim_id})
+MERGE (source)-[link:CROSS_DOCUMENT_LINK {id: row.id}]->(target)
+SET link.relation_type = row.relation_type,
+    link.profile = row.profile,
+    link.source_document_id = row.source_document_id,
+    link.target_document_id = row.target_document_id,
+    link.evidence_json = row.evidence_json
 """
 
 DELETE_DOCUMENT = """

@@ -14,6 +14,11 @@ class Settings(BaseSettings):
 
     environment: str = Field(default="development", validation_alias="ENVIRONMENT")
     log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
+    database_url: str = Field(
+        default="postgresql+asyncpg://el_espejo:el-espejo-local-password@localhost:5432/el_espejo",
+        validation_alias="DATABASE_URL",
+        repr=False,
+    )
     arcadedb_http_url: str = Field(
         default="http://localhost:2480",
         validation_alias="ARCADEDB_HTTP_URL",
@@ -25,6 +30,10 @@ class Settings(BaseSettings):
         validation_alias="ARCADEDB_ROOT_PASSWORD",
         repr=False,
     )
+    arcadedb_instance_key: str = Field(
+        default="primary",
+        validation_alias="ARCADEDB_INSTANCE_KEY",
+    )
     documents_path: Path = Field(default=Path("data/documents"), validation_alias="DOCUMENTS_PATH")
     audio_notes_path: Path = Field(
         default=Path("data/audio-notes"), validation_alias="AUDIO_NOTES_PATH"
@@ -34,6 +43,10 @@ class Settings(BaseSettings):
     )
     reflections_path: Path = Field(
         default=Path("data/reflections"), validation_alias="REFLECTIONS_PATH"
+    )
+    workspaces_path: Path = Field(
+        default=Path("data/users"),
+        validation_alias="WORKSPACES_PATH",
     )
     llm_provider: str = Field(default="openai", validation_alias="LLM_PROVIDER")
     openai_api_key: str | None = Field(default=None, validation_alias="OPENAI_API_KEY", repr=False)
@@ -53,11 +66,33 @@ class Settings(BaseSettings):
         default="text-embedding-3-small",
         validation_alias="OPENAI_EMBEDDING_MODEL",
     )
-    auth_username: str | None = Field(default=None, validation_alias="AUTH_USERNAME")
-    auth_password: str | None = Field(default=None, validation_alias="AUTH_PASSWORD", repr=False)
     auth_session_secret: str | None = Field(
         default=None,
         validation_alias="AUTH_SESSION_SECRET",
+        repr=False,
+    )
+    workspace_secret_key: str | None = Field(
+        default=None,
+        validation_alias="WORKSPACE_SECRET_KEY",
+        repr=False,
+    )
+    google_oauth_client_id: str | None = Field(
+        default=None,
+        validation_alias="GOOGLE_OAUTH_CLIENT_ID",
+        repr=False,
+    )
+    google_oauth_client_secret: str | None = Field(
+        default=None,
+        validation_alias="GOOGLE_OAUTH_CLIENT_SECRET",
+        repr=False,
+    )
+    google_oauth_redirect_url: str | None = Field(
+        default=None,
+        validation_alias="GOOGLE_OAUTH_REDIRECT_URL",
+    )
+    google_oauth_state_secret: str | None = Field(
+        default=None,
+        validation_alias="GOOGLE_OAUTH_STATE_SECRET",
         repr=False,
     )
     auth_session_ttl_seconds: int = Field(

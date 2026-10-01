@@ -5,12 +5,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from datetime import UTC, datetime
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
-
 
 QUESTIONS = (
     ("01", "baseline", "¿Qué propuesta laboral recibí y por qué la rechacé?", ("06", "09")),
@@ -54,15 +52,10 @@ def main() -> int:
     parser.add_argument("--phase", choices=("baseline", "incremental"), required=True)
     parser.add_argument("--api-url", default="http://localhost:8080/api")
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--cookie", required=True, help="Authenticated el_espejo_session cookie")
     args = parser.parse_args()
-    username = os.environ["AUTH_USERNAME"]
-    password = os.environ["AUTH_PASSWORD"]
     base_url = args.api_url.rstrip("/")
-    # Fetch a session cookie; it is returned as an HTTP header rather than JSON.
-    login_request = Request(f"{base_url}/auth/login", data=json.dumps({"username": username, "password": password}).encode(), headers={"Content-Type": "application/json"}, method="POST")
-    with urlopen(login_request, timeout=30) as response:  # noqa: S310
-        cookie = response.headers["Set-Cookie"].split(";", 1)[0]
-    documents = request_json(f"{base_url}/documents", cookie=cookie)
+    documents = request_json(f"{base_url}/documents", cookie=args.cookie)
     note_by_document = {item["id"]: item["metadata"].get("note_number") for item in documents}
     results = json.loads(args.output.read_text(encoding="utf-8"))["results"] if args.output.exists() else []
     completed_test_ids = {item["test_id"] for item in results}
@@ -70,8 +63,8 @@ def main() -> int:
     for test_id, phase, question, expected_notes in QUESTIONS:
         if phase != args.phase or test_id in completed_test_ids:
             continue
-        vector = request_json(f"{base_url}/search", method="POST", payload={"query": question, "limit": 20}, cookie=cookie)
-        reflection = request_json(f"{base_url}/resolve", method="POST", payload={"question": question, "limit": 20, "profile_name": "v1"}, cookie=cookie)
+        vector = request_json(f"{base_url}/search", method="POST", payload={"query": question, "limit": 20}, cookie=args.cookie)
+        reflection = request_json(f"{base_url}/resolve", method="POST", payload={"question": question, "limit": 20, "profile_name": "v1"}, cookie=args.cookie)
         if "_error" in reflection:
             results.append({"test_id": test_id, "question": question, "expected_note_numbers": expected_notes, "strategy": "hybrid (claim vector retrieval plus graph relations)", "error": reflection["_error"], "vector_results": vector})
             args.output.write_text(json.dumps({"run_at": datetime.now(UTC).isoformat(), "phase": args.phase, "document_count": len(documents), "results": results}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

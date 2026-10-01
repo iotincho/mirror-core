@@ -14,3 +14,7 @@ class IngestDocument:
         document = build_document(new_document)
         self._document_store.save(document)
         return document
+
+    def get(self, document_id: object) -> Document:
+        """Retrieve already stored material for a retryable processing flow."""
+        return self._document_store.get(document_id)

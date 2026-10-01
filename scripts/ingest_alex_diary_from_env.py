@@ -1,38 +1,32 @@
 #!/usr/bin/env python3
-"""Load Alex diary fixtures using credentials supplied through environment variables."""
+"""Load Alex diary fixtures using an explicit authenticated session cookie."""
 
 from __future__ import annotations
 
+import argparse
 import os
 import sys
 from pathlib import Path
 from urllib.error import HTTPError
 
-from ingest_alex_diary import format_http_error, load_fixtures, login, request_json
-
+from ingest_alex_diary import format_http_error, load_fixtures, request_json
 
 API_URL = os.environ.get("API_URL", "http://localhost:8080/api").rstrip("/")
 
 
 def main() -> int:
-    username = os.environ.get("AUTH_USERNAME")
-    password = os.environ.get("AUTH_PASSWORD")
-    if not username or not password:
-        print("AUTH_USERNAME and AUTH_PASSWORD are required", file=sys.stderr)
-        return 2
-
-    try:
-        cookie = login(API_URL, username, password)
-    except Exception as error:
-        print(f"Authentication failed: {format_http_error(error)}", file=sys.stderr)
-        return 1
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--api-url", default=API_URL)
+    parser.add_argument("--cookie", required=True, help="Authenticated el_espejo_session cookie")
+    args = parser.parse_args()
+    api_url = args.api_url.rstrip("/")
 
     loaded = 0
     skipped = 0
     for path, payload in load_fixtures(Path("data/fixtures/alex-diary"), "baseline"):
         note_number = payload["metadata"]["note_number"]
         try:
-            status, _, _ = request_json(f"{API_URL}/documents", payload, cookie)
+            status, _, _ = request_json(f"{api_url}/documents", payload, args.cookie)
         except HTTPError as error:
             if error.code != 409:
                 print(f"FAILED {note_number}: {format_http_error(error)}", file=sys.stderr)

@@ -1,11 +1,20 @@
 from src.config import Settings
 
 
+def test_settings_read_database_url_from_environment(monkeypatch) -> None:
+    database_url = "postgresql+asyncpg://app:secret@postgres/users"
+    monkeypatch.setenv("DATABASE_URL", database_url)
+
+    assert Settings().database_url == database_url
+
+
 def test_settings_read_arcadedb_values_from_environment(monkeypatch) -> None:
     monkeypatch.setenv("ARCADEDB_HTTP_URL", "http://graph:2480")
     monkeypatch.setenv("ARCADEDB_DATABASE", "test-db")
     monkeypatch.setenv("ARCADEDB_USERNAME", "test-user")
     monkeypatch.setenv("ARCADEDB_ROOT_PASSWORD", "test-password")
+    monkeypatch.setenv("ARCADEDB_INSTANCE_KEY", "secondary")
+    monkeypatch.setenv("WORKSPACES_PATH", "/srv/users")
 
     settings = Settings()
 
@@ -13,3 +22,5 @@ def test_settings_read_arcadedb_values_from_environment(monkeypatch) -> None:
     assert settings.arcadedb_database == "test-db"
     assert settings.arcadedb_username == "test-user"
     assert settings.arcadedb_password == "test-password"
+    assert settings.arcadedb_instance_key == "secondary"
+    assert str(settings.workspaces_path) == "/srv/users"

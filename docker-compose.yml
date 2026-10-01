@@ -6,19 +6,21 @@ services:
       - .env.local
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
     environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-el_espejo}:${POSTGRES_PASSWORD:-el-espejo-local-password}@postgres:5432/${POSTGRES_DB:-el_espejo}
       ARCADEDB_HTTP_URL: http://arcadedb:2480
       ARCADEDB_DATABASE: ${ARCADEDB_DATABASE:-el_espejo}
       ARCADEDB_USERNAME: root
       ARCADEDB_ROOT_PASSWORD: ${ARCADEDB_ROOT_PASSWORD:-el-espejo-local-password}
       DOCUMENTS_PATH: /data/documents
       EXTRACTIONS_PATH: /data/extractions
+      WORKSPACES_PATH: /data/users
     volumes:
       - core_data:/data
       - ./src:/app/src
     healthcheck:
       test:
         ["CMD", "python", "-c", "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/health')"]
-      interval: 5s
+      interval: 60s
       timeout: 30s
       retries: 10
     depends_on:
@@ -26,6 +28,21 @@ services:
         condition: service_healthy
       arcadedb-schema:
         condition: service_completed_successfully
+      database-migrations:
+        condition: service_completed_successfully
+
+  database-migrations:
+    build:
+      context: .
+    env_file:
+      - .env.local
+    command: alembic upgrade head
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-el_espejo}:${POSTGRES_PASSWORD:-el-espejo-local-password}@postgres:5432/${POSTGRES_DB:-el_espejo}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
 
   arcadedb-schema:
     build:
@@ -89,12 +106,30 @@ services:
       - arcadedb_data:/home/arcadedb/databases
     healthcheck:
       test: ["CMD-SHELL", "wget --quiet --spider http://127.0.0.1:2480/api/v1/ready"]
-      interval: 5s
+      interval: 60s
       timeout: 5s
       retries: 20
       start_period: 15s
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-el_espejo}
+      POSTGRES_USER: ${POSTGRES_USER:-el_espejo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-el-espejo-local-password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-el_espejo} -d ${POSTGRES_DB:-el_espejo}"]
+      interval: 60s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
 
 volumes:
   arcadedb_data:
   pwa_node_modules:
   core_data:
+  postgres_data:

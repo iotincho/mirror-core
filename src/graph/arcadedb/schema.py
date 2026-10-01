@@ -10,7 +10,7 @@ from typing import Any, Protocol
 from src.embeddings.contracts import EmbeddingSpec
 from src.graph.arcadedb.client import ArcadeDBClientError, ArcadeDBHTTPClient
 
-SCHEMA_VERSION = "v2"
+SCHEMA_VERSION = "v3"
 
 
 class ArcadeDBSchemaError(ArcadeDBClientError):
@@ -214,6 +214,8 @@ def schema_statements(spec: EmbeddingSpec) -> tuple[str, ...]:
         (
             "CREATE EDGE TYPE CROSS_DOCUMENT_LINK IF NOT EXISTS",
             "CREATE PROPERTY CROSS_DOCUMENT_LINK.id IF NOT EXISTS STRING "
+            "(MANDATORY true, NOTNULL true)",
+            "CREATE PROPERTY CROSS_DOCUMENT_LINK.link_id IF NOT EXISTS STRING "
             "(MANDATORY true, NOTNULL true)",
             "CREATE PROPERTY CROSS_DOCUMENT_LINK.relation_type IF NOT EXISTS STRING",
             "CREATE PROPERTY CROSS_DOCUMENT_LINK.profile IF NOT EXISTS STRING",

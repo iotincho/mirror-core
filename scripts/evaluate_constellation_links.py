@@ -4,9 +4,13 @@ import argparse
 import json
 from pathlib import Path
 
+SYMMETRIC_RELATION_TYPES = {"SAME_REFERENT", "IN_TENSION"}
+
 
 def key(item: dict) -> tuple[str, str, str]:
-    left, right = sorted((item["source_document_id"], item["target_document_id"]))
+    left, right = item["source_document_id"], item["target_document_id"]
+    if item["relation_type"] in SYMMETRIC_RELATION_TYPES:
+        left, right = sorted((left, right))
     return left, right, item["relation_type"]
 
 

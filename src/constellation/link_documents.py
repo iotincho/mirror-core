@@ -89,20 +89,17 @@ class LinkDocuments:
                     raise ValueError(
                         "Link provider referenced a claim outside retrieved candidates"
                     )
-                if choice.relation_type == LinkType.SHIFTS and (
-                    source_authored_at is None or candidate.document_authored_at is None
-                ):
-                    continue
-                link = CrossDocumentLink(
-                    source_claim_id=f"{extraction.id}:claim:{claim.id}",
-                    target_claim_id=candidate.claim_id,
-                    source_document_id=str(extraction.document_id),
-                    target_document_id=candidate.document_id,
-                    relation_type=choice.relation_type,
+                link = self._build_link(
+                    extraction_id=str(extraction.id),
+                    extraction_document_id=str(extraction.document_id),
+                    claim_id=claim.id,
                     source_evidence=source_evidence,
-                    target_evidence=candidate.evidence,
-                    similarity=candidate.score,
+                    source_authored_at=source_authored_at,
+                    candidate=candidate,
+                    relation_type=choice.relation_type,
                 )
+                if link is None:
+                    continue
                 if link not in links:
                     links.append(link)
         if persist and links:
@@ -113,4 +110,59 @@ class LinkDocuments:
             compared_pairs=compared_pairs,
             persisted=persist,
             links=links,
+        )
+
+    @staticmethod
+    def _build_link(
+        *,
+        extraction_id: str,
+        extraction_document_id: str,
+        claim_id: str,
+        source_evidence: list[EvidenceReference],
+        source_authored_at: datetime | None,
+        candidate: SimilarClaim,
+        relation_type: LinkType,
+    ) -> CrossDocumentLink | None:
+        """Return a stable orientation without turning symmetric links into timelines."""
+        link = CrossDocumentLink(
+            source_claim_id=f"{extraction_id}:claim:{claim_id}",
+            target_claim_id=candidate.claim_id,
+            source_document_id=extraction_document_id,
+            target_document_id=candidate.document_id,
+            relation_type=relation_type,
+            source_evidence=source_evidence,
+            target_evidence=candidate.evidence,
+            similarity=candidate.score,
+        )
+
+        if relation_type in {LinkType.SHIFTS, LinkType.REVISITS}:
+            target_authored_at = candidate.document_authored_at
+            if (
+                source_authored_at is None
+                or target_authored_at is None
+                or source_authored_at == target_authored_at
+            ):
+                return None
+            # The conceptual link always advances from its antecedent to its later expression.
+            if source_authored_at > target_authored_at:
+                return LinkDocuments._reverse(link)
+            return link
+
+        # Same referent and tension are symmetric. A canonical representation makes
+        # retries from either document idempotent without inventing a temporal order.
+        if link.source_claim_id > link.target_claim_id:
+            return LinkDocuments._reverse(link)
+        return link
+
+    @staticmethod
+    def _reverse(link: CrossDocumentLink) -> CrossDocumentLink:
+        return link.model_copy(
+            update={
+                "source_claim_id": link.target_claim_id,
+                "target_claim_id": link.source_claim_id,
+                "source_document_id": link.target_document_id,
+                "target_document_id": link.source_document_id,
+                "source_evidence": link.target_evidence,
+                "target_evidence": link.source_evidence,
+            }
         )

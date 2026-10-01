@@ -142,11 +142,13 @@ CROSS_DOCUMENT_LINKS = """
 UNWIND $rows AS row
 MATCH (source:Claim {id: row.source_claim_id}), (target:Claim {id: row.target_claim_id})
 MERGE (source)-[link:CROSS_DOCUMENT_LINK {id: row.id}]->(target)
-SET link.relation_type = row.relation_type,
+SET link.link_id = row.link_id,
+    link.relation_type = row.relation_type,
     link.profile = row.profile,
     link.source_document_id = row.source_document_id,
     link.target_document_id = row.target_document_id,
     link.evidence_json = row.evidence_json
+RETURN row.id AS persisted_id
 """
 
 DELETE_DOCUMENT = """

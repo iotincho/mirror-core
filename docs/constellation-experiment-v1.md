@@ -31,15 +31,21 @@ claim de ese run genera un embedding y pide a ArcadeDB candidatos cercanos del
 mismo perfil en **otros documentos de la misma base de usuario**. Deduplica
 texto por documento y envía al comparador un claim y hasta cinco candidatos
 con sus citas. El comparador puede devolver ninguna relación. Un ID ajeno a
-los candidatos se rechaza. `SHIFTS` requiere `authored_at` en ambos documentos.
+los candidatos se rechaza. `SHIFTS` y `REVISITS` requieren `authored_at` distinto
+en ambos documentos.
 
 Las relaciones propuestas son `SAME_REFERENT`, `REVISITS`, `SHIFTS` e
 `IN_TENSION`. Cada una conserva el ID de ambos claims y sus respectivas citas.
 La respuesta incluye la similitud vectorial para auditar la selección; esa
 similitud no se interpreta como prueba de la relación. Por defecto la operación
 es de inspección (`persist=false`). Con `persist=true` se escribe una arista
-`CROSS_DOCUMENT_LINK` con tipo, perfil y evidencia de ambos lados. La arista
-queda visible para el contexto reflexivo, pero sigue siendo una **propuesta**.
+`CROSS_DOCUMENT_LINK` con tipo, perfil y evidencia de ambos lados. Cada vínculo
+conceptual se proyecta en dos aristas navegables con un `link_id` común:
+`SAME_REFERENT` e `IN_TENSION` son recíprocas; `SHIFTS` se acompaña de
+`SHIFTED_FROM` y `REVISITS` de `IS_REVISITED_BY`. En los dos últimos casos el
+vínculo conceptual se ordena de la evidencia anterior a la posterior y requiere
+fechas `authored_at` distintas. La arista queda visible para el contexto
+reflexivo, pero sigue siendo una **propuesta**.
 Una relación temporal o causal que no pueda sostenerse no se debe emitir.
 
 ArcadeDB permite ejecutar `vector.neighbors()` y recorridos del grafo en el
@@ -49,7 +55,7 @@ reintentos. No se hace una búsqueda agéntica en esta variante.
 
 ## Corrida reproducible
 
-1. Aplicar la migración de esquema `v2` en cada workspace. El reconciliador de
+1. Aplicar la migración de esquema `v3` en cada workspace. El reconciliador de
    inicio lo hace para workspaces activos; el provisionador lo hace para nuevos.
 2. Reextraer el mismo conjunto de notas con `profile="v5"`, conservando las
    corridas `v4` como línea base. Esperar a que sus embeddings estén listos.
@@ -78,9 +84,9 @@ pares anotados como:
 ```
 
 Ejecutar `python scripts/evaluate_constellation_links.py expected.json report-*.json`.
-El script compara pares de documentos y tipo de relación sin depender de la
-dirección del procesamiento. Reporta precisión, cobertura, falsos positivos y
-pares perdidos. La calidad de las preguntas requiere revisión humana: una
+El script compara `SAME_REFERENT` e `IN_TENSION` sin dirección, y `SHIFTS` y
+`REVISITS` de forma direccional. Reporta precisión, cobertura, falsos positivos
+y pares perdidos. La calidad de las preguntas requiere revisión humana: una
 relación correcta no garantiza que la repregunta sea útil o cuidadosa.
 
 ## Límites conocidos

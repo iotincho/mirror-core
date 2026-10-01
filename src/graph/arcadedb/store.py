@@ -8,7 +8,7 @@ import logging
 from contextlib import AbstractContextManager
 from typing import Any, Protocol
 
-from src.constellation.contracts import CrossDocumentLink
+from src.constellation.contracts import CrossDocumentLink, LinkType
 from src.domain.documents import Document
 from src.embeddings.contracts import (
     ClaimEmbeddingRecord,
@@ -259,33 +259,94 @@ class ArcadeDBGraphStore(GraphBackend):
         """Persist proposed links atomically inside the current user's database."""
         if not links:
             return
-        rows = []
+        rows_by_id: dict[str, dict[str, Any]] = {}
         for link in links:
             if link.source_document_id == link.target_document_id:
                 raise GraphPersistenceError("Cross-document links require distinct documents")
-            identity = ":".join((link.profile, link.source_claim_id, link.target_claim_id,
-                                 link.relation_type.value))
-            rows.append({
-                "id": hashlib.sha256(identity.encode()).hexdigest(),
-                "source_claim_id": link.source_claim_id,
-                "target_claim_id": link.target_claim_id,
-                "source_document_id": link.source_document_id,
-                "target_document_id": link.target_document_id,
-                "relation_type": link.relation_type.value,
-                "profile": link.profile,
-                "evidence_json": json.dumps({
-                    "source": [item.model_dump() for item in link.source_evidence],
-                    "target": [item.model_dump() for item in link.target_evidence],
-                }, ensure_ascii=False),
-            })
+            for row in self._cross_document_link_rows(link):
+                rows_by_id[row["id"]] = row
+        rows = list(rows_by_id.values())
         try:
             with self._client.transaction() as transaction:
-                transaction.command(queries.CROSS_DOCUMENT_LINKS, {"rows": rows},
-                                    language="cypher")
+                response = transaction.command(
+                    queries.CROSS_DOCUMENT_LINKS, {"rows": rows}, language="cypher"
+                )
+                persisted_ids = {
+                    str(row["persisted_id"])
+                    for row in self._rows(response)
+                    if row.get("persisted_id") is not None
+                }
+                expected_ids = set(rows_by_id)
+                if persisted_ids != expected_ids:
+                    raise GraphPersistenceError(
+                        "ArcadeDB did not persist every requested cross-document link"
+                    )
+        except GraphPersistenceError:
+            raise
         except Exception as error:
             raise GraphPersistenceError(
                 "ArcadeDB cross-document link persistence failed"
             ) from error
+
+    @staticmethod
+    def _cross_document_link_rows(link: CrossDocumentLink) -> list[dict[str, Any]]:
+        """Project one conceptual link into traversable, perspective-aware graph edges."""
+        canonical_identity = ":".join(
+            (link.profile, link.source_claim_id, link.target_claim_id, link.relation_type.value)
+        )
+        link_id = hashlib.sha256(canonical_identity.encode()).hexdigest()
+
+        def row(
+            source_claim_id: str,
+            target_claim_id: str,
+            source_document_id: str,
+            target_document_id: str,
+            relation_type: str,
+            source_evidence: list[EvidenceReference],
+            target_evidence: list[EvidenceReference],
+        ) -> dict[str, Any]:
+            identity = ":".join((link_id, source_claim_id, target_claim_id, relation_type))
+            return {
+                "id": hashlib.sha256(identity.encode()).hexdigest(),
+                "link_id": link_id,
+                "source_claim_id": source_claim_id,
+                "target_claim_id": target_claim_id,
+                "source_document_id": source_document_id,
+                "target_document_id": target_document_id,
+                "relation_type": relation_type,
+                "profile": link.profile,
+                "evidence_json": json.dumps(
+                    {
+                        "source": [item.model_dump() for item in source_evidence],
+                        "target": [item.model_dump() for item in target_evidence],
+                    },
+                    ensure_ascii=False,
+                ),
+            }
+
+        forward = row(
+            link.source_claim_id,
+            link.target_claim_id,
+            link.source_document_id,
+            link.target_document_id,
+            link.relation_type.value,
+            link.source_evidence,
+            link.target_evidence,
+        )
+        reverse_type = {
+            LinkType.SHIFTS: "SHIFTED_FROM",
+            LinkType.REVISITS: "IS_REVISITED_BY",
+        }.get(link.relation_type, link.relation_type.value)
+        reverse = row(
+            link.target_claim_id,
+            link.source_claim_id,
+            link.target_document_id,
+            link.source_document_id,
+            reverse_type,
+            link.target_evidence,
+            link.source_evidence,
+        )
+        return [forward, reverse]
 
     def delete_document(self, document_id: str) -> None:
         try:

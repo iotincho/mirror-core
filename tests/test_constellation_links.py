@@ -27,14 +27,15 @@ class Search:
 
 
 class Provider:
-    def __init__(self, target_id):
+    def __init__(self, target_id, relation_type=LinkType.REVISITS):
         self.target_id = target_id
+        self.relation_type = relation_type
         self.seen = []
 
     def compare(self, source, candidates, source_authored_at):
         self.seen.append(candidates)
         return LinkChoices(links=[LinkChoice(
-            target_claim_id=self.target_id, relation_type=LinkType.REVISITS,
+            target_claim_id=self.target_id, relation_type=self.relation_type,
         )])
 
 
@@ -59,13 +60,13 @@ def run():
     return extraction
 
 
-def candidate(document_id, claim_id="other", profile="v5", evidence=True):
+def candidate(document_id, claim_id="other", profile="v5", evidence=True, authored_at=None):
     return SimilarClaim(
         claim_id=claim_id, claim_local_id="c2", document_id=str(document_id),
         run_id=str(uuid4()), profile_name=profile, prompt_version=profile,
         text="Otra vez quiero pintar", type="desire", score=0.79,
         evidence=[EvidenceReference(quote="Otra vez quiero pintar")] if evidence else [],
-        document_authored_at=datetime.now(UTC),
+        document_authored_at=authored_at or datetime.now(UTC),
     )
 
 
@@ -78,7 +79,7 @@ def test_dry_run_links_only_cited_claims_from_other_documents():
                               candidate(uuid4(), profile="v4"), other]), provider, graph,
     )
 
-    report = use_case.execute(source)
+    report = use_case.execute(source, source_authored_at=datetime(2026, 1, 1, tzinfo=UTC))
 
     assert report.compared_pairs == 1
     assert report.persisted is False
@@ -94,12 +95,14 @@ def test_persist_is_explicit_and_rejects_unretrieved_ids():
     other = candidate(uuid4())
     graph = Graph()
     report = LinkDocuments(Embeddings(), Search([other]), Provider(other.claim_id), graph).execute(
-        source, persist=True,
+        source, persist=True, source_authored_at=datetime(2026, 1, 1, tzinfo=UTC),
     )
     assert graph.saved == report.links
 
     with pytest.raises(ValueError, match="outside retrieved"):
-        LinkDocuments(Embeddings(), Search([other]), Provider("invented"), Graph()).execute(source)
+        LinkDocuments(Embeddings(), Search([other]), Provider("invented"), Graph()).execute(
+            source, source_authored_at=datetime(2026, 1, 1, tzinfo=UTC)
+        )
 
 
 def test_same_document_or_missing_evidence_never_reaches_comparator():
@@ -111,3 +114,29 @@ def test_same_document_or_missing_evidence_never_reaches_comparator():
     ).execute(source)
     assert report.links == []
     assert provider.seen == []
+
+
+def test_temporal_links_are_oriented_from_earlier_to_later_claim() -> None:
+    source = run()
+    previous = candidate(uuid4(), authored_at=datetime(2026, 1, 1, tzinfo=UTC))
+    provider = Provider(previous.claim_id, LinkType.SHIFTS)
+
+    report = LinkDocuments(Embeddings(), Search([previous]), provider, Graph()).execute(
+        source, source_authored_at=datetime(2026, 2, 1, tzinfo=UTC)
+    )
+
+    assert report.links[0].source_claim_id == previous.claim_id
+    assert report.links[0].target_claim_id.endswith(":claim:c1")
+    assert report.links[0].source_document_id == previous.document_id
+
+
+def test_symmetric_links_have_a_stable_canonical_orientation() -> None:
+    source = run()
+    other = candidate(uuid4(), claim_id="aaa")
+    report = LinkDocuments(
+        Embeddings(), Search([other]), Provider(other.claim_id, LinkType.SAME_REFERENT), Graph()
+    ).execute(source)
+
+    assert [report.links[0].source_claim_id, report.links[0].target_claim_id] == sorted(
+        [f"{source.id}:claim:c1", "aaa"]
+    )

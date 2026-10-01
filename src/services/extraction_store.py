@@ -66,3 +66,13 @@ class FileExtractionStore:
             encoding="utf-8",
         )
         temporary.replace(destination)
+
+    def get(self, document_id: UUID, run_id: UUID) -> ExtractionRun:
+        """Load only a run under the authenticated workspace's document directory."""
+        source = self._directory / str(document_id) / f"{run_id}.json"
+        if not source.is_file():
+            raise FileNotFoundError("Extraction run not found")
+        run = ExtractionRun.model_validate_json(source.read_text(encoding="utf-8"))
+        if run.document_id != document_id or run.id != run_id:
+            raise ValueError("Extraction run identity does not match its path")
+        return run

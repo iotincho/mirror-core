@@ -16,7 +16,9 @@ produjo otro resultado.
 | --- | --- | --- | --- | --- |
 | `v1` | `v1` | `v1` | Histórico | Pedía al LLM `start_char` y `end_char`. Falló porque el modelo no calcula offsets de caracteres de forma fiable. |
 | `v2` | `v2` | `v2` | Histórico | El LLM devuelve `quote`; la aplicación calcula offsets y líneas. Falló en algunos textos porque el modelo corrigió capitalización o typos al citar. |
-| `v3` | `v2` | `v3` | Predeterminado | Conserva el esquema de `v2` y añade una regla fuerte: cada `quote` debe ser un substring literal y contiguo del documento, sin corregir ni normalizar caracteres. |
+| `v3` | `v2` | `v3` | Histórico | Conserva el esquema de `v2` y añade una regla fuerte: cada `quote` debe ser un substring literal y contiguo del documento, sin corregir ni normalizar caracteres. |
+| `v4` | `v2` | `v4` | Predeterminado | Refuerza la copia mecánica y literal de las citas. |
+| `v5` | `v3` | `v5` | Experimental | Extrae emociones expresadas como entidades locales y relaciones semánticas acotadas; la comparación entre documentos ocurre después. Véase [experimento de constelación](../../docs/constellation-experiment-v1.md). |
 
 ## Contrato de evidencia
 

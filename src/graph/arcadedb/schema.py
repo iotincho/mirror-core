@@ -10,7 +10,7 @@ from typing import Any, Protocol
 from src.embeddings.contracts import EmbeddingSpec
 from src.graph.arcadedb.client import ArcadeDBClientError, ArcadeDBHTTPClient
 
-SCHEMA_VERSION = "v1"
+SCHEMA_VERSION = "v3"
 
 
 class ArcadeDBSchemaError(ArcadeDBClientError):
@@ -181,7 +181,10 @@ def schema_statements(spec: EmbeddingSpec) -> tuple[str, ...]:
             )
         )
 
-    for edge_type in ("ABOUT", "RELATES_TO", "SUPPORTS", "CONTRADICTS"):
+    for edge_type in (
+        "ABOUT", "RELATES_TO", "SUPPORTS", "CONTRADICTS", "EXPRESSES_EMOTION",
+        "DESIRES", "FEARS", "VALUES", "QUESTIONS", "DECIDES", "ASSOCIATES_WITH",
+    ):
         statements.extend(
             (
                 f"CREATE EDGE TYPE {edge_type} IF NOT EXISTS",
@@ -207,6 +210,21 @@ def schema_statements(spec: EmbeddingSpec) -> tuple[str, ...]:
             )
         )
 
+    statements.extend(
+        (
+            "CREATE EDGE TYPE CROSS_DOCUMENT_LINK IF NOT EXISTS",
+            "CREATE PROPERTY CROSS_DOCUMENT_LINK.id IF NOT EXISTS STRING "
+            "(MANDATORY true, NOTNULL true)",
+            "CREATE PROPERTY CROSS_DOCUMENT_LINK.link_id IF NOT EXISTS STRING "
+            "(MANDATORY true, NOTNULL true)",
+            "CREATE PROPERTY CROSS_DOCUMENT_LINK.relation_type IF NOT EXISTS STRING",
+            "CREATE PROPERTY CROSS_DOCUMENT_LINK.profile IF NOT EXISTS STRING",
+            "CREATE PROPERTY CROSS_DOCUMENT_LINK.source_document_id IF NOT EXISTS STRING",
+            "CREATE PROPERTY CROSS_DOCUMENT_LINK.target_document_id IF NOT EXISTS STRING",
+            "CREATE PROPERTY CROSS_DOCUMENT_LINK.evidence_json IF NOT EXISTS STRING",
+            "CREATE INDEX IF NOT EXISTS ON CROSS_DOCUMENT_LINK (id) UNIQUE",
+        )
+    )
     return tuple(statements)
 
 

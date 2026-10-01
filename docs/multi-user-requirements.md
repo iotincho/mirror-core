@@ -1,7 +1,12 @@
 # Requisitos multiusuario
 
+<<<<<<< Updated upstream
 Estado: borrador de arquitectura  
 Fecha: 2026-09-29
+=======
+Estado: etapas 1 a 6 implementadas; validación multiusuario final pendiente
+Fecha: 2026-09-30
+>>>>>>> Stashed changes
 
 Este documento registra las definiciones acordadas y las decisiones pendientes para convertir El
 Espejo en una aplicación multiusuario. No describe una implementación terminada.
@@ -88,6 +93,15 @@ depender del identificador estable. El objeto de FastAPI Users se transforma a
   local sólo porque coincida el email.
 - La asociación de Google a una cuenta local existente requiere una sesión válida de esa cuenta.
 
+<<<<<<< Updated upstream
+=======
+Implementado en las etapas 1, 2 y 6: usuarios UUID en PostgreSQL, migraciones Alembic, cookie
+revocable, login/registro/logout local, `GET /auth/session` y Google OAuth opcional. Google sólo se
+habilita al configurar `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` y
+`GOOGLE_OAUTH_REDIRECT_URL`. El callback es una ruta pública de la PWA; ésta reenvía el `code` y el
+`state` al callback de la API para que FastAPI Users valide el flujo y cree la cookie de sesión.
+
+>>>>>>> Stashed changes
 FastAPI Users está en modo mantenimiento: continúa recibiendo actualizaciones de seguridad y
 dependencias, pero no funcionalidades nuevas. Por eso su encapsulación es un requisito y no sólo una
 preferencia de organización.
@@ -140,9 +154,17 @@ Cada usuario debe tener una base o grafo lógico independiente. El adaptador obt
 partir de `user_graphs` y abre allí la sesión. El nombre nunca se interpola desde datos del request.
 
 Una base por usuario reduce considerablemente el riesgo de una consulta Cypher sin filtro, pero no
+<<<<<<< Updated upstream
 protege contra una aplicación comprometida que utilice una credencial administrativa con acceso a
 todas las bases. Deben mantenerse credenciales de servicio con el menor privilegio posible y probar
 el `UserGraphLocator` como una frontera de seguridad.
+=======
+protege contra una aplicación completamente comprometida ni contra consumo excesivo de recursos en
+la JVM compartida. Por eso cada workspace también tiene un principal técnico de ArcadeDB con acceso
+exclusivo a su base, permisos CRUD y `updateSchema`. Este último es necesario para los `MERGE`
+parametrizados del writer bajo ArcadeDB 26.9.1; no concede acceso a otras bases ni permisos de
+seguridad.
+>>>>>>> Stashed changes
 
 ### Opciones evaluadas
 
@@ -258,6 +280,7 @@ Aunque el grafo sea una base independiente, también se requiere:
 1. **Prueba de arquitectura:** spike ArcadeDB y comparación con Neo4j Enterprise.
 2. **Módulo de usuarios:** PostgreSQL, Alembic y FastAPI Users encapsulado en
    `src/user_management`.
+<<<<<<< Updated upstream
 3. **Contrato de sesión:** `AuthenticatedUser`, `GET /auth/session` y redirección de la PWA ante
    `401`.
 4. **Registro de recursos:** tabla `user_graphs` y asignación de la base actual al usuario legado.
@@ -266,6 +289,33 @@ Aunque el grafo sea una base independiente, también se requiere:
 6. **Aislamiento restante:** archivos, audios, procesos en background e IndexedDB.
 7. **Google:** login OAuth y asociación explícita con una cuenta autenticada.
 8. **Validación multiusuario:** matriz negativa completa con dos usuarios y recursos cruzados.
+=======
+2. **Contrato de sesión (implementada):** `AuthenticatedUser`, `GET /auth/session` y retorno de
+   la PWA al login cuando la sesión inicial es inválida.
+3. **Workspaces (implementada):** tabla `user_graphs`, `UserWorkspace` y provisionador idempotente
+   de bases y principales restringidos. El registro crea el usuario y solicita el aprovisionamiento;
+   un fallo queda en estado `failed` y no invalida la cuenta.
+4. **Backend aislado (implementada):** cada request resuelve su `UserWorkspace` activo desde la
+   sesión; construye graph, documentos, audio, extracciones y reflexiones bajo
+   `WORKSPACES_PATH/<user_id>/`. Los procesos de background conservan el store ya limitado al
+   usuario que los originó. Una transcripción de audio crea un documento `pwa_audio` con ID estable
+   y conserva su vínculo para reintentos. El backend no usa el grafo ni directorios globales en
+   rutas protegidas.
+5. **PWA aislada (implementada):** sesión con `user_id`, una base Dexie por usuario
+   (`el_espejo_user_<user_id>`), cierre del contexto anterior al perder o cambiar sesión y manejo
+   global de `401` para las APIs protegidas. No se reutiliza ni se migra la base Dexie global previa
+   entre cuentas.
+6. **Google (implementada):** login OAuth opcional y asociación explícita con una cuenta
+   autenticada. La PWA inicia `/auth/google/authorize` o `/auth/associate/google/authorize`, y usa
+   su callback público `/oauth/google/callback` para completar el flujo contra la API. Se mantienen
+   cookies CSRF distintas para login y asociación. `associate_by_email=False` impide vincular una
+   cuenta local por coincidencia de email; una cuenta externa nueva crea su propio usuario y su
+   workspace mediante el hook de registro existente.
+7. **Validación multiusuario:** matriz negativa completa con dos usuarios y recursos cruzados.
+
+No se incluye una etapa de migración: la implementación multiusuario comienza desde cero y no hay
+datos existentes que deban reasignarse.
+>>>>>>> Stashed changes
 
 ## Validaciones obligatorias
 

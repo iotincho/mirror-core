@@ -5,11 +5,17 @@ from uuid import uuid4
 
 import pytest
 
-from src.constellation.contracts import LinkChoice, LinkChoices, LinkType
+from src.constellation.contracts import (
+    DiscoveryLink,
+    DocumentLinkAnalysis,
+    LinkType,
+    SupplementalItems,
+)
 from src.constellation.link_documents import LinkDocuments
+from src.domain.documents import Document
 from src.embeddings.contracts import EmbeddingSpec, EmbeddingVector, EvidenceReference, SimilarClaim
 from src.extraction.contracts import Claim, ClaimType, Evidence, ExtractionResult
-from src.services.extraction_store import new_extraction_run
+from src.services.extraction_store import FileExtractionStore, new_extraction_run
 
 
 class Embeddings:
@@ -32,18 +38,24 @@ class Provider:
         self.relation_type = relation_type
         self.seen = []
 
-    def compare(self, source, candidates, source_authored_at):
+    def analyze(self, document, extraction, candidates):
         self.seen.append(candidates)
-        return LinkChoices(links=[LinkChoice(
-            target_claim_id=self.target_id, relation_type=self.relation_type,
-        )])
+        return DocumentLinkAnalysis(
+            additions=SupplementalItems(concepts=[], entities=[], claims=[], relationships=[]),
+            links=[DiscoveryLink(source_claim_id=f"{extraction.id}:claim:c1",
+                                 target_claim_id=self.target_id, relation_type=self.relation_type)]
+            if candidates else [],
+        )
 
 
 class Graph:
     def __init__(self):
         self.saved = []
 
-    def persist_cross_document_links(self, links):
+    def existing_document_items(self, document_id):
+        return []
+
+    def persist_link_analysis(self, document, supplement, links):
         self.saved.extend(links)
 
 
@@ -70,16 +82,23 @@ def candidate(document_id, claim_id="other", profile="v5", evidence=True, author
     )
 
 
-def test_dry_run_links_only_cited_claims_from_other_documents():
+def source_document(extraction, authored_at=None):
+    return Document(id=extraction.document_id, content="Quiero volver a pintar",
+                    source="test", metadata={}, created_at=datetime.now(UTC),
+                    authored_at=authored_at or datetime(2026, 1, 1, tzinfo=UTC))
+
+
+def test_dry_run_links_only_cited_claims_from_other_documents(tmp_path):
     source = run()
     other = candidate(uuid4())
     provider, graph = Provider(other.claim_id), Graph()
     use_case = LinkDocuments(
         Embeddings(), Search([candidate(source.document_id),
                               candidate(uuid4(), profile="v4"), other]), provider, graph,
+        FileExtractionStore(tmp_path),
     )
 
-    report = use_case.execute(source, source_authored_at=datetime(2026, 1, 1, tzinfo=UTC))
+    report = use_case.execute(source, source_document(source))
 
     assert report.compared_pairs == 1
     assert report.persisted is False
@@ -90,39 +109,43 @@ def test_dry_run_links_only_cited_claims_from_other_documents():
     assert provider.seen[0] == [other]
 
 
-def test_persist_is_explicit_and_rejects_unretrieved_ids():
+def test_persist_is_explicit_and_rejects_unretrieved_ids(tmp_path):
     source = run()
     other = candidate(uuid4())
     graph = Graph()
-    report = LinkDocuments(Embeddings(), Search([other]), Provider(other.claim_id), graph).execute(
-        source, persist=True, source_authored_at=datetime(2026, 1, 1, tzinfo=UTC),
+    report = LinkDocuments(Embeddings(), Search([other]), Provider(other.claim_id), graph,
+                          FileExtractionStore(tmp_path)).execute(
+        source, source_document(source), persist=True,
     )
     assert graph.saved == report.links
 
     with pytest.raises(ValueError, match="outside retrieved"):
-        LinkDocuments(Embeddings(), Search([other]), Provider("invented"), Graph()).execute(
-            source, source_authored_at=datetime(2026, 1, 1, tzinfo=UTC)
+        LinkDocuments(Embeddings(), Search([other]), Provider("invented"), Graph(),
+                      FileExtractionStore(tmp_path)).execute(
+            source, source_document(source),
         )
 
 
-def test_same_document_or_missing_evidence_never_reaches_comparator():
+def test_same_document_or_missing_evidence_never_reaches_comparator(tmp_path):
     source = run()
     provider = Provider("unused")
     report = LinkDocuments(
         Embeddings(), Search([candidate(source.document_id), candidate(uuid4(), evidence=False)]),
-        provider, Graph(),
-    ).execute(source)
+        provider, Graph(), FileExtractionStore(tmp_path),
+    ).execute(source, source_document(source))
     assert report.links == []
-    assert provider.seen == []
+    # The full source still reaches discovery, but no forbidden candidate does.
+    assert provider.seen == [[]]
 
 
-def test_temporal_links_are_oriented_from_earlier_to_later_claim() -> None:
+def test_temporal_links_are_oriented_from_earlier_to_later_claim(tmp_path) -> None:
     source = run()
     previous = candidate(uuid4(), authored_at=datetime(2026, 1, 1, tzinfo=UTC))
     provider = Provider(previous.claim_id, LinkType.SHIFTS)
 
-    report = LinkDocuments(Embeddings(), Search([previous]), provider, Graph()).execute(
-        source, source_authored_at=datetime(2026, 2, 1, tzinfo=UTC)
+    report = LinkDocuments(Embeddings(), Search([previous]), provider, Graph(),
+                          FileExtractionStore(tmp_path)).execute(
+        source, source_document(source, datetime(2026, 2, 1, tzinfo=UTC)),
     )
 
     assert report.links[0].source_claim_id == previous.claim_id
@@ -130,12 +153,13 @@ def test_temporal_links_are_oriented_from_earlier_to_later_claim() -> None:
     assert report.links[0].source_document_id == previous.document_id
 
 
-def test_symmetric_links_have_a_stable_canonical_orientation() -> None:
+def test_symmetric_links_have_a_stable_canonical_orientation(tmp_path) -> None:
     source = run()
     other = candidate(uuid4(), claim_id="aaa")
     report = LinkDocuments(
-        Embeddings(), Search([other]), Provider(other.claim_id, LinkType.SAME_REFERENT), Graph()
-    ).execute(source)
+        Embeddings(), Search([other]), Provider(other.claim_id, LinkType.SAME_REFERENT), Graph(),
+        FileExtractionStore(tmp_path),
+    ).execute(source, source_document(source))
 
     assert [report.links[0].source_claim_id, report.links[0].target_claim_id] == sorted(
         [f"{source.id}:claim:c1", "aaa"]

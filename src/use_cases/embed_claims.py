@@ -40,10 +40,18 @@ class EmbedClaims:
                 raise EmbeddingProviderError(
                     "Provider returned incompatible embedding specifications"
                 )
-            records = [
-                self._record(document, extraction, claim.id, claim.text, vector.vector, spec)
-                for claim, vector in zip(claims, vectors, strict=True)
-            ]
+            records = []
+            for claim, vector in zip(claims, vectors, strict=True):
+                record = self._record(
+                    document, extraction, claim.id, claim.text, vector.vector, spec
+                )
+                graph_id = extraction.item_graph_ids.get(f"claim:{claim.id}")
+                if graph_id:
+                    record = record.model_copy(update={
+                        "claim_graph_id": graph_id,
+                        "id": f"{graph_id}:embedding:{spec.index_suffix}:{record.text_hash[:16]}",
+                    })
+                records.append(record)
             self._store.persist_claim_embeddings(records, spec)
         except (EmbeddingProviderError, ClaimEmbeddingStoreError) as error:
             raise ClaimEmbeddingFailedError(str(extraction.id)) from error

@@ -8,7 +8,7 @@ import logging
 from contextlib import AbstractContextManager
 from typing import Any, Protocol
 
-from src.constellation.contracts import CrossDocumentLink, LinkType
+from src.constellation.contracts import CrossDocumentLink, LinkNeighborhood, LinkType, SavedLink
 from src.domain.documents import Document
 from src.embeddings.contracts import (
     ClaimEmbeddingRecord,
@@ -259,34 +259,94 @@ class ArcadeDBGraphStore(GraphBackend):
         """Persist proposed links atomically inside the current user's database."""
         if not links:
             return
-        rows_by_id: dict[str, dict[str, Any]] = {}
-        for link in links:
-            if link.source_document_id == link.target_document_id:
-                raise GraphPersistenceError("Cross-document links require distinct documents")
-            for row in self._cross_document_link_rows(link):
-                rows_by_id[row["id"]] = row
-        rows = list(rows_by_id.values())
         try:
             with self._client.transaction() as transaction:
-                response = transaction.command(
-                    queries.CROSS_DOCUMENT_LINKS, {"rows": rows}, language="cypher"
-                )
-                persisted_ids = {
-                    str(row["persisted_id"])
-                    for row in self._rows(response)
-                    if row.get("persisted_id") is not None
-                }
-                expected_ids = set(rows_by_id)
-                if persisted_ids != expected_ids:
-                    raise GraphPersistenceError(
-                        "ArcadeDB did not persist every requested cross-document link"
-                    )
+                self._write_cross_document_links(transaction, links)
         except GraphPersistenceError:
             raise
         except Exception as error:
             raise GraphPersistenceError(
                 "ArcadeDB cross-document link persistence failed"
             ) from error
+
+    def existing_document_items(self, document_id: str) -> list[dict[str, Any]]:
+        try:
+            result = []
+            for kind in ("Claim", "Entity", "Concept"):
+                result.extend(self._rows(self._client.query(
+                    f"MATCH (item:{kind}) WHERE item.document_id = $document_id "
+                    f"RETURN item.id AS id, '{kind.lower()}' AS kind, item.text AS text, "
+                    "item.name AS name, item.type AS type ORDER BY id",
+                    {"document_id": document_id}, language="cypher",
+                )))
+            return result
+        except Exception as error:
+            raise GraphPersistenceError("Existing source items are unavailable") from error
+
+    def persist_link_analysis(
+        self, document: Document, supplement: ExtractionRun | None,
+        links: list[CrossDocumentLink],
+    ) -> None:
+        try:
+            with self._client.transaction() as transaction:
+                if supplement is not None:
+                    if supplement.document_id != document.id or supplement.result is None:
+                        raise GraphPersistenceError("Supplement belongs to another document")
+                    self._write_extraction(transaction, document, supplement)
+                    found = self._rows(transaction.query(
+                        queries.RUN_ITEM_IDS, {"run_id": str(supplement.id)}, language="cypher",
+                    ))
+                    if {row["id"] for row in found} != set(supplement.item_graph_ids.values()):
+                        raise GraphPersistenceError("Not all supplemental items were persisted")
+                    found_relations = self._rows(transaction.query(
+                        queries.RUN_RELATION_IDS, {"run_id": str(supplement.id)},
+                        language="cypher",
+                    ))
+                    expected_relations = {
+                        f"{supplement.id}:relationship:{index}"
+                        for index in range(len(supplement.result.relationships))
+                    }
+                    if {row["id"] for row in found_relations} != expected_relations:
+                        raise GraphPersistenceError("Not all supplemental relations were persisted")
+                self._write_cross_document_links(transaction, links)
+        except GraphPersistenceError:
+            raise
+        except Exception as error:
+            raise GraphPersistenceError("Link analysis transaction failed") from error
+
+    def supplemental_items_persisted(self, run: ExtractionRun) -> bool:
+        try:
+            found = self._rows(self._client.query(
+                queries.RUN_ITEM_IDS, {"run_id": str(run.id)}, language="cypher",
+            ))
+            return bool(found) and {row["id"] for row in found} == set(run.item_graph_ids.values())
+        except Exception as error:
+            raise GraphPersistenceError("Supplemental graph state is unavailable") from error
+
+    @classmethod
+    def _write_cross_document_links(
+        cls, transaction: ArcadeDBCommandClient, links: list[CrossDocumentLink],
+    ) -> None:
+        if not links:
+            return
+        rows_by_id: dict[str, dict[str, Any]] = {}
+        for link in links:
+            if link.source_document_id == link.target_document_id:
+                raise GraphPersistenceError("Cross-document links require distinct documents")
+            for row in cls._cross_document_link_rows(link):
+                rows_by_id[row["id"]] = row
+        rows = list(rows_by_id.values())
+        response = transaction.command(
+            queries.CROSS_DOCUMENT_LINKS, {"rows": rows}, language="cypher"
+        )
+        persisted_ids = {
+            str(row["persisted_id"]) for row in cls._rows(response)
+            if row.get("persisted_id") is not None
+        }
+        if persisted_ids != set(rows_by_id):
+            raise GraphPersistenceError(
+                "ArcadeDB did not persist every requested cross-document link"
+            )
 
     @staticmethod
     def _cross_document_link_rows(link: CrossDocumentLink) -> list[dict[str, Any]]:
@@ -358,6 +418,70 @@ class ArcadeDBGraphStore(GraphBackend):
         except Exception as error:
             raise GraphPersistenceError("ArcadeDB document deletion failed") from error
 
+    def get_link_neighborhood(
+        self, document_id: str, *, offset: int = 0, limit: int = 10,
+        relation_type: LinkType | None = None,
+    ) -> LinkNeighborhood:
+        """Page neighbor documents in the database, with bounded link hydration."""
+        params = {
+            "document_id": document_id,
+            "relation_types": (
+                [relation_type.value] if relation_type else [t.value for t in LinkType]
+            ),
+            "offset": offset, "limit": limit,
+        }
+        try:
+            count = self._rows(self._client.query(
+                queries.LINK_NEIGHBOR_COUNT, params, language="cypher"
+            ))
+            total = int(count[0]["total"]) if count else 0
+            page = self._rows(self._client.query(
+                queries.LINK_NEIGHBOR_PAGE, params, language="cypher"
+            ))
+            neighbors = [str(row["neighbor_id"]) for row in page]
+            detail_params = {
+                **params, "document_ids": [document_id, *neighbors], "link_limit": 501,
+            }
+            rows = self._rows(self._client.query(
+                queries.LINK_NEIGHBOR_DETAILS, detail_params, language="cypher"
+            )) if neighbors else []
+            links_by_id = {}
+            for row in rows[:500]:
+                row = dict(row)
+                evidence = json.loads(row.pop("evidence_json"))
+                link = SavedLink(
+                    **row, source_evidence=evidence["source"], target_evidence=evidence["target"]
+                )
+                links_by_id[link.link_id] = link
+            consumed = offset + len(neighbors)
+            return LinkNeighborhood(
+                document_id=document_id, neighbor_ids=neighbors, total_neighbors=total,
+                next_offset=consumed if neighbors and consumed < total else None,
+                links=list(links_by_id.values()), links_truncated=len(rows) > 500,
+            )
+        except Exception as error:
+            raise GraphPersistenceError("ArcadeDB link neighborhood retrieval failed") from error
+
+    def ready_extraction_ids(
+        self, expected_claim_counts: dict[str, int], spec: EmbeddingSpec,
+    ) -> set[str]:
+        if not expected_claim_counts:
+            return set()
+        try:
+            rows = self._rows(self._client.query(
+                queries.EXTRACTION_READINESS,
+                {"run_ids": list(expected_claim_counts), "provider": spec.provider,
+                 "model": spec.model, "dimensions": spec.dimensions},
+                language="cypher",
+            ))
+            return {
+                str(row["run_id"]) for row in rows
+                if int(row["claim_count"]) == expected_claim_counts.get(str(row["run_id"]))
+                and int(row["embedded_count"]) == int(row["claim_count"])
+            }
+        except Exception as error:
+            raise GraphPersistenceError("ArcadeDB extraction readiness retrieval failed") from error
+
     def close(self) -> None:
         self._client.close()
 
@@ -393,6 +517,11 @@ class ArcadeDBGraphStore(GraphBackend):
                 "provider": extraction.provider,
                 "model": extraction.model,
                 "run_created_at": extraction.created_at.isoformat(),
+                "origin": extraction.origin,
+                "parent_run_id": (
+                    str(extraction.parent_run_id) if extraction.parent_run_id else None
+                ),
+                "item_graph_ids_json": json.dumps(extraction.item_graph_ids, sort_keys=True),
             },
             language="cypher",
         )
@@ -407,12 +536,15 @@ class ArcadeDBGraphStore(GraphBackend):
                 items,
                 run_id,
                 document_id,
+                extraction.item_graph_ids,
+                extraction.reused_item_keys,
             )
         ArcadeDBGraphStore._write_relationships(
             transaction,
             result,
             run_id,
             document_id,
+            extraction.item_graph_ids,
         )
 
     @staticmethod
@@ -422,13 +554,21 @@ class ArcadeDBGraphStore(GraphBackend):
         items: list[Any],
         run_id: str,
         document_id: str,
+        item_graph_ids: dict[str, str],
+        reused_item_keys: list[str],
     ) -> None:
         if item_type not in _ITEM_TYPES:
             raise GraphPersistenceError(f"Unsupported graph item type: {item_type}")
         rows: list[dict[str, Any]] = []
         evidence_rows: list[dict[str, Any]] = []
+        reused_rows: list[dict[str, Any]] = []
         for item in items:
-            item_id = f"{run_id}:{item_type.lower()}:{item.id}"
+            key = f"{item_type.lower()}:{item.id}"
+            item_id = item_graph_ids.get(key, f"{run_id}:{key}")
+            if key in reused_item_keys:
+                reused_rows.append({"id": item_id, "run_id": run_id,
+                                    "document_id": document_id})
+                continue
             rows.append(
                 {
                     "id": item_id,
@@ -450,6 +590,11 @@ class ArcadeDBGraphStore(GraphBackend):
                 )
                 for index, evidence in enumerate(item.evidence)
             )
+        if reused_rows:
+            transaction.command(
+                queries.ATTACH_EXISTING_ITEMS.format(item_type=item_type),
+                {"rows": reused_rows}, language="cypher",
+            )
         if rows:
             transaction.command(
                 queries.ITEMS.format(item_type=item_type),
@@ -469,6 +614,7 @@ class ArcadeDBGraphStore(GraphBackend):
         result: ExtractionResult,
         run_id: str,
         document_id: str,
+        item_graph_ids: dict[str, str],
     ) -> None:
         rows_by_type: dict[str, list[dict[str, Any]]] = {}
         for index, relationship in enumerate(result.relationships):
@@ -482,11 +628,13 @@ class ArcadeDBGraphStore(GraphBackend):
                     "id": f"{run_id}:relationship:{index}",
                     "run_id": run_id,
                     "document_id": document_id,
-                    "source_id": (
-                        f"{run_id}:{relationship.source.kind}:{relationship.source.id}"
+                    "source_id": item_graph_ids.get(
+                        f"{relationship.source.kind}:{relationship.source.id}",
+                        f"{run_id}:{relationship.source.kind}:{relationship.source.id}",
                     ),
-                    "target_id": (
-                        f"{run_id}:{relationship.target.kind}:{relationship.target.id}"
+                    "target_id": item_graph_ids.get(
+                        f"{relationship.target.kind}:{relationship.target.id}",
+                        f"{run_id}:{relationship.target.kind}:{relationship.target.id}",
                     ),
                     "evidence_json": json.dumps(
                         [evidence.model_dump() for evidence in relationship.evidence],

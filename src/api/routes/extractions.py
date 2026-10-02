@@ -26,7 +26,7 @@ router = APIRouter(prefix="/documents", tags=["extractions"])
     response_model=ExtractionRun,
     status_code=status.HTTP_201_CREATED,
 )
-async def create_extraction(
+def create_extraction(
     document_id: UUID,
     request: CreateExtractionRequest,
     use_case: Annotated[

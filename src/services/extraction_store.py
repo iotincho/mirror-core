@@ -1,13 +1,13 @@
 """Durable, local storage for extraction runs before graph persistence exists."""
 
 import json
+import shutil
 from datetime import UTC, datetime
 from pathlib import Path
-import shutil
 from typing import Literal, Protocol
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from src.extraction.contracts import ExtractionResult
 from src.services.structured_extractor import TokenUsage
@@ -31,6 +31,10 @@ class ExtractionRun(BaseModel):
     response_id: str | None = None
     usage: TokenUsage | None = None
     error: str | None = None
+    origin: Literal["extraction", "constellation"] = "extraction"
+    parent_run_id: UUID | None = None
+    item_graph_ids: dict[str, str] = Field(default_factory=dict)
+    reused_item_keys: list[str] = Field(default_factory=list)
 
 
 def new_extraction_run(**values: object) -> ExtractionRun:
@@ -76,3 +80,11 @@ class FileExtractionStore:
         if run.document_id != document_id or run.id != run_id:
             raise ValueError("Extraction run identity does not match its path")
         return run
+
+    def list_for_document(self, document_id: UUID) -> list[ExtractionRun]:
+        """Read immutable runs only inside this workspace's document directory."""
+        runs = [
+            self.get(document_id, UUID(path.stem))
+            for path in (self._directory / str(document_id)).glob("*.json")
+        ]
+        return sorted(runs, key=lambda run: run.created_at, reverse=True)

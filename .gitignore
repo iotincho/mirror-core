@@ -229,4 +229,6 @@ __marimo__/
 _app_data/
 .bevel/
 .vscode/
-
+.codex/
+.agents/
+.aws/

@@ -34,6 +34,8 @@ def test_schema_contains_graph_types_constraints_and_vector_indexes() -> None:
 
     assert "CREATE VERTEX TYPE Document IF NOT EXISTS" in statements
     assert "CREATE EDGE TYPE HAS_EXTRACTION IF NOT EXISTS" in statements
+    assert "CREATE EDGE TYPE CROSS_DOCUMENT_LINK IF NOT EXISTS" in statements
+    assert "CREATE EDGE TYPE EXPRESSES_EMOTION IF NOT EXISTS" in statements
     assert "ALTER TYPE HAS_EXTRACTION WITH unique = true" in statements
     assert "CREATE INDEX IF NOT EXISTS ON Claim (id) UNIQUE" in statements
     assert f"CREATE VERTEX TYPE {claim_type} IF NOT EXISTS EXTENDS ClaimEmbedding" in statements

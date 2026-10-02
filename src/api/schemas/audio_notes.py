@@ -20,3 +20,5 @@ class AudioNoteResponse(BaseModel):
     transcription_provider: str | None = None
     transcription_model: str | None = None
     error: str | None = None
+    document_id: UUID | None = None
+    document_error: str | None = None

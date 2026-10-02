@@ -8,7 +8,7 @@ import os
 import sys
 from urllib.error import HTTPError, URLError
 
-from ingest_alex_diary import format_http_error, login, request_json
+from ingest_alex_diary import format_http_error, request_json
 
 
 def main() -> int:
@@ -19,19 +19,14 @@ def main() -> int:
         "--api-url",
         default=os.environ.get("API_URL", "http://localhost:8080/api"),
     )
+    parser.add_argument("--cookie", required=True, help="Authenticated el_espejo_session cookie")
     args = parser.parse_args()
-    username = os.environ.get("AUTH_USERNAME")
-    password = os.environ.get("AUTH_PASSWORD")
-    if not username or not password:
-        print("AUTH_USERNAME and AUTH_PASSWORD are required", file=sys.stderr)
-        return 2
 
     try:
-        cookie = login(args.api_url.rstrip("/"), username, password)
         status, _, _ = request_json(
             f"{args.api_url.rstrip('/')}/documents/{args.document_id}/extractions",
             {"profile": args.profile},
-            cookie,
+            args.cookie,
         )
     except (HTTPError, URLError, TimeoutError) as error:
         print(f"Reprocessing failed: {format_http_error(error)}", file=sys.stderr)

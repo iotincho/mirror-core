@@ -1,9 +1,11 @@
 """Composition root for infrastructure adapters and application use cases."""
 
 from functools import lru_cache
+from typing import Annotated
+
+from fastapi import Depends
 
 from src.config import get_settings
-from src.graph.arcadedb.store import ArcadeDBGraphStore
 from src.services.audio_note_store import FileAudioNoteStore
 from src.services.claim_embedding_store import ClaimEmbeddingStore
 from src.services.document_embedding_store import DocumentEmbeddingStore
@@ -38,24 +40,25 @@ from src.use_cases.resolve_question import ResolveQuestion
 from src.use_cases.search_semantically import SearchSemantically
 from src.use_cases.search_similar_claims import SearchSimilarClaims
 from src.use_cases.transcribe_audio_note import CreateAudioNote, TranscribeAudioNote
+from src.workspaces.dependencies import WorkspaceRuntime, get_workspace_runtime
 
 
-@lru_cache
-def get_document_store() -> FileDocumentStore:
-    """Provide the local development adapter for original documents."""
-    return FileDocumentStore(get_settings().documents_path)
+async def get_document_store(
+    runtime: Annotated[WorkspaceRuntime, Depends(get_workspace_runtime)],
+) -> FileDocumentStore:
+    return runtime.document_store
 
 
-@lru_cache
-def get_audio_note_store() -> FileAudioNoteStore:
-    """Provide durable storage for raw audio and transcription status."""
-    return FileAudioNoteStore(get_settings().audio_notes_path)
+async def get_audio_note_store(
+    runtime: Annotated[WorkspaceRuntime, Depends(get_workspace_runtime)],
+) -> FileAudioNoteStore:
+    return runtime.audio_note_store
 
 
-@lru_cache
-def get_extraction_store() -> FileExtractionStore:
-    """Provide local, auditable storage for experimental extraction runs."""
-    return FileExtractionStore(get_settings().extractions_path)
+async def get_extraction_store(
+    runtime: Annotated[WorkspaceRuntime, Depends(get_workspace_runtime)],
+) -> FileExtractionStore:
+    return runtime.extraction_store
 
 
 @lru_cache
@@ -80,36 +83,34 @@ def get_transcription_provider() -> TranscriptionProvider:
     )
 
 
-@lru_cache
-def get_graph_store() -> GraphBackend:
-    """Provide the configured graph backend without exposing it to application use cases."""
-    settings = get_settings()
-    return ArcadeDBGraphStore(
-        settings.arcadedb_http_url,
-        settings.arcadedb_database,
-        settings.arcadedb_username,
-        settings.arcadedb_password,
-    )
+async def get_graph_store(
+    runtime: Annotated[WorkspaceRuntime, Depends(get_workspace_runtime)],
+) -> GraphBackend:
+    return runtime.graph_store
 
 
-def get_claim_embedding_store() -> ClaimEmbeddingStore:
-    """Reuse the configured graph backend for claim-vector persistence."""
-    return get_graph_store()
+async def get_claim_embedding_store(
+    graph_store: Annotated[GraphBackend, Depends(get_graph_store)],
+) -> ClaimEmbeddingStore:
+    return graph_store
 
 
-def get_document_embedding_store() -> DocumentEmbeddingStore:
-    """Reuse the configured graph backend for document-vector persistence and retrieval."""
-    return get_graph_store()
+async def get_document_embedding_store(
+    graph_store: Annotated[GraphBackend, Depends(get_graph_store)],
+) -> DocumentEmbeddingStore:
+    return graph_store
 
 
-def get_reflection_context_store() -> ReflectionContextStore:
-    """Expose graph relations without leaking the concrete database into orchestration."""
-    return get_graph_store()
+async def get_reflection_context_store(
+    graph_store: Annotated[GraphBackend, Depends(get_graph_store)],
+) -> ReflectionContextStore:
+    return graph_store
 
 
-@lru_cache
-def get_reflection_store() -> FileReflectionStore:
-    return FileReflectionStore(get_settings().reflections_path)
+async def get_reflection_store(
+    runtime: Annotated[WorkspaceRuntime, Depends(get_workspace_runtime)],
+) -> FileReflectionStore:
+    return runtime.reflection_store
 
 
 @lru_cache
@@ -139,83 +140,136 @@ def get_embedding_provider() -> EmbeddingProvider:
 
 
 def close_graph_store() -> None:
-    """Release graph-backend resources when the API process stops."""
-    graph_store = get_graph_store()
-    graph_store.close()
-    get_graph_store.cache_clear()
+    """HTTP graph clients are request-scoped and hold no process-wide resources."""
 
 
-async def get_ingest_document() -> IngestDocument:
+async def get_ingest_document(
+    document_store: Annotated[FileDocumentStore, Depends(get_document_store)],
+) -> IngestDocument:
     """Build the application operation used by any delivery interface."""
-    return IngestDocument(get_document_store())
+    return IngestDocument(document_store)
 
 
-async def get_create_audio_note() -> CreateAudioNote:
-    return CreateAudioNote(get_audio_note_store(), get_settings().audio_max_upload_bytes)
+async def get_create_audio_note(
+    audio_note_store: Annotated[FileAudioNoteStore, Depends(get_audio_note_store)],
+) -> CreateAudioNote:
+    return CreateAudioNote(audio_note_store, get_settings().audio_max_upload_bytes)
 
 
-async def get_transcribe_audio_note() -> TranscribeAudioNote:
-    return TranscribeAudioNote(get_audio_note_store(), get_transcription_provider())
-
-
-async def get_ingest_document_file() -> IngestDocumentFile:
+async def get_ingest_document_file(
+    document_store: Annotated[FileDocumentStore, Depends(get_document_store)],
+) -> IngestDocumentFile:
     """Build the file-upload operation used by HTTP or a future CLI."""
-    return IngestDocumentFile(get_document_store())
+    return IngestDocumentFile(document_store)
 
 
-async def get_extract_document() -> ExtractDocument:
+async def get_extract_document(
+    document_store: Annotated[FileDocumentStore, Depends(get_document_store)],
+    extraction_store: Annotated[FileExtractionStore, Depends(get_extraction_store)],
+) -> ExtractDocument:
     """Build the extraction operation shared by HTTP and future CLI adapters."""
-    return ExtractDocument(get_document_store(), get_extraction_store(), get_structured_extractor())
+    return ExtractDocument(document_store, extraction_store, get_structured_extractor())
 
 
-async def get_extract_and_persist_document() -> ExtractAndPersistDocument:
+async def get_extract_and_persist_document(
+    extract_document: Annotated[ExtractDocument, Depends(get_extract_document)],
+    graph_store: Annotated[GraphBackend, Depends(get_graph_store)],
+) -> ExtractAndPersistDocument:
     """Build the extraction flow that makes completed runs queryable in the graph."""
-    return ExtractAndPersistDocument(await get_extract_document(), get_graph_store())
+    return ExtractAndPersistDocument(extract_document, graph_store)
 
 
-async def get_extract_persist_and_embed_document() -> ExtractPersistAndEmbedDocument:
+async def get_extract_persist_and_embed_document(
+    extract_and_persist: Annotated[
+        ExtractAndPersistDocument,
+        Depends(get_extract_and_persist_document),
+    ],
+    claim_embeddings: Annotated[ClaimEmbeddingStore, Depends(get_claim_embedding_store)],
+    document_embeddings: Annotated[DocumentEmbeddingStore, Depends(get_document_embedding_store)],
+) -> ExtractPersistAndEmbedDocument:
     """Build the default flow that makes extracted claims semantically searchable."""
     return ExtractPersistAndEmbedDocument(
-        await get_extract_and_persist_document(),
-        EmbedClaims(get_embedding_provider(), get_claim_embedding_store()),
-        EmbedDocument(get_embedding_provider(), get_document_embedding_store()),
+        extract_and_persist,
+        EmbedClaims(get_embedding_provider(), claim_embeddings),
+        EmbedDocument(get_embedding_provider(), document_embeddings),
     )
 
 
-async def get_search_similar_claims() -> SearchSimilarClaims:
+async def get_search_similar_claims(
+    claim_embeddings: Annotated[ClaimEmbeddingStore, Depends(get_claim_embedding_store)],
+) -> SearchSimilarClaims:
     """Build semantic retrieval without exposing providers or graph engines to routes."""
-    return SearchSimilarClaims(get_embedding_provider(), get_claim_embedding_store())
+    return SearchSimilarClaims(get_embedding_provider(), claim_embeddings)
 
 
-async def get_search_semantically() -> SearchSemantically:
+async def get_search_semantically(
+    claim_embeddings: Annotated[ClaimEmbeddingStore, Depends(get_claim_embedding_store)],
+    document_embeddings: Annotated[DocumentEmbeddingStore, Depends(get_document_embedding_store)],
+) -> SearchSemantically:
     """Build mixed document and claim retrieval without leaking graph engines to routes."""
     return SearchSemantically(
         get_embedding_provider(),
-        get_claim_embedding_store(),
-        get_document_embedding_store(),
+        claim_embeddings,
+        document_embeddings,
     )
 
 
-async def get_resolve_question() -> ResolveQuestion:
+async def get_resolve_question(
+    similar_claims: Annotated[SearchSimilarClaims, Depends(get_search_similar_claims)],
+    reflection_context: Annotated[ReflectionContextStore, Depends(get_reflection_context_store)],
+    reflection_store: Annotated[FileReflectionStore, Depends(get_reflection_store)],
+) -> ResolveQuestion:
     return ResolveQuestion(
-        await get_search_similar_claims(),
-        get_reflection_context_store(),
+        similar_claims,
+        reflection_context,
         get_reflection_provider(),
-        get_reflection_store(),
+        reflection_store,
     )
 
 
-async def get_ingest_and_extract_document() -> IngestAndExtractDocument:
+async def get_ingest_and_extract_document(
+    document_store: Annotated[FileDocumentStore, Depends(get_document_store)],
+    extract_persist_and_embed: Annotated[
+        ExtractPersistAndEmbedDocument,
+        Depends(get_extract_persist_and_embed_document),
+    ],
+) -> IngestAndExtractDocument:
     """Build the default processing flow triggered by every new document."""
     return IngestAndExtractDocument(
-        IngestDocument(get_document_store()),
-        await get_extract_persist_and_embed_document(),
+        IngestDocument(document_store),
+        extract_persist_and_embed,
     )
 
-async def get_delete_document():
-    from src.use_cases.delete_document import DeleteDocument
-    return DeleteDocument(get_document_store(), get_extraction_store(), get_graph_store())
 
-async def get_list_documents():
+async def get_transcribe_audio_note(
+    audio_note_store: Annotated[FileAudioNoteStore, Depends(get_audio_note_store)],
+    document_processor: Annotated[
+        IngestAndExtractDocument,
+        Depends(get_ingest_and_extract_document),
+    ],
+) -> TranscribeAudioNote:
+    """Keep audio transcription and its derived document in the same workspace."""
+    return TranscribeAudioNote(
+        audio_note_store,
+        get_transcription_provider(),
+        document_processor,
+    )
+
+
+async def get_delete_document(
+    document_store: Annotated[FileDocumentStore, Depends(get_document_store)],
+    extraction_store: Annotated[FileExtractionStore, Depends(get_extraction_store)],
+    graph_store: Annotated[GraphBackend, Depends(get_graph_store)],
+):
+    from src.use_cases.delete_document import DeleteDocument
+
+    return DeleteDocument(document_store, extraction_store, graph_store)
+
+
+
+async def get_list_documents(
+    document_store: Annotated[FileDocumentStore, Depends(get_document_store)],
+):
     from src.use_cases.list_documents import ListDocuments
-    return ListDocuments(get_document_store())
+
+    return ListDocuments(document_store)

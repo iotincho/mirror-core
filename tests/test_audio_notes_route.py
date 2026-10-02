@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import httpx
 import pytest
 
@@ -21,6 +23,15 @@ class FakeTranscriber:
         return "Una reflexión grabada."
 
 
+class FakeDocumentProcessor:
+    def __init__(self) -> None:
+        self.documents = []
+
+    def execute(self, document):
+        self.documents.append(document)
+        return SimpleNamespace(document=SimpleNamespace(id=document.id))
+
+
 @pytest.fixture
 def audio_store(tmp_path) -> FileAudioNoteStore:
     return FileAudioNoteStore(tmp_path / "audio-notes")
@@ -28,11 +39,13 @@ def audio_store(tmp_path) -> FileAudioNoteStore:
 
 @pytest.mark.anyio
 async def test_audio_note_is_persisted_and_transcribed_in_background(audio_store) -> None:
+    document_processor = FakeDocumentProcessor()
+
     async def override_create() -> CreateAudioNote:
         return CreateAudioNote(audio_store, max_upload_bytes=1024)
 
     async def override_transcribe() -> TranscribeAudioNote:
-        return TranscribeAudioNote(audio_store, FakeTranscriber())
+        return TranscribeAudioNote(audio_store, FakeTranscriber(), document_processor)
 
     app.dependency_overrides[get_create_audio_note] = override_create
     app.dependency_overrides[get_transcribe_audio_note] = override_transcribe
@@ -57,16 +70,22 @@ async def test_audio_note_is_persisted_and_transcribed_in_background(audio_store
     assert fetched.json()["status"] == "completed"
     assert fetched.json()["transcript"] == "Una reflexión grabada."
     assert fetched.json()["transcription_provider"] == "fake"
+    assert fetched.json()["document_id"] == created["id"]
+    assert document_processor.documents[0].id == created["id"]
+    assert document_processor.documents[0].source == "pwa_audio"
+    assert document_processor.documents[0].content == "Una reflexión grabada."
     assert len(list((audio_store._directory).glob("*.webm"))) == 1
 
 
 @pytest.mark.anyio
 async def test_audio_note_rejects_an_unsupported_file_type(audio_store) -> None:
+    document_processor = FakeDocumentProcessor()
+
     async def override_create() -> CreateAudioNote:
         return CreateAudioNote(audio_store, max_upload_bytes=1024)
 
     async def override_transcribe() -> TranscribeAudioNote:
-        return TranscribeAudioNote(audio_store, FakeTranscriber())
+        return TranscribeAudioNote(audio_store, FakeTranscriber(), document_processor)
 
     app.dependency_overrides[get_create_audio_note] = override_create
     app.dependency_overrides[get_transcribe_audio_note] = override_transcribe

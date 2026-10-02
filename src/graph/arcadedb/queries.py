@@ -14,6 +14,9 @@ SET run.document_id = $document_id,
     run.provider = $provider,
     run.model = $model,
     run.created_at = $run_created_at
+SET run.origin = $origin,
+    run.parent_run_id = $parent_run_id,
+    run.item_graph_ids_json = $item_graph_ids_json
 MERGE (document)-[:HAS_EXTRACTION]->(run)
 """
 
@@ -29,6 +32,25 @@ SET item.local_id = row.local_id,
 WITH item, row
 MATCH (run:ExtractionRun {{id: row.run_id}})
 MERGE (run)-[:EXTRACTED]->(item)
+"""
+
+ATTACH_EXISTING_ITEMS = """
+UNWIND $rows AS row
+MATCH (item:{item_type} {{id: row.id, document_id: row.document_id}})
+MATCH (run:ExtractionRun {{id: row.run_id}})
+MERGE (run)-[:EXTRACTED]->(item)
+RETURN item.id AS id
+"""
+
+RUN_ITEM_IDS = """
+MATCH (run:ExtractionRun {id: $run_id})-[:EXTRACTED]->(item)
+RETURN DISTINCT item.id AS id
+"""
+
+RUN_RELATION_IDS = """
+MATCH ()-[relation]->()
+WHERE relation.run_id = $run_id
+RETURN DISTINCT relation.id AS id
 """
 
 EVIDENCE = """
@@ -141,9 +163,8 @@ ORDER BY source_claim_id, relation_type, target_id
 CROSS_DOCUMENT_LINKS = """
 UNWIND $rows AS row
 MATCH (source:Claim {id: row.source_claim_id}), (target:Claim {id: row.target_claim_id})
-MERGE (source)-[link:CROSS_DOCUMENT_LINK {id: row.id}]->(target)
-SET link.link_id = row.link_id,
-    link.relation_type = row.relation_type,
+MERGE (source)-[link:CROSS_DOCUMENT_LINK {id: row.id, link_id: row.link_id}]->(target)
+SET link.relation_type = row.relation_type,
     link.profile = row.profile,
     link.source_document_id = row.source_document_id,
     link.target_document_id = row.target_document_id,
@@ -155,6 +176,45 @@ DELETE_DOCUMENT = """
 MATCH (node)
 WHERE node.document_id = $document_id OR (node:Document AND node.id = $document_id)
 DETACH DELETE node
+"""
+
+# Read only the canonical projection. Reverse navigation edges share link_id
+# but must not be counted as a second proposed relationship.
+LINK_NEIGHBORS_BASE = """
+MATCH ()-[link:CROSS_DOCUMENT_LINK]->()
+WHERE link.relation_type IN $relation_types
+  AND (link.source_document_id = $document_id OR link.target_document_id = $document_id)
+WITH CASE WHEN link.source_document_id = $document_id
+     THEN link.target_document_id ELSE link.source_document_id END AS neighbor_id
+"""
+
+LINK_NEIGHBOR_COUNT = LINK_NEIGHBORS_BASE + "RETURN count(DISTINCT neighbor_id) AS total"
+LINK_NEIGHBOR_PAGE = LINK_NEIGHBORS_BASE + """
+RETURN DISTINCT neighbor_id ORDER BY neighbor_id SKIP $offset LIMIT $limit
+"""
+
+LINK_NEIGHBOR_DETAILS = """
+MATCH (source:Claim)-[link:CROSS_DOCUMENT_LINK]->(target:Claim)
+WHERE link.relation_type IN $relation_types
+  AND (link.source_document_id = $document_id OR link.target_document_id = $document_id)
+  AND link.source_document_id IN $document_ids AND link.target_document_id IN $document_ids
+  AND (link.relation_type IN ['SHIFTS', 'REVISITS'] OR source.id < target.id)
+RETURN DISTINCT link.link_id AS link_id, source.id AS source_claim_id,
+       target.id AS target_claim_id, link.source_document_id AS source_document_id,
+       link.target_document_id AS target_document_id, link.relation_type AS relation_type,
+       link.profile AS profile, link.evidence_json AS evidence_json
+ORDER BY link_id LIMIT $link_limit
+"""
+
+EXTRACTION_READINESS = """
+MATCH (run:ExtractionRun)
+WHERE run.id IN $run_ids
+OPTIONAL MATCH (run)-[:EXTRACTED]->(claim:Claim)
+OPTIONAL MATCH (claim)-[:HAS_EMBEDDING]->(embedding)
+WHERE embedding.provider = $provider AND embedding.model = $model
+      AND embedding.dimensions = $dimensions
+RETURN run.id AS run_id, count(DISTINCT claim.id) AS claim_count,
+       count(DISTINCT embedding.claim_graph_id) AS embedded_count
 """
 
 

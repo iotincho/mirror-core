@@ -47,4 +47,6 @@ class IngestAndExtractDocument:
                 extraction.id,
                 extraction.result.model_dump_json(),
             )
-        return ProcessedDocument(document=document, extraction=extraction)
+        return ProcessedDocument(
+            document=self._ingest_document.get(document.id), extraction=extraction
+        )

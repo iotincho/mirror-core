@@ -53,6 +53,8 @@ class ExtractDocument:
             provider_extraction = self._extractor.extract(document, profile)
             result = resolve_evidence(document.content, provider_extraction.result)
             validate_evidence(document.content, result)
+            if result.title is not None:
+                self._document_store.update_title(document.id, result.title)
         except Exception as error:
             failed_run = new_extraction_run(
                 document_id=document.id,
@@ -151,6 +153,7 @@ def resolve_evidence(content: str, result: ExtractionResult) -> ExtractionResult
         ]
 
     return ExtractionResult(
+        title=result.title,
         concepts=resolved_items(result.concepts),
         entities=resolved_items(result.entities),
         claims=resolved_items(result.claims),

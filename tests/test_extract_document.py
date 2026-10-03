@@ -73,7 +73,7 @@ def test_extract_document_records_a_versioned_completed_run(tmp_path) -> None:
 
     assert run.status == "completed"
     assert run.profile_name == "v4"
-    assert run.schema_version == "v2"
+    assert run.schema_version == "v2-title-v1"
     assert run.result is not None
     assert run.result.concepts[0].name == "autonomía"
     assert run.result.concepts[0].evidence[0].start_char == 11

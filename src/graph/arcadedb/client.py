@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 from contextlib import contextmanager
+from time import perf_counter
 from typing import Any, Iterator
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
+
+logger = logging.getLogger(__name__)
 
 
 class ArcadeDBClientError(RuntimeError):
@@ -145,15 +149,28 @@ class ArcadeDBHTTPClient:
             headers=headers,
             method="POST",
         )
+        started = perf_counter()
         try:
             with urlopen(request, timeout=30) as response:
                 body = response.read()
                 parsed = json.loads(body) if body else {}
                 return parsed, response.headers
         except HTTPError as error:
+            logger.error(
+                "arcadedb_request_failed operation=%s database=%s language=%s upstream_status=%s "
+                "duration_ms=%.1f",
+                operation, self._database, (payload or {}).get("language"), error.code,
+                (perf_counter() - started) * 1000,
+            )
             detail = error.read().decode(errors="replace")
             raise ArcadeDBClientError(
                 f"ArcadeDB rejected {operation} with HTTP {error.code}: {detail}"
             ) from error
         except (URLError, TimeoutError) as error:
+            logger.exception(
+                "arcadedb_request_failed operation=%s database=%s language=%s "
+                "error_type=%s duration_ms=%.1f",
+                operation, self._database, (payload or {}).get("language"), type(error).__name__,
+                (perf_counter() - started) * 1000,
+            )
             raise ArcadeDBClientError(f"ArcadeDB is unavailable during {operation}") from error

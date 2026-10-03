@@ -1,15 +1,20 @@
 """OpenAI implementation of the structured extraction port."""
 
+import logging
+from time import perf_counter
 from typing import Any
 
 from src.domain.documents import Document
 from src.extraction.contracts import ExtractionResult
 from src.extraction.profiles import ExtractionProfile
+from src.services.provider_diagnostics import provider_error_details
 from src.services.structured_extractor import (
     ExtractionProviderError,
     ProviderExtraction,
     TokenUsage,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class OpenAIExtractor:
@@ -23,8 +28,15 @@ class OpenAIExtractor:
         self._client = client
 
     def extract(self, document: Document, profile: ExtractionProfile) -> ProviderExtraction:
-        client = self._get_client()
+        started = perf_counter()
+        stage = "configuration"
         try:
+            logger.info(
+                "openai_extraction_started document_id=%s model=%s profile=%s content_chars=%s",
+                document.id, self.model_name, profile.name, len(document.content),
+            )
+            client = self._get_client()
+            stage = "request"
             response = client.responses.parse(
                 model=self.model_name,
                 input=[
@@ -41,18 +53,30 @@ class OpenAIExtractor:
                 ],
                 text_format=ExtractionResult,
             )
-        except Exception as error:
-            raise ExtractionProviderError("OpenAI extraction request failed") from error
-
-        if response.output_parsed is None:
-            raise ExtractionProviderError("OpenAI did not return a structured extraction")
-
-        try:
+            stage = "response_validation"
+            if response.output_parsed is None:
+                raise ExtractionProviderError("OpenAI did not return a structured extraction")
             result = ExtractionResult.model_validate(response.output_parsed)
         except Exception as error:
-            raise ExtractionProviderError("OpenAI returned an invalid extraction") from error
+            logger.exception(
+                "openai_extraction_failed document_id=%s model=%s profile=%s stage=%s "
+                "duration_ms=%.1f diagnostics=%s",
+                document.id, self.model_name, profile.name, stage,
+                (perf_counter() - started) * 1000, provider_error_details(error),
+            )
+            if isinstance(error, ExtractionProviderError):
+                raise
+            raise ExtractionProviderError("OpenAI extraction request failed") from error
 
         usage = getattr(response, "usage", None)
+        logger.info(
+            "openai_extraction_completed document_id=%s model=%s upstream_request_id=%s "
+            "response_id=%s duration_ms=%.1f input_tokens=%s output_tokens=%s",
+            document.id, getattr(response, "model", self.model_name),
+            getattr(response, "_request_id", None), getattr(response, "id", None),
+            (perf_counter() - started) * 1000,
+            getattr(usage, "input_tokens", None), getattr(usage, "output_tokens", None),
+        )
         return ProviderExtraction(
             result=result,
             provider=self.provider_name,

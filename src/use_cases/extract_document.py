@@ -78,10 +78,14 @@ class ExtractDocument:
             )
             if provider_extraction is not None:
                 logger.error(
-                    "extraction_failed_result document_id=%s run_id=%s result=%s",
+                    "extraction_failed_result document_id=%s run_id=%s concept_count=%s "
+                    "entity_count=%s claim_count=%s relationship_count=%s",
                     document.id,
                     failed_run.id,
-                    provider_extraction.result.model_dump_json(),
+                    len(provider_extraction.result.concepts),
+                    len(provider_extraction.result.entities),
+                    len(provider_extraction.result.claims),
+                    len(provider_extraction.result.relationships),
                 )
             self._extraction_store.save(failed_run)
             raise ExtractionRunFailedError(failed_run.id) from error
@@ -99,6 +103,12 @@ class ExtractDocument:
             usage=provider_extraction.usage,
         )
         self._extraction_store.save(completed_run)
+        logger.info(
+            "extraction_completed document_id=%s run_id=%s provider=%s model=%s profile=%s "
+            "claim_count=%s",
+            document.id, completed_run.id, completed_run.provider, completed_run.model,
+            profile.name, len(result.claims),
+        )
         return completed_run
 
     def get_document(self, document_id: UUID):

@@ -47,7 +47,10 @@ def create_extraction(
     except ExtractionRunFailedError as error:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail={"message": "Extraction failed", "run_id": str(error.run_id)},
+            detail={
+                "message": "Extraction failed", "run_id": str(error.run_id),
+                "code": "extraction_failed", "stage": "extraction",
+            },
         ) from error
     except GraphPersistenceFailedError as error:
         raise HTTPException(
@@ -55,6 +58,8 @@ def create_extraction(
             detail={
                 "message": "Extraction completed but graph persistence failed",
                 "run_id": str(error.run_id),
+                "code": "graph_persistence_failed",
+                "stage": "graph_persistence",
             },
         ) from error
     except (ClaimEmbeddingFailedError, DocumentEmbeddingFailedError) as error:
@@ -62,10 +67,16 @@ def create_extraction(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail={
                 "message": "Extraction was persisted but embeddings failed",
+                "code": "embedding_failed",
+                "stage": (
+                    "claim_embeddings"
+                    if isinstance(error, ClaimEmbeddingFailedError)
+                    else "document_embeddings"
+                ),
                 "run_id": (
-                error.run_id
-                if isinstance(error, ClaimEmbeddingFailedError)
-                else error.document_id
-            ),
+                    error.run_id
+                    if isinstance(error, ClaimEmbeddingFailedError)
+                    else error.document_id
+                ),
             },
         ) from error

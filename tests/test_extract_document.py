@@ -185,7 +185,7 @@ def test_resolve_evidence_discards_provider_offsets() -> None:
     assert resolved.concepts[0].evidence[0].end_char == 20
 
 
-def test_ingest_and_extract_logs_the_completed_result(tmp_path, caplog) -> None:
+def test_ingest_and_extract_logs_completion_without_note_contents(tmp_path, caplog) -> None:
     document = source_document("Quiero más autonomía.")
     document_store = FileDocumentStore(tmp_path / "documents")
     process = IngestAndExtractDocument(
@@ -201,8 +201,11 @@ def test_ingest_and_extract_logs_the_completed_result(tmp_path, caplog) -> None:
     processed = process.execute(NewDocument(content=document.content, source="test"))
 
     assert processed.extraction.status == "completed"
-    assert "extraction_completed" in caplog.text
-    assert '"concepts"' in caplog.text
+    assert "document_processing_completed" in caplog.text
+    assert str(processed.document.id) in caplog.text
+    assert str(processed.extraction.id) in caplog.text
+    assert "claim_count=0" in caplog.text
+    assert "autonomía" not in caplog.text
 
 
 def test_resolve_evidence_accepts_unicode_canonical_equivalence_and_preserves_source() -> None:

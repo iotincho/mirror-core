@@ -6,6 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import ValidationError
+from starlette.concurrency import run_in_threadpool
 
 from src.api.schemas.documents import (
     CreateDocumentRequest,
@@ -50,7 +51,7 @@ async def create_document(
 ) -> ProcessedDocumentResponse:
     """Store and immediately extract knowledge from source material."""
     try:
-        processed = use_case.execute(NewDocument(**request.model_dump()))
+        processed = await run_in_threadpool(use_case.execute, NewDocument(**request.model_dump()))
     except DocumentAlreadyExistsError as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
     except ExtractionRunFailedError as error:
@@ -100,7 +101,7 @@ async def create_document_from_file(
         ) from error
 
     try:
-        processed = use_case.execute(new_document)
+        processed = await run_in_threadpool(use_case.execute, new_document)
     except DocumentAlreadyExistsError as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
     except ExtractionRunFailedError as error:
@@ -131,7 +132,10 @@ def _extraction_failed_response(error: ExtractionRunFailedError) -> HTTPExceptio
     """Tell callers the document was stored but did not finish processing."""
     return HTTPException(
         status_code=status.HTTP_502_BAD_GATEWAY,
-        detail={"message": "Extraction failed", "run_id": str(error.run_id)},
+        detail={
+            "message": "Extraction failed", "run_id": str(error.run_id),
+            "code": "extraction_failed", "stage": "extraction",
+        },
     )
 
 
@@ -142,6 +146,8 @@ def _graph_persistence_failed_response(error: GraphPersistenceFailedError) -> HT
         detail={
             "message": "Document was extracted but graph persistence failed",
             "run_id": str(error.run_id),
+            "code": "graph_persistence_failed",
+            "stage": "graph_persistence",
         },
     )
 
@@ -154,6 +160,12 @@ def _embedding_failed_response(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         detail={
             "message": "Document was extracted but embeddings failed",
+            "code": "embedding_failed",
+            "stage": (
+                "claim_embeddings"
+                if isinstance(error, ClaimEmbeddingFailedError)
+                else "document_embeddings"
+            ),
             "run_id": (
                 error.run_id
                 if isinstance(error, ClaimEmbeddingFailedError)

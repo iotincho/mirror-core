@@ -34,6 +34,7 @@ class IngestAndExtractDocument:
 
     def execute(self, new_document: NewDocument) -> ProcessedDocument:
         document = self._ingest_document.execute(new_document)
+        logger.info("document_stored document_id=%s source=%s", document.id, document.source)
         return self.process_existing(document.id)
 
     def process_existing(self, document_id: object) -> ProcessedDocument:
@@ -42,10 +43,10 @@ class IngestAndExtractDocument:
         extraction = self._extract_document.execute(document.id)
         if extraction.result is not None:
             logger.info(
-                "extraction_completed document_id=%s run_id=%s result=%s",
+                "document_processing_completed document_id=%s run_id=%s claim_count=%s",
                 document.id,
                 extraction.id,
-                extraction.result.model_dump_json(),
+                len(extraction.result.claims),
             )
         return ProcessedDocument(
             document=self._ingest_document.get(document.id), extraction=extraction

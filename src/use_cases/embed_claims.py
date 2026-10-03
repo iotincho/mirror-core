@@ -1,12 +1,15 @@
 """Generate and persist versioned vectors for claims in one completed extraction."""
 
 import hashlib
+import logging
 
 from src.domain.documents import Document
 from src.embeddings.contracts import ClaimEmbeddingRecord, EmbeddingSpec
 from src.services.claim_embedding_store import ClaimEmbeddingStore, ClaimEmbeddingStoreError
 from src.services.embedding_provider import EmbeddingProvider, EmbeddingProviderError
 from src.services.extraction_store import ExtractionRun
+
+logger = logging.getLogger(__name__)
 
 
 class ClaimEmbeddingFailedError(RuntimeError):
@@ -31,6 +34,7 @@ class EmbedClaims:
         if not claims:
             return 0
 
+        stage = "provider"
         try:
             vectors = self._provider.embed([claim.text for claim in claims])
             if len(vectors) != len(claims):
@@ -52,8 +56,15 @@ class EmbedClaims:
                         "id": f"{graph_id}:embedding:{spec.index_suffix}:{record.text_hash[:16]}",
                     })
                 records.append(record)
+            stage = "persistence"
             self._store.persist_claim_embeddings(records, spec)
         except (EmbeddingProviderError, ClaimEmbeddingStoreError) as error:
+            logger.exception(
+                "claim_embedding_failed document_id=%s run_id=%s stage=%s provider=%s "
+                "model=%s dimensions=%s claim_count=%s",
+                document.id, extraction.id, stage, self._provider.spec.provider,
+                self._provider.spec.model, self._provider.spec.dimensions, len(claims),
+            )
             raise ClaimEmbeddingFailedError(str(extraction.id)) from error
         return len(records)
 

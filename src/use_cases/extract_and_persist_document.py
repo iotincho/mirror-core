@@ -1,6 +1,7 @@
 """Compose extraction and graph persistence without coupling either adapter to HTTP."""
 
 import logging
+from time import perf_counter
 from uuid import UUID
 
 from src.services.extraction_store import ExtractionRun
@@ -28,16 +29,25 @@ class ExtractAndPersistDocument:
     def execute(self, document_id: UUID, profile_name: str = "v4") -> ExtractionRun:
         extraction = self._extract_document.execute(document_id, profile_name)
         document = self._extract_document.get_document(document_id)
+        started = perf_counter()
+        logger.info(
+            "graph_persistence_started document_id=%s run_id=%s", document_id, extraction.id,
+        )
         try:
             self._graph_store.persist(document, extraction)
         except GraphPersistenceError as error:
             logger.exception(
-                "graph_persistence_failed document_id=%s run_id=%s error_type=%s",
+                "graph_persistence_failed document_id=%s run_id=%s error_type=%s duration_ms=%.1f",
                 document_id,
                 extraction.id,
                 type(error).__name__,
+                (perf_counter() - started) * 1000,
             )
             raise GraphPersistenceFailedError(extraction.id) from error
+        logger.info(
+            "graph_persistence_completed document_id=%s run_id=%s duration_ms=%.1f",
+            document_id, extraction.id, (perf_counter() - started) * 1000,
+        )
         return extraction
 
     def get_document(self, document_id: UUID):

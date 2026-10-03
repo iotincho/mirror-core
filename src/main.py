@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
 
+from src.api.middleware import RequestLoggingMiddleware
 from src.api.router import api_router
 from src.config import get_settings
 from src.dependencies import close_graph_store
@@ -49,3 +50,4 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.include_router(api_router)
+app.add_middleware(RequestLoggingMiddleware)

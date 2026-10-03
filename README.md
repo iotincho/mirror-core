@@ -428,3 +428,38 @@ Los JSON antiguos siguen siendo válidos y devuelven `title: null`. Al reprocesa
 con `POST /documents/{id}/extractions` se genera y actualiza el título. No se
 reprocesan notas anteriores automáticamente ni se generan llamadas adicionales
 al modelo para listar documentos.
+
+## Diagnóstico de fallos al procesar documentos
+
+Cada petición devuelve `X-Request-ID`. Los logs de la petición, la extracción,
+ArcadeDB y los embeddings comparten ese `request_id`, incluso cuando el
+procesamiento corre en un hilo. Los endpoints de subida de texto y archivos
+ejecutan ese trabajo fuera del event loop para que las esperas al proveedor
+no bloqueen otras peticiones ni los chequeos de salud.
+
+Para revisar los logs del servicio en el stack local:
+
+```bash
+docker compose logs --tail=200 -f api
+```
+
+Las respuestas de procesamiento fallido conservan `message` y `run_id`, y
+agregan `code` y `stage`. La nota original permanece guardada; se puede
+reprocesar con `POST /documents/{id}/extractions` después de corregir la causa.
+
+| Estado / etapa | Qué revisar en los logs |
+| --- | --- |
+| 502 / `extraction` | `openai_extraction_failed`: modelo, perfil, configuración, error HTTP del proveedor o respuesta inválida; `extraction_failed`: validación de evidencia o almacenamiento local. |
+| 503 / `graph_persistence` | `graph_persistence_failed` y `arcadedb_request_failed`: operación, base, permisos, disponibilidad y error original de ArcadeDB. |
+| 503 / `claim_embeddings` o `document_embeddings` | Modelo y dimensiones; `stage=provider` o `stage=persistence` distingue la generación de vectores del guardado en ArcadeDB. |
+| 503 antes de procesar | `workspace_unavailable`: espacio faltante, estado no activo, instancia distinta o fallo al descifrar la credencial. |
+
+Los errores de OpenAI incluyen `upstream_status`, `upstream_request_id`,
+`error_code` y `error_param` cuando el SDK los proporciona. Así se distingue
+un modelo inexistente o sin acceso, cuota agotada, dimensiones inválidas y
+problemas de conexión. Los fallos de configuración también se registran,
+incluida la falta de `OPENAI_API_KEY` o `OPENAI_MODEL`.
+
+Los logs registran IDs, conteos, duraciones y trazas de errores. No se vuelca
+el resultado completo de extracción ni se registran cuerpos de peticiones,
+vectores o credenciales como parte del diagnóstico.

@@ -103,3 +103,46 @@ def test_runtime_builds_every_file_store_under_one_workspace_root(tmp_path: Path
     assert runtime.audio_note_store._directory == binding.context.filesystem_root / "audio-notes"
     assert runtime.extraction_store._directory == binding.context.filesystem_root / "extractions"
     assert runtime.reflection_store._directory == binding.context.filesystem_root / "reflections"
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "case,reason",
+    [
+        ("missing", "missing_workspace"),
+        ("failed", "inactive_workspace"),
+        ("instance", "instance_mismatch"),
+        ("secret", "secret_decryption_failed"),
+    ],
+)
+async def test_workspace_503_logs_reason_without_secrets(
+    monkeypatch, tmp_path, caplog, case, reason,
+):
+    configured = settings(tmp_path)
+    user_id = UUID("e3f4e7a0-5555-4f28-a7a0-9178d227a4c8")
+    workspace = SimpleNamespace(
+        status=WorkspaceStatus.FAILED if case == "failed" else WorkspaceStatus.ACTIVE,
+        last_error_code="arcadedb_provisioning_failed",
+        arcadedb_instance_key="other" if case == "instance" else "primary",
+        graph_secret_ciphertext="private-invalid-ciphertext",
+    )
+
+    async def get(*args):
+        return None if case == "missing" else workspace
+
+    monkeypatch.setattr("src.workspaces.dependencies.get_settings", lambda: configured)
+    monkeypatch.setattr("src.workspaces.dependencies.WorkspaceRepository.get", get)
+
+    with pytest.raises(HTTPException) as error:
+        await get_workspace_binding(
+            AuthenticatedUser(id=user_id, email="private@example.com"), SimpleNamespace(),
+        )
+
+    assert error.value.status_code == 503
+    assert f"reason={reason}" in caplog.text
+    assert str(user_id) in caplog.text
+    assert "private-invalid-ciphertext" not in caplog.text
+    assert "private@example.com" not in caplog.text
+    if case == "failed":
+        assert "status=failed" in caplog.text
+        assert "last_error_code=arcadedb_provisioning_failed" in caplog.text

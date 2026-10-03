@@ -1,10 +1,12 @@
 """OpenAI implementation of the embedding-provider port."""
 
 import logging
+from time import perf_counter
 from typing import Any
 
 from src.embeddings.contracts import EmbeddingSpec, EmbeddingVector
 from src.services.embedding_provider import EmbeddingProviderError
+from src.services.provider_diagnostics import provider_error_details
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +26,13 @@ class OpenAIEmbeddingProvider:
         self._client = client
 
     def embed(self, texts: list[str]) -> list[EmbeddingVector]:
-        if not texts or any(not text.strip() for text in texts):
-            raise EmbeddingProviderError("Embedding inputs must be non-empty")
-        client = self._get_client()
+        started = perf_counter()
+        stage = "configuration"
         try:
+            if not texts or any(not text.strip() for text in texts):
+                raise EmbeddingProviderError("Embedding inputs must be non-empty")
+            client = self._get_client()
+            stage = "request"
             logger.info(
                 "openai_embedding_request_started input_count=%s model=%s dimensions=%s",
                 len(texts),
@@ -40,32 +45,43 @@ class OpenAIEmbeddingProvider:
                 dimensions=self.spec.dimensions,
                 encoding_format="float",
             )
+            stage = "response_validation"
+            vectors = [
+                list(item.embedding) for item in sorted(response.data, key=lambda item: item.index)
+            ]
+            if len(vectors) != len(texts) or any(
+                len(vector) != self.spec.dimensions for vector in vectors
+            ):
+                raise EmbeddingProviderError(
+                    "OpenAI returned unexpected embeddings: "
+                    f"expected_count={len(texts)} actual_count={len(vectors)} "
+                    f"expected_dimensions={self.spec.dimensions} "
+                    f"actual_dimensions={sorted({len(vector) for vector in vectors})}"
+                )
         except Exception as error:
             logger.exception(
                 "openai_embedding_request_failed input_count=%s model=%s dimensions=%s "
-                "error_type=%s",
+                "stage=%s duration_ms=%.1f diagnostics=%s",
                 len(texts),
                 self.spec.model,
                 self.spec.dimensions,
-                type(error).__name__,
+                stage,
+                (perf_counter() - started) * 1000,
+                provider_error_details(error),
             )
+            if isinstance(error, EmbeddingProviderError):
+                raise
             raise EmbeddingProviderError("OpenAI embedding request failed") from error
-
-        vectors = [
-            list(item.embedding) for item in sorted(response.data, key=lambda item: item.index)
-        ]
-        if len(vectors) != len(texts) or any(
-            len(vector) != self.spec.dimensions for vector in vectors
-        ):
-            raise EmbeddingProviderError("OpenAI returned embeddings with unexpected dimensions")
         usage = getattr(response, "usage", None)
         logger.info(
             "openai_embedding_request_completed input_count=%s model=%s dimensions=%s "
-            "input_tokens=%s",
+            "input_tokens=%s upstream_request_id=%s duration_ms=%.1f",
             len(texts),
             getattr(response, "model", self.spec.model),
             len(vectors[0]) if vectors else 0,
             getattr(usage, "prompt_tokens", None),
+            getattr(response, "_request_id", None),
+            (perf_counter() - started) * 1000,
         )
         return [
             EmbeddingVector(

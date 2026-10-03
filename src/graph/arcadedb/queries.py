@@ -3,6 +3,7 @@
 DOCUMENT_AND_RUN = """
 MERGE (document:Document {id: $id})
 SET document.source = $source,
+    document.title = $title,
     document.metadata_json = $metadata_json,
     document.created_at = $created_at,
     document.authored_at = $authored_at

@@ -500,6 +500,7 @@ class ArcadeDBGraphStore(GraphBackend):
             {
                 "id": document_id,
                 "source": document.source,
+                "title": document.title,
                 "metadata_json": json.dumps(
                     document.metadata,
                     ensure_ascii=False,

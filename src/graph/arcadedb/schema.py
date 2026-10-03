@@ -10,7 +10,7 @@ from typing import Any, Protocol
 from src.embeddings.contracts import EmbeddingSpec
 from src.graph.arcadedb.client import ArcadeDBClientError, ArcadeDBHTTPClient
 
-SCHEMA_VERSION = "v3"
+SCHEMA_VERSION = "v4"
 
 
 class ArcadeDBSchemaError(ArcadeDBClientError):
@@ -78,6 +78,7 @@ def schema_statements(spec: EmbeddingSpec) -> tuple[str, ...]:
     vertex_properties: dict[str, tuple[tuple[str, str], ...]] = {
         "Document": (
             ("id", "STRING"),
+            ("title", "STRING"),
             ("source", "STRING"),
             ("metadata_json", "STRING"),
             ("created_at", "STRING"),

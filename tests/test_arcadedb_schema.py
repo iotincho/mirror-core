@@ -33,6 +33,8 @@ def test_schema_contains_graph_types_constraints_and_vector_indexes() -> None:
     statements = schema_statements(spec)
 
     assert "CREATE VERTEX TYPE Document IF NOT EXISTS" in statements
+    assert "CREATE PROPERTY Document.title IF NOT EXISTS STRING" in statements
+    assert migration_version(spec).startswith("v4:")
     assert "CREATE EDGE TYPE HAS_EXTRACTION IF NOT EXISTS" in statements
     assert "CREATE EDGE TYPE CROSS_DOCUMENT_LINK IF NOT EXISTS" in statements
     assert "CREATE EDGE TYPE EXPRESSES_EMOTION IF NOT EXISTS" in statements

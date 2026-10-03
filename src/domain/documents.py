@@ -38,6 +38,7 @@ class Document(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     id: UUID
+    title: str | None = Field(default=None, min_length=1, max_length=80)
     content: str
     source: str
     metadata: dict[str, str]

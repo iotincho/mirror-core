@@ -2,7 +2,7 @@ import httpx
 import pytest
 
 from src.auth.session import require_authenticated
-from src.dependencies import get_ingest_and_extract_document, get_ingest_document_file
+from src.dependencies import get_ingest_and_extract_document, get_ingest_document_file, get_list_documents
 from src.domain.documents import Document
 from src.extraction.contracts import Concept, Evidence, ExtractionResult
 from src.main import app
@@ -13,6 +13,7 @@ from src.use_cases.extract_document import ExtractDocument
 from src.use_cases.ingest_and_extract_document import IngestAndExtractDocument
 from src.use_cases.ingest_document import IngestDocument
 from src.use_cases.ingest_document_file import IngestDocumentFile
+from src.use_cases.list_documents import ListDocuments
 
 
 class FakeExtractor:
@@ -24,6 +25,7 @@ class FakeExtractor:
         start = document.content.index(quote)
         return ProviderExtraction(
             result=ExtractionResult(
+                title="Una reflexión personal",
                 concepts=[
                     Concept(
                         id="concept_1",
@@ -61,6 +63,9 @@ async def test_create_document_delegates_to_use_case_and_returns_created_documen
         return processing_use_case(tmp_path)
 
     app.dependency_overrides[get_ingest_and_extract_document] = override_process_document
+    app.dependency_overrides[get_list_documents] = lambda: ListDocuments(
+        FileDocumentStore(tmp_path / "documents")
+    )
     app.dependency_overrides[require_authenticated] = lambda: "test-user"
 
     try:
@@ -74,6 +79,7 @@ async def test_create_document_delegates_to_use_case_and_returns_created_documen
                     "authored_at": "2024-01-10T09:30:00-03:00",
                 },
             )
+            listed = await client.get("/documents")
     finally:
         app.dependency_overrides.clear()
 
@@ -81,6 +87,10 @@ async def test_create_document_delegates_to_use_case_and_returns_created_documen
     body = response.json()
     assert body["document"]["content"] == "Estoy evaluando un cambio."
     assert body["document"]["source"] == "manual"
+    assert body["document"]["title"] == "Una reflexión personal"
+    assert body["extraction"]["result"]["title"] == "Una reflexión personal"
+    assert listed.status_code == 200
+    assert listed.json()[0]["title"] == body["document"]["title"]
     assert body["document"]["authored_at"] == "2024-01-10T09:30:00-03:00"
     assert body["document"]["created_at"] != body["document"]["authored_at"]
     assert body["extraction"]["status"] == "completed"
@@ -120,6 +130,7 @@ async def test_create_document_from_markdown_file(tmp_path) -> None:
     assert response.json()["document"]["metadata"] == {"filename": "reflexion.md", "format": "md"}
     assert response.json()["document"]["authored_at"] == "2024-01-10T09:30:00-03:00"
     assert response.json()["extraction"]["status"] == "completed"
+    assert response.json()["document"]["title"] == "Una reflexión personal"
     assert (tmp_path / "documents" / f"{response.json()['document']['id']}.json").is_file()
 
 

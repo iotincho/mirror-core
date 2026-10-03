@@ -71,7 +71,7 @@ async def test_audio_note_is_persisted_and_transcribed_in_background(audio_store
     assert fetched.json()["transcript"] == "Una reflexión grabada."
     assert fetched.json()["transcription_provider"] == "fake"
     assert fetched.json()["document_id"] == created["id"]
-    assert document_processor.documents[0].id == created["id"]
+    assert str(document_processor.documents[0].id) == created["id"]
     assert document_processor.documents[0].source == "pwa_audio"
     assert document_processor.documents[0].content == "Una reflexión grabada."
     assert len(list((audio_store._directory).glob("*.webm"))) == 1

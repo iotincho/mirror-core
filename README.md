@@ -410,3 +410,21 @@ La IA no debe decir: “esto es quien sos”. Debe decir cosas como:
 - “Esta es una interpretación basada en estos documentos.”
 
 La POC existe para descubrir qué representación de pensamientos personales resulta útil para una reflexión genuina. La prioridad no es completar una arquitectura: es aprender.
+
+## Títulos de documentos
+
+La extracción genera `title` en la misma llamada al modelo: entre 3 y 8 palabras,
+con un máximo de 80 caracteres y en el idioma de la nota. El título se guarda
+como campo propio del documento y de la extracción. No modifica `content`,
+la identidad, los metadatos ni las fechas originales.
+
+`POST /documents`, `POST /documents/files` y `GET /documents` incluyen el título
+en el documento devuelto. Las transcripciones usan el mismo procesamiento.
+Los perfiles registran las versiones de prompt y esquema con el sufijo
+`-title-v1`; el esquema de ArcadeDB pasa a `v4` para agregar `Document.title`
+también en bases existentes, mediante la reconciliación de workspaces.
+
+Los JSON antiguos siguen siendo válidos y devuelven `title: null`. Al reprocesar
+con `POST /documents/{id}/extractions` se genera y actualiza el título. No se
+reprocesan notas anteriores automáticamente ni se generan llamadas adicionales
+al modelo para listar documentos.

@@ -15,6 +15,7 @@ class CreateDocumentRequest(NewDocument):
 
 class DocumentResponse(BaseModel):
     id: UUID
+    title: str | None = None
     content: str
     source: str
     metadata: dict[str, str]

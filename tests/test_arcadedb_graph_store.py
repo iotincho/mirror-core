@@ -119,8 +119,10 @@ def test_persist_writes_full_extraction_inside_one_transaction() -> None:
     client = FakeArcadeDBClient()
     document, run = completed_extraction()
 
+    document = document.model_copy(update={"title": "Una reflexión personal"})
     build_store(client).persist(document, run)
 
+    assert client.commands[0][1]["title"] == document.title
     joined = "\n".join(statement for statement, _, _ in client.commands)
     assert client.transaction_count == 1
     assert "MERGE (document:Document" in joined

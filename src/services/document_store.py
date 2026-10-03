@@ -21,6 +21,9 @@ class DocumentStore(Protocol):
     def save(self, document: Document) -> None:
         """Persist one original document."""
 
+    def update_title(self, document_id: object, title: str) -> Document:
+        """Update only the display title, preserving the original material."""
+
     def list(self) -> list[Document]: ...
 
     def delete(self, document_id: object) -> None: ...
@@ -48,10 +51,29 @@ class FileDocumentStore:
         )
         temporary.replace(destination)
 
+    def update_title(self, document_id: object, title: str) -> Document:
+        document = self.get(document_id)
+        updated = Document.model_validate({**document.model_dump(), "title": title})
+        destination = self._directory / f"{document.id}.json"
+        temporary = destination.with_suffix(".json.tmp")
+        temporary.write_text(
+            json.dumps(updated.model_dump(mode="json"), ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        temporary.replace(destination)
+        return updated
+
     def list(self) -> list[Document]:
         if not self._directory.exists():
             return []
-        return sorted((Document.model_validate_json(path.read_text(encoding="utf-8")) for path in self._directory.glob("*.json")), key=lambda document: document.created_at, reverse=True)
+        return sorted(
+            (
+                Document.model_validate_json(path.read_text(encoding="utf-8"))
+                for path in self._directory.glob("*.json")
+            ),
+            key=lambda document: document.created_at,
+            reverse=True,
+        )
 
     def delete(self, document_id: object) -> None:
         destination = self._directory / f"{document_id}.json"

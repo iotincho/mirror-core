@@ -3,7 +3,7 @@
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ClaimType(str, Enum):
@@ -81,7 +81,15 @@ class Relationship(ExtractionModel):
 class ExtractionResult(ExtractionModel):
     """Structured extraction enriched with source locations by the application."""
 
+    title: str | None = Field(default=None, min_length=1, max_length=80)
     concepts: list[Concept]
     entities: list[Entity]
     claims: list[Claim]
     relationships: list[Relationship]
+
+    @field_validator("title", mode="before")
+    @classmethod
+    def normalize_title(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return " ".join(value.split())

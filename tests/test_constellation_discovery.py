@@ -127,7 +127,7 @@ def test_repeated_words_require_context_and_reject_before_any_write(tmp_path):
     assert graph.saved == [] and history.list_for_document(document.id) == []
     assert "extend the contiguous quote" in V5_PROFILE.instructions
     assert "omit that item AND any relationship" in V5_PROFILE.instructions
-    assert V5_PROFILE.prompt_version == "v5.1"
+    assert V5_PROFILE.prompt_version == "v5.1-title-v1"
 
 
 def test_missing_or_invented_source_evidence_is_rejected(tmp_path):

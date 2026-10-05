@@ -2,6 +2,11 @@
 
 > Un instrumento de introspección personal asistido por IA.
 
+El diseño del próximo flujo de ingreso está en
+[Procesamiento diferido: contratos y diseño](docs/deferred-processing.md).
+Define Taskiq + RabbitMQ, máquinas de estados por caso de uso y recuperación
+durable; corresponde a la etapa 1 y todavía no modifica el comportamiento actual.
+
 ## Contexto
 
 El Espejo es una prueba de concepto (POC) para explorar si la IA puede ayudar a una persona a observar, recorrer y comprender sus propios pensamientos a lo largo del tiempo.

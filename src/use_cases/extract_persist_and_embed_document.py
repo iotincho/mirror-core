@@ -19,12 +19,28 @@ class ExtractPersistAndEmbedDocument:
         extract_and_persist: ExtractAndPersistDocument,
         embed_claims: EmbedClaims,
         embed_document: EmbedDocument,
+        processing=None,
+        user_id=None,
     ) -> None:
         self._extract_and_persist = extract_and_persist
         self._embed_claims = embed_claims
         self._embed_document = embed_document
+        self._processing, self._user_id = processing, user_id
 
     async def execute(self, document_id: UUID, profile_name: str = "v4") -> ExtractionRun:
+        if self._processing is not None:
+            from src.processing.submissions import SubmissionConflict
+            async with self._processing.lock_resource(self._user_id, document_id) as locked:
+                if not locked:
+                    raise SubmissionConflict("processing_active")
+                try:
+                    await self._processing.assert_inactive(self._user_id, document_id)
+                except ValueError as error:
+                    raise SubmissionConflict("processing_active") from error
+                return await self._execute(document_id, profile_name)
+        return await self._execute(document_id, profile_name)
+
+    async def _execute(self, document_id, profile_name):
         extraction = await self._extract_and_persist.execute(document_id, profile_name)
         document = await self._extract_and_persist.get_document(document_id)
         try:

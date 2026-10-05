@@ -6,6 +6,7 @@ from src.api.routes import (
     constellation,
     documents,
     extractions,
+    processing,
     reflections,
     search,
     system,
@@ -22,4 +23,5 @@ protected_router.include_router(extractions.router)
 protected_router.include_router(constellation.router)
 protected_router.include_router(search.router)
 protected_router.include_router(reflections.router)
+protected_router.include_router(processing.router)
 api_router.include_router(protected_router)

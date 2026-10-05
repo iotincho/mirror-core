@@ -9,6 +9,7 @@ from typing import Protocol
 from uuid import uuid4
 
 from src.domain.documents import Document
+from src.services.durable_files import sync_published
 
 
 class DocumentAlreadyExistsError(Exception):
@@ -72,6 +73,7 @@ class FileDocumentStore:
             # Exclusive publication: concurrent submissions cannot replace the original.
             try:
                 destination.hardlink_to(temporary)
+                sync_published(destination)
             except FileExistsError as error:
                 raise DocumentAlreadyExistsError(
                     f"Document {document.id} already exists"
@@ -89,6 +91,7 @@ class FileDocumentStore:
             encoding="utf-8",
         )
         temporary.replace(destination)
+        sync_published(destination)
         return updated
 
     def _list(self) -> list[Document]:

@@ -19,14 +19,19 @@ logger = logging.getLogger(__name__)
 class WorkflowFailure(Exception):
     """Safe error code and retry decision supplied by the concrete use case."""
 
-    def __init__(self, code: str, retry_delay: float | None = None):
+    def __init__(self, code: str, retry_delay: float | None = None, retryable: bool | None = None):
         super().__init__(code)
         self.code = code
         self.retry_delay = retry_delay
+        self.retryable = retry_delay is not None if retryable is None else retryable
 
 
 class ResourceBusy(RuntimeError):
     pass
+
+
+class WorkflowWaiting(Exception):
+    """The use case durably handed execution to a child; release the worker."""
 
 
 @dataclass(frozen=True)
@@ -96,6 +101,8 @@ class ExecuteProcessing:
 
             heartbeat = asyncio.create_task(renew())
             try:
+                if record.resource_deleted:
+                    raise WorkflowFailure("resource_deleted")
                 if not await self.repository.workspace_active(record.user_id):
                     raise WorkflowFailure("workspace_unavailable")
                 definition = self.registry.get(record)
@@ -108,7 +115,10 @@ class ExecuteProcessing:
                     status="retrying" if retry else "failed",
                     error_code=error.code,
                     retry_delay=error.retry_delay if retry else None,
+                    retryable=error.retryable,
                 )
+            except WorkflowWaiting:
+                return
             except LeaseLost:
                 # Reconciliation owns the replacement generation; no stale mutation.
                 return

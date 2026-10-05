@@ -1,11 +1,11 @@
 # Etapa 3: ejecución durable
 
 Implementa la infraestructura compartida para los casos de uso diferidos.
-Los endpoints actuales conservan su comportamiento. `ProcessDocument`,
-`ProcessAudioNote`, sus checkpoints externos, relaciones padre/hijo, recibos de
-upload y endpoints de estado/retry se conectan en la etapa 4. El registro de
-workflows de producción permanece vacío hasta entonces; un workflow desconocido
-termina con `workflow_not_registered`.
+Los endpoints actuales conservan su comportamiento. La
+[etapa 4](deferred-ingestion.md) conecta documentos/audio mediante rutas `/v2`,
+registra ambos workflows de producción y agrega recibos idempotentes y
+relaciones padre/hijo. Un workflow desconocido termina con
+`workflow_not_registered`.
 
 ## Componentes y límites
 
@@ -19,8 +19,7 @@ termina con `workflow_not_registered`.
   checkpoint, versión y evento antes de iniciar la siguiente etapa.
 - `WorkflowFailure`: el caso de uso devuelve un código seguro y decide si el
   error admite reintento y su demora. El runner limita a cuatro intentos por
-  etapa; la clasificación de proveedores y backoff 10/30/120 con jitter quedan
-  en los casos de uso de etapa 4. Los errores internos inesperados terminan como
+  etapa; la etapa 4 incorpora clasificación de proveedores y backoff 10/30/120 con jitter. Los errores internos inesperados terminan como
   `workflow_internal_error`; los errores SQL dejan el lease para recuperación.
 - `processing.execute`: adaptador Taskiq. El mensaje contiene únicamente ID y
   generación. Confirma manualmente la entrega después de resolver el estado en
@@ -42,7 +41,7 @@ invalidan el token anterior y reprograman o fallan al agotar intentos.
 
 ## Exclusión y efectos externos
 
-Cada ejecución mantiene un advisory lock PostgreSQL por usuario, tipo e ID del
+Cada ejecución mantiene un advisory lock PostgreSQL por usuario e ID del
 recurso, en una conexión dedicada. Dos jobs del mismo recurso se serializan,
 además de rechazar avances con un lease/token vencido. La conexión del lock
 mantiene una transacción abierta durante la ejecución; las transacciones que
@@ -53,12 +52,11 @@ Esta exclusión coordina ejecutores que usan el runner. Si la conexión del lock
 se pierde mientras un servicio remoto sigue procesando una petición, el lock
 puede liberarse antes de finalizar ese efecto remoto. Los adaptadores concretos
 necesitan IDs deterministas, artefactos exclusivos y reconciliación de commits
-ambiguos. Esa integración con archivos/ArcadeDB se completa y prueba en etapa 4;
+ambiguos. La etapa 4 integra y prueba esos adaptadores;
 el token SQL no se presenta como garantía de ejecución única de efectos remotos.
 
-La exclusión por recurso usa la clave `user_id:resource_kind:resource_id`.
-Workflows que escriban sobre un recurso derivado deberán compartir esa clave o
-coordinar su acceso en etapa 4. La configuración del job contiene sólo opciones
+La exclusión por recurso usa la clave `user_id:resource_id`.
+Audio y documento derivado comparten UUID y esa exclusión. La configuración del job contiene sólo opciones
 sin secretos, y los checkpoints referencias/metadatos, nunca documentos completos.
 Los códigos de error expuestos no deben contener mensajes de proveedores.
 

@@ -214,12 +214,15 @@ async def get_extract_persist_and_embed_document(
     ],
     claim_embeddings: Annotated[ClaimEmbeddingStore, Depends(get_claim_embedding_store)],
     document_embeddings: Annotated[DocumentEmbeddingStore, Depends(get_document_embedding_store)],
+    runtime: Annotated[WorkspaceRuntime, Depends(get_workspace_runtime)],
 ) -> ExtractPersistAndEmbedDocument:
     """Build the default flow that makes extracted claims semantically searchable."""
+    from src.processing.runtime import get_repository
     return ExtractPersistAndEmbedDocument(
         extract_and_persist,
         EmbedClaims(get_embedding_provider(), claim_embeddings),
         EmbedDocument(get_embedding_provider(), document_embeddings),
+        get_repository(), runtime.context.user_id,
     )
 
 
@@ -288,10 +291,12 @@ async def get_delete_document(
     document_store: Annotated[FileDocumentStore, Depends(get_document_store)],
     extraction_store: Annotated[FileExtractionStore, Depends(get_extraction_store)],
     graph_store: Annotated[GraphBackend, Depends(get_graph_store)],
+    runtime: Annotated[WorkspaceRuntime, Depends(get_workspace_runtime)],
 ):
+    from src.processing.runtime import get_repository
     from src.use_cases.delete_document import DeleteDocument
-
-    return DeleteDocument(document_store, extraction_store, graph_store)
+    return DeleteDocument(document_store, extraction_store, graph_store,
+                          get_repository(), runtime.context.user_id)
 
 
 async def get_list_documents(

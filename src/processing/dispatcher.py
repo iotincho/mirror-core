@@ -8,7 +8,10 @@ from src.dependencies import close_provider_clients
 from src.processing.broker import broker
 from src.processing.repository import ProcessingRepository
 from src.processing.runtime import get_repository
+from src.processing.submissions import SubmissionRepository
 from src.processing.tasks import execute_processing
+from src.processing.workflows import worker_runtime
+from src.use_cases.submit_processing import recover_submissions
 from src.user_management.database import close_database
 
 logger = logging.getLogger(__name__)
@@ -41,6 +44,8 @@ async def main():
             try:
                 repository = get_repository()
                 await repository.recover()
+                await repository.recover_parents()
+                await recover_submissions(SubmissionRepository(repository), worker_runtime)
                 if not connected:
                     try:
                         await broker.startup()

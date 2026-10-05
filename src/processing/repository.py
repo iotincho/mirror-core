@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from datetime import timedelta
-from uuid import UUID, uuid4
+from uuid import UUID, uuid4, uuid5
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.orm import aliased
 
 from src.processing.models import ProcessingEvent, ProcessingOutbox, ProcessingRecord
 from src.workspaces.models import UserWorkspace
@@ -55,6 +56,7 @@ class ProcessingRepository:
         resource_id: UUID,
         config: dict | None = None,
         workflow_version: int = 1,
+        document_id: UUID | None = None,
     ) -> ProcessingRecord:
         async with self.sessions.begin() as session:
             active = await session.scalar(
@@ -74,6 +76,7 @@ class ProcessingRepository:
                 resource_kind=resource_kind,
                 resource_id=resource_id,
                 config=config or {},
+                document_id=document_id or (resource_id if resource_kind == "document" else None),
             )
             session.add(record)
             await session.flush()
@@ -112,6 +115,7 @@ class ProcessingRepository:
             record.lease_expires_at = now + timedelta(seconds=self.lease_seconds)
             record.updated_at = now
             record.error_code = None
+            record.retryable = False
             self.event(session, record)
         return record
 
@@ -142,12 +146,15 @@ class ProcessingRepository:
                 current.stage_attempts = 1
             current.stage = stage
             current.checkpoints = {**current.checkpoints, **checkpoints}
+            if "extraction_run_id" in checkpoints:
+                current.extraction_run_id = UUID(checkpoints["extraction_run_id"])
             current.version += 1
             current.updated_at = now
             self.event(session, current)
             version = current.version
         record.stage, record.checkpoints, record.version = stage, current.checkpoints, version
         record.stage_attempts = current.stage_attempts
+        record.extraction_run_id = current.extraction_run_id
 
     async def finish(
         self,
@@ -156,6 +163,7 @@ class ProcessingRepository:
         status: str = "completed",
         error_code: str | None = None,
         retry_delay: float | None = None,
+        retryable: bool = False,
     ):
         if status not in {"completed", "failed", "waiting", "retrying"}:
             raise ValueError("invalid_final_status")
@@ -164,10 +172,12 @@ class ProcessingRepository:
                 raise LeaseLost(str(record.id))
             current.status = status
             current.error_code = error_code
+            current.retryable = retryable
             current.version += 1
             current.updated_at = now
             current.lease_owner = None
             current.lease_expires_at = None
+            current.completed_at = now if status == "completed" else None
             if status == "retrying":
                 if retry_delay is None or retry_delay < 0:
                     raise ValueError("invalid_retry_delay")
@@ -175,6 +185,8 @@ class ProcessingRepository:
                 current.available_at = now + timedelta(seconds=retry_delay)
                 self.schedule(session, current)
             self.event(session, current)
+            if status in {"completed", "failed"}:
+                await self.wake_parent(session, current, now)
 
     async def claim_outbox(self, limit: int = 20) -> list[ProcessingOutbox]:
         async with self.sessions.begin() as session:
@@ -260,6 +272,8 @@ class ProcessingRepository:
                         "failed" if record.stage_attempts >= max_attempts else "retrying"
                     )
                 record.error_code = "worker_lease_expired" if expired else "delivery_recovered"
+                if expired:
+                    record.retryable = True
                 record.lease_owner = None
                 record.lease_expires_at = None
                 record.available_at = now
@@ -267,6 +281,8 @@ class ProcessingRepository:
                 if record.status in {"queued", "retrying"}:
                     self.schedule(session, record)
                 self.event(session, record)
+                if record.status == "failed":
+                    await self.wake_parent(session, record, now)
         return len(rows)
 
     @asynccontextmanager
@@ -281,7 +297,7 @@ class ProcessingRepository:
             if record is None:
                 yield True
                 return
-            key = f"{record.user_id}:{record.resource_kind}:{record.resource_id}"
+            key = f"{record.user_id}:{record.resource_id}"
             locked = await session.scalar(
                 select(
                     func.pg_try_advisory_xact_lock(
@@ -301,3 +317,177 @@ class ProcessingRepository:
                 )
                 == "active"
             )
+
+    @staticmethod
+    async def wake_parent(session, child, now):
+        if child.parent_processing_id is None:
+            return
+        parent = await session.get(
+            ProcessingRecord, child.parent_processing_id, with_for_update=True
+        )
+        if (
+            parent
+            and parent.status == "waiting"
+            and parent.user_id == child.user_id
+            and parent.child_processing_id == child.id
+        ):
+            parent.status = "queued"
+            parent.generation += 1
+            parent.version += 1
+            parent.available_at = now
+            parent.updated_at = now
+            ProcessingRepository.event(session, parent)
+            ProcessingRepository.schedule(session, parent)
+
+    async def child_and_wait(self, record: ProcessingRecord, document_id: UUID):
+        async with self.leased(record) as (session, current, now):
+            if current.child_processing_id is None:
+                child = ProcessingRecord(
+                    id=uuid5(current.id, "document"),
+                    user_id=current.user_id,
+                    workflow="document",
+                    stage="extraction",
+                    resource_kind="document",
+                    resource_id=document_id,
+                    document_id=document_id,
+                    config=current.config,
+                    parent_processing_id=current.id,
+                )
+                session.add(child)
+                await session.flush()
+                self.event(session, child)
+                self.schedule(session, child)
+                current.child_processing_id = child.id
+            current.document_id = document_id
+            current.status = "waiting"
+            current.stage = "document_processing"
+            current.stage_attempts = 0
+            current.version += 1
+            current.updated_at = now
+            current.lease_owner = None
+            current.lease_expires_at = None
+            self.event(session, current)
+
+    async def child(self, record: ProcessingRecord) -> ProcessingRecord | None:
+        if record.child_processing_id is None:
+            return None
+        return await self.get(record.child_processing_id, record.user_id)
+
+    async def list_for_owner(
+        self, user_id: UUID, *, active: bool = False, cursor: UUID | None = None, limit: int = 50
+    ):
+        async with self.sessions() as session:
+            query = select(ProcessingRecord).where(ProcessingRecord.user_id == user_id)
+            if active:
+                query = query.where(
+                    ProcessingRecord.status.in_(
+                        [
+                            "queued",
+                            "running",
+                            "waiting",
+                            "retrying",
+                        ]
+                    )
+                )
+            if cursor:
+                anchor = await session.get(ProcessingRecord, cursor)
+                if anchor is None or anchor.user_id != user_id:
+                    raise ValueError("invalid_cursor")
+                query = query.where(
+                    or_(
+                        ProcessingRecord.created_at < anchor.created_at,
+                        and_(
+                            ProcessingRecord.created_at == anchor.created_at,
+                            ProcessingRecord.id < anchor.id,
+                        ),
+                    )
+                )
+            return list(
+                (
+                    await session.scalars(
+                        query.order_by(
+                            ProcessingRecord.created_at.desc(),
+                            ProcessingRecord.id.desc(),
+                        ).limit(limit)
+                    )
+                ).all()
+            )
+
+    async def latest(self, user_id: UUID, resource_id: UUID, kind: str):
+        async with self.sessions() as session:
+            return await session.scalar(
+                select(ProcessingRecord)
+                .where(
+                    ProcessingRecord.user_id == user_id,
+                    ProcessingRecord.resource_id == resource_id,
+                    ProcessingRecord.resource_kind == kind,
+                )
+                .order_by(ProcessingRecord.created_at.desc(), ProcessingRecord.id.desc())
+                .limit(1)
+            )
+
+    @asynccontextmanager
+    async def lock_resource(self, user_id: UUID, resource_id: UUID):
+        async with self.sessions.begin() as session:
+            yield bool(
+                await session.scalar(
+                    select(
+                        func.pg_try_advisory_xact_lock(
+                            func.hashtextextended(f"{user_id}:{resource_id}", 0),
+                        )
+                    )
+                )
+            )
+
+    async def assert_inactive(self, user_id: UUID, resource_id: UUID, exclude=()):
+        async with self.sessions() as session:
+            active = await session.scalar(
+                select(ProcessingRecord.id)
+                .where(
+                    ProcessingRecord.user_id == user_id,
+                    ProcessingRecord.resource_id == resource_id,
+                    ProcessingRecord.id.not_in(exclude),
+                    ProcessingRecord.status.in_(["queued", "running", "waiting", "retrying"]),
+                )
+                .limit(1)
+            )
+            if active:
+                raise ValueError("processing_active")
+
+    async def mark_deleted(self, user_id: UUID, resource_id: UUID):
+        async with self.sessions.begin() as session:
+            rows = await session.scalars(
+                select(ProcessingRecord)
+                .where(
+                    ProcessingRecord.user_id == user_id,
+                    ProcessingRecord.resource_id == resource_id,
+                )
+                .with_for_update()
+            )
+            for record in rows:
+                record.resource_deleted = True
+
+    async def recover_parents(self):
+        async with self.sessions.begin() as session:
+            now = await session.scalar(select(func.clock_timestamp()))
+            # Do not lock child here: wake_parent takes parent after child in finish().
+            parent = aliased(ProcessingRecord)
+            children = list(
+                (
+                    await session.scalars(
+                        select(ProcessingRecord)
+                        .join(
+                            parent,
+                            ProcessingRecord.parent_processing_id == parent.id,
+                        )
+                        .where(
+                            ProcessingRecord.parent_processing_id.is_not(None),
+                            ProcessingRecord.status.in_(["completed", "failed"]),
+                            parent.status == "waiting",
+                        )
+                        .limit(100)
+                    )
+                ).all()
+            )
+            for child in children:
+                await self.wake_parent(session, child, now)

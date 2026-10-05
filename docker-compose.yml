@@ -21,6 +21,10 @@ x-processing: &processing
       condition: service_healthy
     database-migrations:
       condition: service_completed_successfully
+    arcadedb:
+      condition: service_healthy
+    arcadedb-schema:
+      condition: service_completed_successfully
   restart: unless-stopped
   stop_grace_period: 45s
 

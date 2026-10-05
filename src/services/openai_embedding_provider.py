@@ -19,10 +19,13 @@ class OpenAIEmbeddingProvider(AsyncProvider):
         model: str,
         dimensions: int,
         client: Any | None = None,
+        *,
+        max_retries: int = 2,
     ) -> None:
         self._api_key = api_key
         self.spec = EmbeddingSpec(provider="openai", model=model, dimensions=dimensions)
         self._configure_client(client)
+        self._sdk_max_retries = max_retries
 
     async def embed(self, texts: list[str]) -> list[EmbeddingVector]:
         if not texts or any(not text.strip() for text in texts):
@@ -90,5 +93,7 @@ class OpenAIEmbeddingProvider(AsyncProvider):
 
         from openai import AsyncOpenAI
 
-        self._client = AsyncOpenAI(api_key=self._api_key, timeout=self._timeout)
+        self._client = AsyncOpenAI(
+            api_key=self._api_key, timeout=self._timeout, max_retries=self._sdk_max_retries
+        )
         return self._client

@@ -9,7 +9,9 @@ durable; corresponde a la etapa 1 y todavía no modifica el comportamiento actua
 La [etapa 2: pipeline async](docs/async-pipeline.md) documenta la migración de
 los contratos de I/O, el lifecycle de clientes y los límites de concurrencia.
 La [etapa 3: ejecución durable](docs/processing-runtime.md) agrega PostgreSQL,
-outbox, workers Taskiq/RabbitMQ y recuperación. Los uploads se conectan en etapa 4.
+outbox, workers Taskiq/RabbitMQ y recuperación.
+La [etapa 4: uploads diferidos](docs/deferred-ingestion.md) conecta documentos/audio
+y recibos idempotentes mediante `/v2`; la PWA se adapta en etapa 5.
 
 ## Contexto
 

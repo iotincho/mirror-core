@@ -88,16 +88,61 @@ class ArcadeDBGraphStore(GraphBackend):
         except Exception as error:
             raise GraphPersistenceError("ArcadeDB graph persistence failed") from error
 
+
+    async def persist_verified(self, document: Document, extraction: ExtractionRun) -> None:
+        """Replay deterministic writes, verify their identities before committing."""
+        try:
+            async with self._client.transaction() as transaction:
+                await self._write_extraction(transaction, document, extraction)
+                params = {"run_id": str(extraction.id)}
+                items = self._rows(
+                    await transaction.query(queries.RUN_ITEM_IDS, params, language="cypher")
+                )
+                relations = self._rows(
+                    await transaction.query(queries.RUN_RELATION_IDS, params, language="cypher")
+                )
+                expected = {
+                    f"{extraction.id}:{kind}:{item.id}"
+                    for kind, values in (
+                        ("concept", extraction.result.concepts),
+                        ("entity", extraction.result.entities),
+                        ("claim", extraction.result.claims),
+                    )
+                    for item in values
+                }
+                expected_relations = {
+                    f"{extraction.id}:relationship:{index}"
+                    for index in range(len(extraction.result.relationships))
+                }
+                runs = self._rows(
+                    await transaction.query(
+                        "MATCH (document:Document {id: $document_id})-[:HAS_EXTRACTION]->"
+                        "(run:ExtractionRun {id: $run_id}) RETURN run.id AS id",
+                        {**params, "document_id": str(document.id)},
+                        language="cypher",
+                    )
+                )
+                if (
+                    {row["id"] for row in items} != expected
+                    or {row["id"] for row in relations} != expected_relations
+                    or {row["id"] for row in runs} != {str(extraction.id)}
+                ):
+                    raise GraphPersistenceError("Extraction write verification failed")
+        except GraphPersistenceError:
+            raise
+        except Exception as error:
+            raise GraphPersistenceError("ArcadeDB verified persistence failed") from error
+
     async def persist_claim_embeddings(
         self,
         records: list[ClaimEmbeddingRecord],
         spec: EmbeddingSpec,
+        *,
+        verify: bool = False,
     ) -> None:
         if not records:
             return
-        if any(
-            record.spec != spec or len(record.vector) != spec.dimensions for record in records
-        ):
+        if any(record.spec != spec or len(record.vector) != spec.dimensions for record in records):
             raise ClaimEmbeddingStoreError(
                 "Claim embedding record does not match its specification"
             )
@@ -122,15 +167,24 @@ class ArcadeDBGraphStore(GraphBackend):
             for record in records
         ]
         try:
+            if verify:
+                async with self._client.transaction() as transaction:
+                    response = await transaction.command(
+                        queries.CLAIM_EMBEDDINGS.format(embedding_type=embedding_type)
+                        + " RETURN embedding.id AS id",
+                        {"rows": rows},
+                        language="cypher",
+                    )
+                    if {row["id"] for row in self._rows(response)} != {r.id for r in records}:
+                        raise ClaimEmbeddingStoreError("Embedding write verification failed")
+                return
             await self._client.command(
                 queries.CLAIM_EMBEDDINGS.format(embedding_type=embedding_type),
                 {"rows": rows},
                 language="cypher",
             )
         except Exception as error:
-            raise ClaimEmbeddingStoreError(
-                "ArcadeDB claim embedding persistence failed"
-            ) from error
+            raise ClaimEmbeddingStoreError("ArcadeDB claim embedding persistence failed") from error
 
     async def search_claim_embeddings(
         self,
@@ -178,38 +232,37 @@ class ArcadeDBGraphStore(GraphBackend):
         self,
         record: DocumentEmbeddingRecord,
         spec: EmbeddingSpec,
+        *,
+        verify: bool = False,
     ) -> None:
         if record.spec != spec or len(record.vector) != spec.dimensions:
-            raise DocumentEmbeddingStoreError(
-                "Document embedding record does not match its specification"
-            )
-
+            raise DocumentEmbeddingStoreError("Document embedding specification mismatch")
         _, embedding_type = embedding_type_names(spec)
+        params = {
+            "id": record.id,
+            "document_id": record.document_id,
+            "text_hash": record.text_hash,
+            "content": record.content,
+            "source": record.source,
+            "metadata_json": json.dumps(record.metadata, ensure_ascii=False, sort_keys=True),
+            "created_at": record.created_at.isoformat(),
+            "authored_at": record.authored_at.isoformat() if record.authored_at else None,
+            "vector": record.vector,
+            "provider": spec.provider,
+            "model": spec.model,
+            "dimensions": spec.dimensions,
+        }
+        statement = queries.DOCUMENT_EMBEDDING.format(embedding_type=embedding_type)
         try:
-            await self._client.command(
-                queries.DOCUMENT_EMBEDDING.format(embedding_type=embedding_type),
-                {
-                    "id": record.id,
-                    "document_id": record.document_id,
-                    "text_hash": record.text_hash,
-                    "content": record.content,
-                    "source": record.source,
-                    "metadata_json": json.dumps(
-                        record.metadata,
-                        ensure_ascii=False,
-                        sort_keys=True,
-                    ),
-                    "created_at": record.created_at.isoformat(),
-                    "authored_at": record.authored_at.isoformat()
-                    if record.authored_at
-                    else None,
-                    "vector": record.vector,
-                    "provider": record.spec.provider,
-                    "model": record.spec.model,
-                    "dimensions": record.spec.dimensions,
-                },
-                language="cypher",
-            )
+            if verify:
+                async with self._client.transaction() as transaction:
+                    response = await transaction.command(
+                        statement + " RETURN embedding.id AS id", params, language="cypher"
+                    )
+                    if {row["id"] for row in self._rows(response)} != {record.id}:
+                        raise DocumentEmbeddingStoreError("Embedding write verification failed")
+            else:
+                await self._client.command(statement, params, language="cypher")
         except Exception as error:
             raise DocumentEmbeddingStoreError(
                 "ArcadeDB document embedding persistence failed"

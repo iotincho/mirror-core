@@ -77,6 +77,11 @@ class Settings(BaseSettings):
     audio_max_upload_bytes: int = Field(
         default=25 * 1024 * 1024, validation_alias="AUDIO_MAX_UPLOAD_BYTES", gt=0
     )
+    document_max_upload_bytes: int = Field(
+        default=5 * 1024 * 1024,
+        validation_alias="DOCUMENT_MAX_UPLOAD_BYTES",
+        gt=0,
+    )
     provider_timeout_seconds: float = Field(
         default=120, validation_alias="PROVIDER_TIMEOUT_SECONDS", gt=0
     )

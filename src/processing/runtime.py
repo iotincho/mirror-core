@@ -7,8 +7,11 @@ from src.processing.execution import ExecuteProcessing, WorkflowRegistry
 from src.processing.repository import ProcessingRepository
 from src.user_management.database import get_session_maker
 
-# Concrete document/audio use cases are registered in stage 4.
 registry = WorkflowRegistry()
+
+from src.processing.workflows import register_workflows  # noqa: E402
+
+register_workflows(registry)
 
 
 @lru_cache

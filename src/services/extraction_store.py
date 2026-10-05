@@ -11,6 +11,7 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field
 
 from src.extraction.contracts import ExtractionResult
+from src.services.durable_files import sync_published
 from src.services.structured_extractor import TokenUsage
 
 
@@ -87,6 +88,7 @@ class FileExtractionStore:
             encoding="utf-8",
         )
         temporary.replace(destination)
+        sync_published(destination)
 
     def _get(self, document_id: UUID, run_id: UUID) -> ExtractionRun:
         """Load only a run under the authenticated workspace's document directory."""

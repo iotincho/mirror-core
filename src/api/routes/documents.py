@@ -19,6 +19,7 @@ from src.dependencies import (
     get_list_documents,
 )
 from src.domain.documents import NewDocument
+from src.processing.submissions import SubmissionConflict
 from src.services.document_store import DocumentAlreadyExistsError, DocumentNotFoundError
 from src.use_cases.delete_document import DeleteDocument
 from src.use_cases.embed_claims import ClaimEmbeddingFailedError
@@ -51,6 +52,8 @@ async def create_document(
     """Store and immediately extract knowledge from source material."""
     try:
         processed = await use_case.execute(NewDocument(**request.model_dump()))
+    except SubmissionConflict as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
     except DocumentAlreadyExistsError as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
     except ExtractionRunFailedError as error:
@@ -101,6 +104,8 @@ async def create_document_from_file(
 
     try:
         processed = await use_case.execute(new_document)
+    except SubmissionConflict as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
     except DocumentAlreadyExistsError as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
     except ExtractionRunFailedError as error:
@@ -125,6 +130,8 @@ async def delete_document(
         await use_case.execute(document_id)
     except DocumentNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
 
 
 def _extraction_failed_response(error: ExtractionRunFailedError) -> HTTPException:

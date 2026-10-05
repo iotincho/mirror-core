@@ -7,6 +7,7 @@ from typing import Protocol
 from uuid import UUID, uuid4
 
 from src.domain.audio_notes import AudioNote
+from src.services.durable_files import sync_published
 
 
 class AudioNoteAlreadyExistsError(Exception):
@@ -42,6 +43,18 @@ class FileAudioNoteStore:
     async def save(self, note: AudioNote) -> None:
         return await asyncio.to_thread(self._save, note)
 
+    async def restore_metadata(self, note: AudioNote) -> None:
+        """Complete a reserved upload whose raw file survived before metadata."""
+
+        def restore():
+            if not self._metadata_path(note.id).exists():
+                try:
+                    self._write_metadata(note, exists_ok=False)
+                except AudioNoteAlreadyExistsError:
+                    pass
+
+        await asyncio.to_thread(restore)
+
     def _create(self, note: AudioNote, content: bytes) -> None:
         self._directory.mkdir(parents=True, exist_ok=True)
         metadata_path = self._metadata_path(note.id)
@@ -53,6 +66,7 @@ class FileAudioNoteStore:
             temporary_audio.write_bytes(content)
             try:
                 audio_path.hardlink_to(temporary_audio)
+                sync_published(audio_path)
             except FileExistsError as error:
                 raise AudioNoteAlreadyExistsError(f"Audio note {note.id} already exists") from error
         finally:
@@ -88,9 +102,11 @@ class FileAudioNoteStore:
             )
             if exists_ok:
                 temporary.replace(destination)
+                sync_published(destination)
             else:
                 try:
                     destination.hardlink_to(temporary)
+                    sync_published(destination)
                 except FileExistsError as error:
                     raise AudioNoteAlreadyExistsError(
                         f"Audio note {note.id} already exists"

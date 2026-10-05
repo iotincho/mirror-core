@@ -18,7 +18,12 @@ from src.processing.execution import (
     WorkflowFailure,
     WorkflowRegistry,
 )
-from src.processing.models import ProcessingEvent, ProcessingOutbox, ProcessingRecord
+from src.processing.models import (
+    ProcessingEvent,
+    ProcessingOutbox,
+    ProcessingReceipt,
+    ProcessingRecord,
+)
 from src.processing.repository import LeaseLost, ProcessingRepository
 from src.user_management.models import User
 from src.workspaces.models import UserWorkspace
@@ -60,6 +65,9 @@ async def store():
         yield repository, owner
     finally:
         async with sessions.begin() as session:
+            await session.execute(
+                delete(ProcessingReceipt).where(ProcessingReceipt.user_id == owner)
+            )
             ids = select(ProcessingRecord.id).where(ProcessingRecord.user_id == owner)
             await session.execute(
                 delete(ProcessingOutbox).where(ProcessingOutbox.processing_id.in_(ids))

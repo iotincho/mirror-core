@@ -11,10 +11,13 @@ from src.services.transcription_provider import TranscriptionProviderError
 class OpenAITranscriptionProvider(AsyncProvider):
     provider_name = "openai"
 
-    def __init__(self, api_key: str | None, model: str, client: Any | None = None) -> None:
+    def __init__(
+        self, api_key: str | None, model: str, client: Any | None = None, *, max_retries: int = 2
+    ) -> None:
         self._api_key = api_key
         self.model_name = model
         self._configure_client(client)
+        self._sdk_max_retries = max_retries
 
     async def transcribe(self, audio_path: Path) -> str:
         client = self._get_client()
@@ -40,5 +43,7 @@ class OpenAITranscriptionProvider(AsyncProvider):
             raise TranscriptionProviderError("OpenAI requires OPENAI_API_KEY")
         from openai import AsyncOpenAI
 
-        self._client = AsyncOpenAI(api_key=self._api_key, timeout=self._timeout)
+        self._client = AsyncOpenAI(
+            api_key=self._api_key, timeout=self._timeout, max_retries=self._sdk_max_retries
+        )
         return self._client

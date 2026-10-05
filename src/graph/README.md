@@ -24,6 +24,9 @@ y borrado, y limpia el documento temporal aun cuando una aserción falle.
 La implementación runtime es `ArcadeDBGraphStore`. Usa Cypher para escrituras y recorridos del
 grafo, SQL nativo para `vector.neighbors()` y transacciones HTTP para preservar atómicamente cada
 extracción. Los casos de uso sólo dependen de los contratos de aplicación.
+Las operaciones del store son async y usan `AsyncArcadeDBHTTPClient`; el cliente
+síncrono queda para schema/administración. Lifecycle y límites están en
+[Pipeline async](../../docs/async-pipeline.md).
 
 ## Modelo inicial
 

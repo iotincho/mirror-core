@@ -24,12 +24,12 @@ class ExtractPersistAndEmbedDocument:
         self._embed_claims = embed_claims
         self._embed_document = embed_document
 
-    def execute(self, document_id: UUID, profile_name: str = "v4") -> ExtractionRun:
-        extraction = self._extract_and_persist.execute(document_id, profile_name)
-        document = self._extract_and_persist.get_document(document_id)
+    async def execute(self, document_id: UUID, profile_name: str = "v4") -> ExtractionRun:
+        extraction = await self._extract_and_persist.execute(document_id, profile_name)
+        document = await self._extract_and_persist.get_document(document_id)
         try:
-            count = self._embed_claims.execute(document, extraction)
-            self._embed_document.execute(document)
+            count = await self._embed_claims.execute(document, extraction)
+            await self._embed_document.execute(document)
         except (ClaimEmbeddingFailedError, DocumentEmbeddingFailedError):
             logger.exception(
                 "document_or_claim_embedding_failed document_id=%s run_id=%s",

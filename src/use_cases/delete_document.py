@@ -16,8 +16,8 @@ class DeleteDocument:
         self._extractions = extractions
         self._graph = graph
 
-    def execute(self, document_id: UUID) -> None:
-        self._documents.get(document_id)
-        self._graph.delete_document(str(document_id))
-        self._extractions.delete_for_document(document_id)
-        self._documents.delete(document_id)
+    async def execute(self, document_id: UUID) -> None:
+        await self._documents.get(document_id)
+        await self._graph.delete_document(str(document_id))
+        await self._extractions.delete_for_document(document_id)
+        await self._documents.delete(document_id)

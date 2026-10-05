@@ -1,5 +1,6 @@
 """Opt-in smoke test against a running ArcadeDB instance."""
 
+import asyncio
 import os
 from datetime import UTC, datetime
 from uuid import uuid4
@@ -23,13 +24,16 @@ from src.graph.arcadedb.schema import apply_schema
 from src.graph.arcadedb.store import ArcadeDBGraphStore
 from src.services.extraction_store import new_extraction_run
 
-pytestmark = pytest.mark.skipif(
-    os.getenv("ARCADEDB_INTEGRATION") != "1",
-    reason="set ARCADEDB_INTEGRATION=1 to run against ArcadeDB",
-)
+pytestmark = [
+    pytest.mark.anyio,
+    pytest.mark.skipif(
+        os.getenv("ARCADEDB_INTEGRATION") != "1",
+        reason="set ARCADEDB_INTEGRATION=1 to run against ArcadeDB",
+    ),
+]
 
 
-def test_arcadedb_graph_store_end_to_end() -> None:
+async def test_arcadedb_graph_store_end_to_end() -> None:
     http_url = os.getenv("ARCADEDB_HTTP_URL", "http://127.0.0.1:2480")
     database = os.getenv("ARCADEDB_DATABASE", "el_espejo")
     username = os.getenv("ARCADEDB_USERNAME", "root")
@@ -40,10 +44,9 @@ def test_arcadedb_graph_store_end_to_end() -> None:
         database,
         username,
         password,
-        client=client,
     )
     spec = EmbeddingSpec(provider="openai", model="text-embedding-3-small", dimensions=1536)
-    apply_schema(client, spec)
+    await asyncio.to_thread(apply_schema, client, spec)
 
     document = Document(
         id=uuid4(),
@@ -94,9 +97,9 @@ def test_arcadedb_graph_store_end_to_end() -> None:
     vector = [1.0] + [0.0] * (spec.dimensions - 1)
 
     try:
-        store.persist(document, extraction)
-        store.persist(document, extraction)
-        store.persist_claim_embeddings(
+        await store.persist(document, extraction)
+        await store.persist(document, extraction)
+        await store.persist_claim_embeddings(
             [
                 ClaimEmbeddingRecord(
                     id=f"{claim_id}:embedding:{spec.index_suffix}",
@@ -113,7 +116,7 @@ def test_arcadedb_graph_store_end_to_end() -> None:
             ],
             spec,
         )
-        store.persist_document_embedding(
+        await store.persist_document_embedding(
             DocumentEmbeddingRecord(
                 id=f"{document_id}:embedding:{spec.index_suffix}",
                 document_id=document_id,
@@ -128,20 +131,26 @@ def test_arcadedb_graph_store_end_to_end() -> None:
             spec,
         )
 
-        claims = store.search_claim_embeddings(vector, spec, limit=10)
-        documents = store.search_document_embeddings(vector, spec, limit=10)
-        relations = store.get_claim_relations([claim_id])
+        claims = await store.search_claim_embeddings(vector, spec, limit=10)
+        documents = await store.search_document_embeddings(vector, spec, limit=10)
+        relations = await store.get_claim_relations([claim_id])
 
         assert [item.claim_id for item in claims].count(claim_id) == 1
         assert [item.document_id for item in documents].count(document_id) == 1
         assert len(relations) == 1
         assert relations[0].relation_type == "ABOUT"
     finally:
-        store.delete_document(document_id)
-        store.close()
+        await store.delete_document(document_id)
+        await store.close()
 
-    response = client.query(
+    response = await asyncio.to_thread(
+        client.query,
         "SELECT count(*) AS count FROM Document WHERE id = :document_id",
         {"document_id": document_id},
     )
     assert response["result"][0]["count"] == 0
+
+
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"

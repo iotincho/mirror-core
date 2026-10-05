@@ -26,7 +26,7 @@ router = APIRouter(prefix="/documents", tags=["extractions"])
     response_model=ExtractionRun,
     status_code=status.HTTP_201_CREATED,
 )
-def create_extraction(
+async def create_extraction(
     document_id: UUID,
     request: CreateExtractionRequest,
     use_case: Annotated[
@@ -36,7 +36,7 @@ def create_extraction(
 ) -> ExtractionRun:
     """Run a selected profile and persist its validated result in the graph store."""
     try:
-        return use_case.execute(document_id, request.profile)
+        return await use_case.execute(document_id, request.profile)
     except DocumentNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
     except UnknownExtractionProfileError as error:

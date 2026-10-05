@@ -25,7 +25,7 @@ async def search(
 ) -> list[SearchResult]:
     """Return score-ordered document and claim candidates for a semantic query."""
     try:
-        return use_case.execute(request.query, request.limit)
+        return await use_case.execute(request.query, request.limit)
     except ValueError as error:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -45,7 +45,7 @@ async def search_claims(
 ) -> list[SimilarClaim]:
     """Return semantically close claims with their original-document evidence."""
     try:
-        return use_case.execute(request.query, request.limit)
+        return await use_case.execute(request.query, request.limit)
     except ValueError as error:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

@@ -18,7 +18,7 @@ class FakeTranscriber:
     provider_name = "fake"
     model_name = "fake-transcriber"
 
-    def transcribe(self, audio_path) -> str:
+    async def transcribe(self, audio_path) -> str:
         assert audio_path.read_bytes() == b"audio-bytes"
         return "Una reflexión grabada."
 
@@ -27,7 +27,7 @@ class FakeDocumentProcessor:
     def __init__(self) -> None:
         self.documents = []
 
-    def execute(self, document):
+    async def execute(self, document):
         self.documents.append(document)
         return SimpleNamespace(document=SimpleNamespace(id=document.id))
 

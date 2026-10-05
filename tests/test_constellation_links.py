@@ -19,7 +19,7 @@ from src.services.extraction_store import FileExtractionStore, new_extraction_ru
 
 
 class Embeddings:
-    def embed(self, texts):
+    async def embed(self, texts):
         spec = EmbeddingSpec(provider="fake", model="tiny", dimensions=2)
         return [EmbeddingVector(vector=[1.0, 0.0], spec=spec) for _ in texts]
 
@@ -28,7 +28,7 @@ class Search:
     def __init__(self, results):
         self.results = results
 
-    def search_claim_embeddings(self, vector, spec, limit):
+    async def search_claim_embeddings(self, vector, spec, limit):
         return self.results
 
 
@@ -38,7 +38,7 @@ class Provider:
         self.relation_type = relation_type
         self.seen = []
 
-    def analyze(self, document, extraction, candidates):
+    async def analyze(self, document, extraction, candidates):
         self.seen.append(candidates)
         return DocumentLinkAnalysis(
             additions=SupplementalItems(concepts=[], entities=[], claims=[], relationships=[]),
@@ -52,10 +52,10 @@ class Graph:
     def __init__(self):
         self.saved = []
 
-    def existing_document_items(self, document_id):
+    async def existing_document_items(self, document_id):
         return []
 
-    def persist_link_analysis(self, document, supplement, links):
+    async def persist_link_analysis(self, document, supplement, links):
         self.saved.extend(links)
 
 
@@ -88,7 +88,8 @@ def source_document(extraction, authored_at=None):
                     authored_at=authored_at or datetime(2026, 1, 1, tzinfo=UTC))
 
 
-def test_dry_run_links_only_cited_claims_from_other_documents(tmp_path):
+@pytest.mark.anyio
+async def test_dry_run_links_only_cited_claims_from_other_documents(tmp_path):
     source = run()
     other = candidate(uuid4())
     provider, graph = Provider(other.claim_id), Graph()
@@ -98,7 +99,7 @@ def test_dry_run_links_only_cited_claims_from_other_documents(tmp_path):
         FileExtractionStore(tmp_path),
     )
 
-    report = use_case.execute(source, source_document(source))
+    report = await use_case.execute(source, source_document(source))
 
     assert report.compared_pairs == 1
     assert report.persisted is False
@@ -109,27 +110,29 @@ def test_dry_run_links_only_cited_claims_from_other_documents(tmp_path):
     assert provider.seen[0] == [other]
 
 
-def test_persist_is_explicit_and_rejects_unretrieved_ids(tmp_path):
+@pytest.mark.anyio
+async def test_persist_is_explicit_and_rejects_unretrieved_ids(tmp_path):
     source = run()
     other = candidate(uuid4())
     graph = Graph()
-    report = LinkDocuments(Embeddings(), Search([other]), Provider(other.claim_id), graph,
+    report = await LinkDocuments(Embeddings(), Search([other]), Provider(other.claim_id), graph,
                           FileExtractionStore(tmp_path)).execute(
         source, source_document(source), persist=True,
     )
     assert graph.saved == report.links
 
     with pytest.raises(ValueError, match="outside retrieved"):
-        LinkDocuments(Embeddings(), Search([other]), Provider("invented"), Graph(),
+        await LinkDocuments(Embeddings(), Search([other]), Provider("invented"), Graph(),
                       FileExtractionStore(tmp_path)).execute(
             source, source_document(source),
         )
 
 
-def test_same_document_or_missing_evidence_never_reaches_comparator(tmp_path):
+@pytest.mark.anyio
+async def test_same_document_or_missing_evidence_never_reaches_comparator(tmp_path):
     source = run()
     provider = Provider("unused")
-    report = LinkDocuments(
+    report = await LinkDocuments(
         Embeddings(), Search([candidate(source.document_id), candidate(uuid4(), evidence=False)]),
         provider, Graph(), FileExtractionStore(tmp_path),
     ).execute(source, source_document(source))
@@ -138,12 +141,13 @@ def test_same_document_or_missing_evidence_never_reaches_comparator(tmp_path):
     assert provider.seen == [[]]
 
 
-def test_temporal_links_are_oriented_from_earlier_to_later_claim(tmp_path) -> None:
+@pytest.mark.anyio
+async def test_temporal_links_are_oriented_from_earlier_to_later_claim(tmp_path) -> None:
     source = run()
     previous = candidate(uuid4(), authored_at=datetime(2026, 1, 1, tzinfo=UTC))
     provider = Provider(previous.claim_id, LinkType.SHIFTS)
 
-    report = LinkDocuments(Embeddings(), Search([previous]), provider, Graph(),
+    report = await LinkDocuments(Embeddings(), Search([previous]), provider, Graph(),
                           FileExtractionStore(tmp_path)).execute(
         source, source_document(source, datetime(2026, 2, 1, tzinfo=UTC)),
     )
@@ -153,10 +157,11 @@ def test_temporal_links_are_oriented_from_earlier_to_later_claim(tmp_path) -> No
     assert report.links[0].source_document_id == previous.document_id
 
 
-def test_symmetric_links_have_a_stable_canonical_orientation(tmp_path) -> None:
+@pytest.mark.anyio
+async def test_symmetric_links_have_a_stable_canonical_orientation(tmp_path) -> None:
     source = run()
     other = candidate(uuid4(), claim_id="aaa")
-    report = LinkDocuments(
+    report = await LinkDocuments(
         Embeddings(), Search([other]), Provider(other.claim_id, LinkType.SAME_REFERENT), Graph(),
         FileExtractionStore(tmp_path),
     ).execute(source, source_document(source))

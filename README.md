@@ -6,6 +6,8 @@ El diseño del próximo flujo de ingreso está en
 [Procesamiento diferido: contratos y diseño](docs/deferred-processing.md).
 Define Taskiq + RabbitMQ, máquinas de estados por caso de uso y recuperación
 durable; corresponde a la etapa 1 y todavía no modifica el comportamiento actual.
+La [etapa 2: pipeline async](docs/async-pipeline.md) documenta la migración de
+los contratos de I/O, el lifecycle de clientes y los límites de concurrencia.
 
 ## Contexto
 

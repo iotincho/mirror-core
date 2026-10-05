@@ -16,21 +16,21 @@ from src.embeddings.contracts import (
 )
 from src.services.claim_embedding_store import ClaimEmbeddingStore
 from src.services.embedding_provider import EmbeddingProvider
-from src.services.extraction_store import ExtractionRun, FileExtractionStore
+from src.services.extraction_store import ExtractionRun, ExtractionStore
 from src.use_cases.embed_claims import EmbedClaims
 
 logger = logging.getLogger(__name__)
 
 
 class LinkStore(Protocol):
-    def existing_document_items(self, document_id: str) -> list[dict[str, Any]]: ...
+    async def existing_document_items(self, document_id: str) -> list[dict[str, Any]]: ...
 
-    def persist_link_analysis(
+    async def persist_link_analysis(
         self, document: Document, supplement: ExtractionRun | None,
         links: list[CrossDocumentLink],
     ) -> None: ...
 
-    def persist_claim_embeddings(
+    async def persist_claim_embeddings(
         self, records: list[ClaimEmbeddingRecord], spec: EmbeddingSpec,
     ) -> None: ...
 
@@ -42,7 +42,7 @@ class LinkDocuments:
         search: ClaimEmbeddingStore,
         provider: LinkProvider,
         graph: LinkStore,
-        extraction_store: FileExtractionStore,
+        extraction_store: ExtractionStore,
         *,
         provider_name: str = "openai",
         model_name: str = "unknown",
@@ -55,7 +55,7 @@ class LinkDocuments:
         self._provider_name = provider_name
         self._model_name = model_name
 
-    def execute(
+    async def execute(
         self,
         extraction: ExtractionRun,
         document: Document,
@@ -75,13 +75,13 @@ class LinkDocuments:
         claims = extraction.result.claims[:max_claims]
         # Even an empty extraction can discover omissions in the complete original.
         texts = [claim.text for claim in claims] + [document.content]
-        vectors = self._embeddings.embed(texts)
+        vectors = await self._embeddings.embed(texts)
         if len(vectors) != len(texts):
             raise ValueError("Embedding provider returned an unexpected number of vectors")
         candidates: list[SimilarClaim] = []
         seen: set[tuple[str, str]] = set()
         for vector in vectors:
-            found = self._search.search_claim_embeddings(
+            found = await self._search.search_claim_embeddings(
                 vector.vector, vector.spec, min(50, candidates_per_claim * 4 + 4)
             )
             # Each user's workspace has a separate ArcadeDB database. Never cross that boundary.
@@ -102,8 +102,8 @@ class LinkDocuments:
                     break
             if len(candidates) == 50:
                 break
-        analysis = self._provider.analyze(document, extraction, candidates)
-        existing = self._graph.existing_document_items(str(document.id))
+        analysis = await self._provider.analyze(document, extraction, candidates)
+        existing = await self._graph.existing_document_items(str(document.id))
         supplement = prepare_supplement(
             document, extraction, analysis.additions, existing,
             provider=self._provider_name, model=self._model_name,
@@ -111,7 +111,7 @@ class LinkDocuments:
         if supplement is not None:
             try:
                 # Repeated identical analyses reuse their immutable audit record.
-                supplement = self._extraction_store.get(document.id, supplement.id)
+                supplement = await self._extraction_store.get(document.id, supplement.id)
             except FileNotFoundError:
                 pass
         source_claims = {
@@ -156,11 +156,11 @@ class LinkDocuments:
             if supplement is not None:
                 # Stage audit metadata before the graph transaction. A staged run is
                 # not graph-ready and cannot be used as a full initial extraction.
-                self._extraction_store.save(supplement)
-            self._graph.persist_link_analysis(document, supplement, links)
+                await self._extraction_store.save(supplement)
+            await self._graph.persist_link_analysis(document, supplement, links)
             if supplement is not None and supplement.result and supplement.result.claims:
                 try:
-                    EmbedClaims(self._embeddings, self._graph).execute(document, supplement)
+                    await EmbedClaims(self._embeddings, self._graph).execute(document, supplement)
                     embeddings_status = "ready"
                 except Exception as error:
                     logger.warning(

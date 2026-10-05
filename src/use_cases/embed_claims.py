@@ -24,7 +24,7 @@ class EmbedClaims:
         self._provider = provider
         self._store = store
 
-    def execute(self, document: Document, extraction: ExtractionRun) -> int:
+    async def execute(self, document: Document, extraction: ExtractionRun) -> int:
         if extraction.status != "completed" or extraction.result is None:
             raise ClaimEmbeddingFailedError(str(extraction.id))
         claims = extraction.result.claims
@@ -32,7 +32,7 @@ class EmbedClaims:
             return 0
 
         try:
-            vectors = self._provider.embed([claim.text for claim in claims])
+            vectors = await self._provider.embed([claim.text for claim in claims])
             if len(vectors) != len(claims):
                 raise EmbeddingProviderError("Provider returned an unexpected number of embeddings")
             spec = vectors[0].spec
@@ -52,7 +52,7 @@ class EmbedClaims:
                         "id": f"{graph_id}:embedding:{spec.index_suffix}:{record.text_hash[:16]}",
                     })
                 records.append(record)
-            self._store.persist_claim_embeddings(records, spec)
+            await self._store.persist_claim_embeddings(records, spec)
         except (EmbeddingProviderError, ClaimEmbeddingStoreError) as error:
             raise ClaimEmbeddingFailedError(str(extraction.id)) from error
         return len(records)

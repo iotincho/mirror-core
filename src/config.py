@@ -57,6 +57,18 @@ class Settings(BaseSettings):
     audio_max_upload_bytes: int = Field(
         default=25 * 1024 * 1024, validation_alias="AUDIO_MAX_UPLOAD_BYTES", gt=0
     )
+    provider_timeout_seconds: float = Field(
+        default=120, validation_alias="PROVIDER_TIMEOUT_SECONDS", gt=0
+    )
+    provider_max_concurrency: int = Field(
+        default=4, validation_alias="PROVIDER_MAX_CONCURRENCY", gt=0
+    )
+    graph_timeout_seconds: float = Field(
+        default=30, validation_alias="GRAPH_TIMEOUT_SECONDS", gt=0
+    )
+    graph_max_connections: int = Field(
+        default=20, validation_alias="GRAPH_MAX_CONNECTIONS", gt=0
+    )
     reflection_provider: str = Field(default="openai", validation_alias="REFLECTION_PROVIDER")
     openai_reflection_model: str | None = Field(
         default=None, validation_alias="OPENAI_REFLECTION_MODEL"

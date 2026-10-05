@@ -34,9 +34,12 @@ class StructuredExtractor(Protocol):
     provider_name: str
     model_name: str
 
-    def extract(self, document: Document, profile: ExtractionProfile) -> ProviderExtraction:
+    async def extract(self, document: Document, profile: ExtractionProfile) -> ProviderExtraction:
         """Extract a result from one original document."""
 
+
+    async def close(self) -> None:
+        """Release owned provider resources before stopping the event loop."""
 
 class ExtractionProviderError(RuntimeError):
     """Raised when a configured provider cannot produce a valid structured response."""
@@ -49,5 +52,8 @@ class UnavailableStructuredExtractor:
         self.provider_name = provider_name
         self.model_name = model_name
 
-    def extract(self, document: Document, profile: ExtractionProfile) -> ProviderExtraction:
+    async def extract(self, document: Document, profile: ExtractionProfile) -> ProviderExtraction:
         raise ExtractionProviderError(f"Provider {self.provider_name} is not implemented")
+
+    async def close(self) -> None:
+        """This unavailable adapter owns no connections."""

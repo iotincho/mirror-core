@@ -1,5 +1,6 @@
 """Durable local storage for auditable reflection runs."""
 
+import asyncio
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -37,17 +38,20 @@ def new_reflection_run(**values: object) -> ReflectionRun:
 
 
 class ReflectionStore(Protocol):
-    def save(self, run: ReflectionRun) -> None: ...
+    async def save(self, run: ReflectionRun) -> None: ...
 
 
 class FileReflectionStore:
     def __init__(self, directory: Path) -> None:
         self._directory = directory
 
-    def save(self, run: ReflectionRun) -> None:
+    async def save(self, run: ReflectionRun) -> None:
+        return await asyncio.to_thread(self._save, run)
+
+    def _save(self, run: ReflectionRun) -> None:
         self._directory.mkdir(parents=True, exist_ok=True)
         destination = self._directory / f"{run.id}.json"
-        temporary = destination.with_suffix(".json.tmp")
+        temporary = destination.with_suffix(f".{uuid4().hex}.tmp")
         temporary.write_text(
             json.dumps(run.model_dump(mode="json"), ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",

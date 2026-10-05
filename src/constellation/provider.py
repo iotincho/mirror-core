@@ -6,6 +6,7 @@ from src.constellation.contracts import DocumentLinkAnalysis
 from src.domain.documents import Document
 from src.embeddings.contracts import SimilarClaim
 from src.extraction.profiles import V5_PROFILE
+from src.services.async_provider import AsyncProvider
 from src.services.extraction_store import ExtractionRun
 
 LINK_INSTRUCTIONS = """Analyze the COMPLETE source document and its existing extraction.
@@ -37,18 +38,18 @@ The following extraction rules apply ONLY to additions, not to cross-document li
 
 
 class LinkProvider(Protocol):
-    def analyze(
+    async def analyze(
         self, document: Document, extraction: ExtractionRun, candidates: list[SimilarClaim],
     ) -> DocumentLinkAnalysis: ...
 
 
-class OpenAILinkProvider:
+class OpenAILinkProvider(AsyncProvider):
     def __init__(self, api_key: str | None, model: str, client: Any | None = None) -> None:
         self._api_key = api_key
         self._model = model
-        self._client = client
+        self._configure_client(client)
 
-    def analyze(
+    async def analyze(
         self, document: Document, extraction: ExtractionRun, candidates: list[SimilarClaim],
     ) -> DocumentLinkAnalysis:
         import json
@@ -81,21 +82,22 @@ class OpenAILinkProvider:
                 for item in candidates
             ],
         }
-        response = client.responses.parse(
-            model=self._model,
-            input=[
-                {"role": "system", "content": LINK_INSTRUCTIONS},
-                {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
-            ],
-            text_format=DocumentLinkAnalysis,
-        )
+        async with self._request_slot():
+            response = await client.responses.parse(
+                model=self._model,
+                input=[
+                    {"role": "system", "content": LINK_INSTRUCTIONS},
+                    {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
+                ],
+                text_format=DocumentLinkAnalysis,
+            )
         if response.output_parsed is None:
             raise ValueError("Link comparison did not return structured output")
         return DocumentLinkAnalysis.model_validate(response.output_parsed)
 
     def _get_client(self) -> Any:
         if self._client is None:
-            from openai import OpenAI
+            from openai import AsyncOpenAI
 
-            self._client = OpenAI(api_key=self._api_key)
+            self._client = AsyncOpenAI(api_key=self._api_key, timeout=self._timeout)
         return self._client

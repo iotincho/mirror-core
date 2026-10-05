@@ -4,12 +4,13 @@ import logging
 from typing import Any
 
 from src.embeddings.contracts import EmbeddingSpec, EmbeddingVector
+from src.services.async_provider import AsyncProvider
 from src.services.embedding_provider import EmbeddingProviderError
 
 logger = logging.getLogger(__name__)
 
 
-class OpenAIEmbeddingProvider:
+class OpenAIEmbeddingProvider(AsyncProvider):
     """Generate configured-dimension vectors through the OpenAI Embeddings API."""
 
     def __init__(
@@ -21,9 +22,9 @@ class OpenAIEmbeddingProvider:
     ) -> None:
         self._api_key = api_key
         self.spec = EmbeddingSpec(provider="openai", model=model, dimensions=dimensions)
-        self._client = client
+        self._configure_client(client)
 
-    def embed(self, texts: list[str]) -> list[EmbeddingVector]:
+    async def embed(self, texts: list[str]) -> list[EmbeddingVector]:
         if not texts or any(not text.strip() for text in texts):
             raise EmbeddingProviderError("Embedding inputs must be non-empty")
         client = self._get_client()
@@ -34,12 +35,13 @@ class OpenAIEmbeddingProvider:
                 self.spec.model,
                 self.spec.dimensions,
             )
-            response = client.embeddings.create(
-                model=self.spec.model,
-                input=texts,
-                dimensions=self.spec.dimensions,
-                encoding_format="float",
-            )
+            async with self._request_slot():
+                response = await client.embeddings.create(
+                    model=self.spec.model,
+                    input=texts,
+                    dimensions=self.spec.dimensions,
+                    encoding_format="float",
+                )
         except Exception as error:
             logger.exception(
                 "openai_embedding_request_failed input_count=%s model=%s dimensions=%s "
@@ -86,7 +88,7 @@ class OpenAIEmbeddingProvider:
         if not self._api_key:
             raise EmbeddingProviderError("OpenAI embeddings require OPENAI_API_KEY")
 
-        from openai import OpenAI
+        from openai import AsyncOpenAI
 
-        self._client = OpenAI(api_key=self._api_key)
+        self._client = AsyncOpenAI(api_key=self._api_key, timeout=self._timeout)
         return self._client

@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import Depends
 
 from src.config import get_settings
+from src.constellation.provider import OpenAILinkProvider
 from src.services.audio_note_store import FileAudioNoteStore
 from src.services.claim_embedding_store import ClaimEmbeddingStore
 from src.services.document_embedding_store import DocumentEmbeddingStore
@@ -139,8 +140,35 @@ def get_embedding_provider() -> EmbeddingProvider:
     )
 
 
-def close_graph_store() -> None:
-    """HTTP graph clients are request-scoped and hold no process-wide resources."""
+@lru_cache
+def get_link_provider() -> OpenAILinkProvider:
+    settings = get_settings()
+    return OpenAILinkProvider(
+        settings.openai_api_key,
+        settings.openai_reflection_model or settings.openai_model or "unconfigured",
+    )
+
+
+async def close_provider_clients() -> None:
+    """Close only adapters created in this process before its event loop stops."""
+    errors = []
+    for factory in (
+        get_structured_extractor,
+        get_transcription_provider,
+        get_embedding_provider,
+        get_reflection_provider,
+        get_link_provider,
+    ):
+        if factory.cache_info().currsize:
+            provider = factory()
+            try:
+                await provider.close()
+            except Exception as error:
+                errors.append(error)
+            finally:
+                factory.cache_clear()
+    if errors:
+        raise ExceptionGroup("Provider cleanup failed", errors)
 
 
 async def get_ingest_document(
@@ -264,7 +292,6 @@ async def get_delete_document(
     from src.use_cases.delete_document import DeleteDocument
 
     return DeleteDocument(document_store, extraction_store, graph_store)
-
 
 
 async def get_list_documents(

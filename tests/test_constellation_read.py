@@ -23,7 +23,7 @@ class QueryClient:
         self.results = results
         self.calls = []
 
-    def query(self, query, params, *, language):
+    async def query(self, query, params, *, language):
         self.calls.append((query, params, language))
         return {"result": self.results.pop(0)}
 
@@ -32,7 +32,8 @@ def store(client):
     return ArcadeDBGraphStore("http://unused", "user-database", "user", "secret", client=client)
 
 
-def test_neighborhood_pages_in_server_and_deduplicates_reciprocal_edges():
+@pytest.mark.anyio
+async def test_neighborhood_pages_in_server_and_deduplicates_reciprocal_edges():
     row = {
         "link_id": "shared", "source_claim_id": "claim-a", "target_claim_id": "claim-b",
         "source_document_id": "a", "target_document_id": "b",
@@ -45,7 +46,7 @@ def test_neighborhood_pages_in_server_and_deduplicates_reciprocal_edges():
         "evidence_json": json.dumps({"source": [{"quote": "B"}], "target": [{"quote": "A"}]}),
     }
     client = QueryClient([[{"total": 3}], [{"neighbor_id": "b"}], [row, reverse]])
-    result = store(client).get_link_neighborhood("a", offset=1, limit=1)
+    result = await store(client).get_link_neighborhood("a", offset=1, limit=1)
     assert result.neighbor_ids == ["b"]
     assert result.next_offset == 2
     assert len(result.links) == 1
@@ -55,20 +56,22 @@ def test_neighborhood_pages_in_server_and_deduplicates_reciprocal_edges():
     assert "IS_REVISITED_BY" not in client.calls[0][1]["relation_types"]
 
 
-def test_temporal_filter_does_not_include_inverse_projection():
+@pytest.mark.anyio
+async def test_temporal_filter_does_not_include_inverse_projection():
     client = QueryClient([[{"total": 0}], []])
-    result = store(client).get_link_neighborhood("a", relation_type=LinkType.SHIFTS)
+    result = await store(client).get_link_neighborhood("a", relation_type=LinkType.SHIFTS)
     assert result.links == [] and result.next_offset is None
     assert client.calls[0][1]["relation_types"] == ["SHIFTS"]
 
 
-def test_readiness_requires_all_expected_claims_and_current_embeddings():
+@pytest.mark.anyio
+async def test_readiness_requires_all_expected_claims_and_current_embeddings():
     client = QueryClient([[
         {"run_id": "ready", "claim_count": 2, "embedded_count": 2},
         {"run_id": "missing-embedding", "claim_count": 2, "embedded_count": 1},
         {"run_id": "partial-graph", "claim_count": 1, "embedded_count": 1},
     ]])
-    result = store(client).ready_extraction_ids(
+    result = await store(client).ready_extraction_ids(
         {"ready": 2, "missing-embedding": 2, "partial-graph": 2},
         EmbeddingSpec(provider="openai", model="current-model", dimensions=3),
     )
@@ -76,7 +79,8 @@ def test_readiness_requires_all_expected_claims_and_current_embeddings():
     assert client.calls[0][1]["model"] == "current-model"
 
 
-def test_file_history_is_scoped_to_its_workspace_and_document(tmp_path):
+@pytest.mark.anyio
+async def test_file_history_is_scoped_to_its_workspace_and_document(tmp_path):
     extraction_store = FileExtractionStore(tmp_path / "own")
     another_store = FileExtractionStore(tmp_path / "other")
     doc_id = uuid4()
@@ -85,10 +89,10 @@ def test_file_history_is_scoped_to_its_workspace_and_document(tmp_path):
         provider="fake", model="fake", status="completed",
         result=ExtractionResult(concepts=[], entities=[], claims=[], relationships=[]),
     )
-    extraction_store.save(run)
-    assert extraction_store.list_for_document(doc_id) == [run]
-    assert extraction_store.list_for_document(uuid4()) == []
-    assert another_store.list_for_document(doc_id) == []
+    await extraction_store.save(run)
+    assert await extraction_store.list_for_document(doc_id) == [run]
+    assert await extraction_store.list_for_document(uuid4()) == []
+    assert await another_store.list_for_document(doc_id) == []
 
 
 @pytest.mark.anyio
@@ -98,10 +102,10 @@ async def test_reads_enforce_workspace_document_and_pagination_limits(tmp_path):
     document = Document(id=uuid4(), content="Mi nota", source="test", metadata={},
                         created_at=datetime.now(UTC))
     documents = FileDocumentStore(tmp_path / "documents")
-    documents.save(document)
+    await documents.save(document)
     calls = []
 
-    def neighborhood(doc_id, **kwargs):
+    async def neighborhood(doc_id, **kwargs):
         calls.append(doc_id)
         return LinkNeighborhood(document_id=doc_id, neighbor_ids=[], total_neighbors=0,
                                 next_offset=None, links=[])

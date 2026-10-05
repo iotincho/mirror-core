@@ -29,14 +29,14 @@ class FakeSearch:
     def __init__(self, candidates: list[SimilarClaim]) -> None:
         self._candidates = candidates
 
-    def execute(self, question: str, limit: int) -> list[SimilarClaim]:
+    async def execute(self, question: str, limit: int) -> list[SimilarClaim]:
         assert question == "¿Qué aparece sobre autonomía?"
         assert limit == 5
         return self._candidates
 
 
 class FakeContextStore:
-    def get_claim_relations(self, claim_ids: list[str]) -> list[ClaimRelation]:
+    async def get_claim_relations(self, claim_ids: list[str]) -> list[ClaimRelation]:
         assert claim_ids == ["run:claim:autonomy"]
         return [
             ClaimRelation(
@@ -56,14 +56,15 @@ class FakeProvider:
     def __init__(self, result: ReflectionResult) -> None:
         self.result = result
 
-    def reflect(self, context, profile) -> ProviderReflection:
+    async def reflect(self, context, profile) -> ProviderReflection:
         assert context.claims == [candidate()]
         assert len(context.relations) == 1
         assert profile.name == "v1"
         return ProviderReflection(result=self.result, provider="fake", model="fake-model")
 
 
-def test_resolve_question_persists_only_observations_citing_retrieved_claims(
+@pytest.mark.anyio
+async def test_resolve_question_persists_only_observations_citing_retrieved_claims(
     tmp_path: Path,
 ) -> None:
     use_case = ResolveQuestion(
@@ -83,7 +84,7 @@ def test_resolve_question_persists_only_observations_citing_retrieved_claims(
         FileReflectionStore(tmp_path),
     )
 
-    run = use_case.execute("¿Qué aparece sobre autonomía?", limit=5)
+    run = await use_case.execute("¿Qué aparece sobre autonomía?", limit=5)
 
     assert run.status == "completed"
     assert run.result is not None
@@ -91,7 +92,10 @@ def test_resolve_question_persists_only_observations_citing_retrieved_claims(
     assert (tmp_path / f"{run.id}.json").exists()
 
 
-def test_resolve_question_rejects_a_claim_not_in_the_retrieved_context(tmp_path: Path) -> None:
+@pytest.mark.anyio
+async def test_resolve_question_rejects_a_claim_not_in_the_retrieved_context(
+    tmp_path: Path,
+) -> None:
     use_case = ResolveQuestion(
         FakeSearch([candidate()]),
         FakeContextStore(),
@@ -110,16 +114,19 @@ def test_resolve_question_rejects_a_claim_not_in_the_retrieved_context(tmp_path:
     )
 
     with pytest.raises(ReflectionRunFailedError):
-        use_case.execute("¿Qué aparece sobre autonomía?", limit=5)
+        await use_case.execute("¿Qué aparece sobre autonomía?", limit=5)
 
     persisted = list(tmp_path.glob("*.json"))
     assert len(persisted) == 1
     assert '"status": "failed"' in persisted[0].read_text(encoding="utf-8")
 
 
-def test_resolve_question_returns_a_persisted_insufficient_evidence_result(tmp_path: Path) -> None:
+@pytest.mark.anyio
+async def test_resolve_question_returns_a_persisted_insufficient_evidence_result(
+    tmp_path: Path,
+) -> None:
     class EmptyContextStore:
-        def get_claim_relations(self, claim_ids: list[str]) -> list[ClaimRelation]:
+        async def get_claim_relations(self, claim_ids: list[str]) -> list[ClaimRelation]:
             assert claim_ids == []
             return []
 
@@ -130,7 +137,7 @@ def test_resolve_question_returns_a_persisted_insufficient_evidence_result(tmp_p
         FileReflectionStore(tmp_path),
     )
 
-    run = use_case.execute("¿Qué aparece sobre autonomía?", limit=5)
+    run = await use_case.execute("¿Qué aparece sobre autonomía?", limit=5)
 
     assert run.provider == "system"
     assert run.result is not None

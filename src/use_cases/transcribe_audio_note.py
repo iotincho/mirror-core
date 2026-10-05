@@ -38,7 +38,7 @@ class CreateAudioNote:
         self._store = store
         self._max_upload_bytes = max_upload_bytes
 
-    def execute(
+    async def execute(
         self,
         filename: str | None,
         media_type: str | None,
@@ -49,7 +49,7 @@ class CreateAudioNote:
             filename, media_type, content, self._max_upload_bytes
         )
         note = new_audio_note(safe_filename, expected_type, len(content), authored_at)
-        self._store.create(note, content)
+        await self._store.create(note, content)
         return note
 
 
@@ -64,22 +64,22 @@ class TranscribeAudioNote:
         self._provider = provider
         self._document_processor = document_processor
 
-    def execute(self, note_id: UUID) -> AudioNote:
-        note = self._store.get(note_id)
+    async def execute(self, note_id: UUID) -> AudioNote:
+        note = await self._store.get(note_id)
         if note.status == "completed" and note.document_id is not None:
             return note
         if note.status == "completed" and note.transcript is not None:
-            return self._persist_transcript(note)
+            return await self._persist_transcript(note)
         transcribing = note.model_copy(update={"status": "transcribing", "error": None})
-        self._store.save(transcribing)
+        await self._store.save(transcribing)
         try:
-            transcript = self._provider.transcribe(self._store.audio_path(transcribing))
+            transcript = await self._provider.transcribe(self._store.audio_path(transcribing))
         except Exception:
             logger.exception("audio_transcription_failed audio_note_id=%s", note_id)
             failed = transcribing.model_copy(
                 update={"status": "failed", "error": "transcription_failed"}
             )
-            self._store.save(failed)
+            await self._store.save(failed)
             return failed
         completed = transcribing.model_copy(
             update={
@@ -89,10 +89,10 @@ class TranscribeAudioNote:
                 "transcription_model": self._provider.model_name,
             }
         )
-        self._store.save(completed)
-        return self._persist_transcript(completed)
+        await self._store.save(completed)
+        return await self._persist_transcript(completed)
 
-    def _persist_transcript(self, note: AudioNote) -> AudioNote:
+    async def _persist_transcript(self, note: AudioNote) -> AudioNote:
         assert note.transcript is not None
         try:
             new_document = NewDocument(
@@ -108,28 +108,28 @@ class TranscribeAudioNote:
                 },
                 authored_at=note.authored_at,
             )
-            processed = self._document_processor.execute(new_document)
+            processed = await self._document_processor.execute(new_document)
         except DocumentAlreadyExistsError:
             try:
-                processed = self._document_processor.process_existing(note.id)
+                processed = await self._document_processor.process_existing(note.id)
             except Exception:
-                return self._document_processing_failed(note)
+                return await self._document_processing_failed(note)
         except Exception:
-            return self._document_processing_failed(note)
+            return await self._document_processing_failed(note)
 
         completed = note.model_copy(
             update={"document_id": processed.document.id, "document_error": None}
         )
-        self._store.save(completed)
+        await self._store.save(completed)
         logger.info("audio_transcription_completed audio_note_id=%s", note.id)
         return completed
 
-    def _document_processing_failed(self, note: AudioNote) -> AudioNote:
+    async def _document_processing_failed(self, note: AudioNote) -> AudioNote:
         logger.exception("audio_document_persistence_failed audio_note_id=%s", note.id)
         failed_document = note.model_copy(
             update={"document_error": "document_processing_failed"}
         )
-        self._store.save(failed_document)
+        await self._store.save(failed_document)
         return failed_document
 
 

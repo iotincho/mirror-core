@@ -1,6 +1,15 @@
 from fastapi import APIRouter, Depends
 
-from src.api.routes import audio_notes, auth, constellation, documents, extractions, reflections, search, system
+from src.api.routes import (
+    audio_notes,
+    auth,
+    constellation,
+    documents,
+    extractions,
+    reflections,
+    search,
+    system,
+)
 from src.auth.session import require_authenticated
 
 api_router = APIRouter()

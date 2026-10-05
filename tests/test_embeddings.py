@@ -2,6 +2,8 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import uuid4
 
+import pytest
+
 from src.domain.documents import Document
 from src.embeddings.contracts import EmbeddingSpec, EmbeddingVector, SimilarClaim, SimilarDocument
 from src.extraction.contracts import Claim, ClaimType, Evidence, ExtractionResult
@@ -20,7 +22,7 @@ class FakeEmbeddingProvider:
     def __init__(self) -> None:
         self.inputs: list[list[str]] = []
 
-    def embed(self, texts: list[str]) -> list[EmbeddingVector]:
+    async def embed(self, texts: list[str]) -> list[EmbeddingVector]:
         self.inputs.append(texts)
         return [EmbeddingVector(vector=[0.1, 0.2, 0.3], spec=self.spec) for _ in texts]
 
@@ -31,11 +33,11 @@ class FakeDocumentEmbeddingStore:
         self.spec = None
         self.results: list[SimilarDocument] = []
 
-    def persist_document_embedding(self, record, spec) -> None:
+    async def persist_document_embedding(self, record, spec) -> None:
         self.record = record
         self.spec = spec
 
-    def search_document_embeddings(self, vector, spec, limit):
+    async def search_document_embeddings(self, vector, spec, limit):
         assert vector == [0.1, 0.2, 0.3]
         assert spec == FakeEmbeddingProvider.spec
         assert limit == 3
@@ -48,11 +50,11 @@ class FakeClaimEmbeddingStore:
         self.spec = None
         self.results: list[SimilarClaim] = []
 
-    def persist_claim_embeddings(self, records, spec) -> None:
+    async def persist_claim_embeddings(self, records, spec) -> None:
         self.records.extend(records)
         self.spec = spec
 
-    def search_claim_embeddings(self, vector, spec, limit):
+    async def search_claim_embeddings(self, vector, spec, limit):
         assert vector == [0.1, 0.2, 0.3]
         assert spec == FakeEmbeddingProvider.spec
         assert limit == 3
@@ -91,7 +93,8 @@ def completed_extraction(document: Document):
     )
 
 
-def test_embed_claims_persists_versioned_claim_vectors() -> None:
+@pytest.mark.anyio
+async def test_embed_claims_persists_versioned_claim_vectors() -> None:
     document = Document(
         id=uuid4(),
         content="Quiero más autonomía.",
@@ -102,7 +105,7 @@ def test_embed_claims_persists_versioned_claim_vectors() -> None:
     provider = FakeEmbeddingProvider()
     store = FakeClaimEmbeddingStore()
 
-    count = EmbedClaims(provider, store).execute(document, completed_extraction(document))
+    count = await EmbedClaims(provider, store).execute(document, completed_extraction(document))
 
     assert count == 1
     assert provider.inputs == [["Quiero más autonomía."]]
@@ -114,7 +117,8 @@ def test_embed_claims_persists_versioned_claim_vectors() -> None:
     assert store.spec == provider.spec
 
 
-def test_search_similar_claims_returns_claims_with_evidence() -> None:
+@pytest.mark.anyio
+async def test_search_similar_claims_returns_claims_with_evidence() -> None:
     provider = FakeEmbeddingProvider()
     store = FakeClaimEmbeddingStore()
     store.results = [
@@ -132,13 +136,14 @@ def test_search_similar_claims_returns_claims_with_evidence() -> None:
         )
     ]
 
-    result = SearchSimilarClaims(provider, store).execute("libertad en el trabajo", limit=3)
+    result = await SearchSimilarClaims(provider, store).execute("libertad en el trabajo", limit=3)
 
     assert result == store.results
     assert provider.inputs == [["libertad en el trabajo"]]
 
 
-def test_processing_flow_embeds_claims_after_graph_persistence() -> None:
+@pytest.mark.anyio
+async def test_processing_flow_embeds_claims_after_graph_persistence() -> None:
     document = Document(
         id=uuid4(),
         content="Quiero más autonomía.",
@@ -152,16 +157,16 @@ def test_processing_flow_embeds_claims_after_graph_persistence() -> None:
     document_store = FakeDocumentEmbeddingStore()
 
     class FakeExtractAndPersist:
-        def execute(self, document_id, profile_name="v4"):
+        async def execute(self, document_id, profile_name="v4"):
             assert document_id == document.id
             assert profile_name == "v4"
             return extraction
 
-        def get_document(self, document_id):
+        async def get_document(self, document_id):
             assert document_id == document.id
             return document
 
-    result = ExtractPersistAndEmbedDocument(
+    result = await ExtractPersistAndEmbedDocument(
         FakeExtractAndPersist(),
         EmbedClaims(provider, store),
         EmbedDocument(provider, document_store),
@@ -172,11 +177,12 @@ def test_processing_flow_embeds_claims_after_graph_persistence() -> None:
     assert document_store.record.document_id == str(document.id)
 
 
-def test_openai_embedding_provider_uses_configured_vector_contract() -> None:
+@pytest.mark.anyio
+async def test_openai_embedding_provider_uses_configured_vector_contract() -> None:
     captured = {}
 
     class FakeEmbeddings:
-        def create(self, **kwargs):
+        async def create(self, **kwargs):
             captured.update(kwargs)
             return SimpleNamespace(
                 model="text-embedding-3-small",
@@ -194,7 +200,7 @@ def test_openai_embedding_provider_uses_configured_vector_contract() -> None:
         client=SimpleNamespace(embeddings=FakeEmbeddings()),
     )
 
-    result = provider.embed(["primer claim", "segundo claim"])
+    result = await provider.embed(["primer claim", "segundo claim"])
 
     assert captured == {
         "model": "text-embedding-3-small",
@@ -205,7 +211,8 @@ def test_openai_embedding_provider_uses_configured_vector_contract() -> None:
     assert [item.vector for item in result] == [[0.1, 0.2], [0.3, 0.4]]
 
 
-def test_embed_document_persists_original_content_vector() -> None:
+@pytest.mark.anyio
+async def test_embed_document_persists_original_content_vector() -> None:
     document = Document(
         id=uuid4(),
         content="Quiero más autonomía.",
@@ -216,7 +223,7 @@ def test_embed_document_persists_original_content_vector() -> None:
     provider = FakeEmbeddingProvider()
     store = FakeDocumentEmbeddingStore()
 
-    EmbedDocument(provider, store).execute(document)
+    await EmbedDocument(provider, store).execute(document)
 
     assert provider.inputs == [[document.content]]
     assert store.record.document_id == str(document.id)
@@ -225,7 +232,8 @@ def test_embed_document_persists_original_content_vector() -> None:
     assert store.spec == provider.spec
 
 
-def test_semantic_search_returns_score_ordered_documents_and_claims() -> None:
+@pytest.mark.anyio
+async def test_semantic_search_returns_score_ordered_documents_and_claims() -> None:
     provider = FakeEmbeddingProvider()
     claim_store = FakeClaimEmbeddingStore()
     document_store = FakeDocumentEmbeddingStore()
@@ -254,7 +262,7 @@ def test_semantic_search_returns_score_ordered_documents_and_claims() -> None:
         )
     ]
 
-    result = SearchSemantically(provider, claim_store, document_store).execute(
+    result = await SearchSemantically(provider, claim_store, document_store).execute(
         "libertad en el trabajo", limit=3
     )
 

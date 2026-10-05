@@ -39,13 +39,15 @@ class ResolveQuestion:
         self._provider = provider
         self._store = store
 
-    def execute(self, question: str, limit: int = 10, profile_name: str = "v1") -> ReflectionRun:
+    async def execute(
+        self, question: str, limit: int = 10, profile_name: str = "v1"
+    ) -> ReflectionRun:
         if not question.strip() or not 1 <= limit <= 50:
             raise ValueError("question must not be blank and limit must be between 1 and 50")
         profile = get_profile(profile_name)
         try:
-            candidates = self._search_claims.execute(question, limit)
-            relations = self._context_store.get_claim_relations(
+            candidates = await self._search_claims.execute(question, limit)
+            relations = await self._context_store.get_claim_relations(
                 [claim.claim_id for claim in candidates]
             )
         except (SemanticSearchFailedError, ReflectionContextStoreError) as error:
@@ -72,7 +74,7 @@ class ResolveQuestion:
                     uncertainties=["La evidencia disponible no fue suficiente para una reflexión."],
                 ),
             )
-            self._store.save(run)
+            await self._store.save(run)
             return run
 
         documents, metadata_definitions = build_document_context(candidates)
@@ -84,7 +86,7 @@ class ResolveQuestion:
             metadata_definitions=metadata_definitions,
         )
         try:
-            provider_reflection = self._provider.reflect(context, profile)
+            provider_reflection = await self._provider.reflect(context, profile)
             self._validate_sources(provider_reflection.result, candidates)
             run = new_reflection_run(
                 question=question,
@@ -99,7 +101,7 @@ class ResolveQuestion:
                 response_id=provider_reflection.response_id,
                 usage=provider_reflection.usage,
             )
-            self._store.save(run)
+            await self._store.save(run)
             logger.info(
                 "reflection_completed run_id=%s claims=%s relations=%s observations=%s",
                 run.id,
@@ -120,7 +122,7 @@ class ResolveQuestion:
                 relations=relations,
                 error=type(error).__name__,
             )
-            self._store.save(run)
+            await self._store.save(run)
             logger.exception(
                 "reflection_failed run_id=%s claims=%s relations=%s error_type=%s",
                 run.id,

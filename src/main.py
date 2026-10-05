@@ -5,7 +5,12 @@ import logging
 from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
+from starlette.exceptions import HTTPException
 
+from src.api.error_handlers import (
+    logged_http_exception_handler,
+    unexpected_exception_handler,
+)
 from src.api.router import api_router
 from src.config import get_settings
 from src.dependencies import close_graph_store
@@ -49,3 +54,5 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.include_router(api_router)
+app.add_exception_handler(HTTPException, logged_http_exception_handler)
+app.add_exception_handler(Exception, unexpected_exception_handler)

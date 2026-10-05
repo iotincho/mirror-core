@@ -8,6 +8,8 @@ Define Taskiq + RabbitMQ, máquinas de estados por caso de uso y recuperación
 durable; corresponde a la etapa 1 y todavía no modifica el comportamiento actual.
 La [etapa 2: pipeline async](docs/async-pipeline.md) documenta la migración de
 los contratos de I/O, el lifecycle de clientes y los límites de concurrencia.
+La [etapa 3: ejecución durable](docs/processing-runtime.md) agrega PostgreSQL,
+outbox, workers Taskiq/RabbitMQ y recuperación. Los uploads se conectan en etapa 4.
 
 ## Contexto
 

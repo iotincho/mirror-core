@@ -1,0 +1,303 @@
+"""Short transactions: state, event and scheduling changes commit together."""
+
+from __future__ import annotations
+
+from contextlib import asynccontextmanager
+from datetime import timedelta
+from uuid import UUID, uuid4
+
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from src.processing.models import ProcessingEvent, ProcessingOutbox, ProcessingRecord
+from src.workspaces.models import UserWorkspace
+
+
+class LeaseLost(RuntimeError):
+    """An expired or replaced worker may no longer commit progress."""
+
+
+class ProcessingRepository:
+    def __init__(self, sessions: async_sessionmaker[AsyncSession], lease_seconds: int = 90):
+        self.sessions = sessions
+        self.lease_seconds = lease_seconds
+
+    @staticmethod
+    def event(session, record):
+        session.add(
+            ProcessingEvent(
+                processing_id=record.id,
+                user_id=record.user_id,
+                version=record.version,
+                status=record.status,
+                stage=record.stage,
+                error_code=record.error_code,
+            )
+        )
+
+    @staticmethod
+    def schedule(session, record):
+        session.add(
+            ProcessingOutbox(
+                processing_id=record.id,
+                generation=record.generation,
+                available_at=record.available_at,
+            )
+        )
+
+    async def create(
+        self,
+        *,
+        user_id: UUID,
+        workflow: str,
+        stage: str,
+        resource_kind: str,
+        resource_id: UUID,
+        config: dict | None = None,
+        workflow_version: int = 1,
+    ) -> ProcessingRecord:
+        async with self.sessions.begin() as session:
+            active = await session.scalar(
+                select(UserWorkspace.user_id).where(
+                    UserWorkspace.user_id == user_id,
+                    UserWorkspace.status == "active",
+                )
+            )
+            if active is None:
+                raise ValueError("workspace_unavailable")
+            record = ProcessingRecord(
+                id=uuid4(),
+                user_id=user_id,
+                workflow=workflow,
+                stage=stage,
+                workflow_version=workflow_version,
+                resource_kind=resource_kind,
+                resource_id=resource_id,
+                config=config or {},
+            )
+            session.add(record)
+            await session.flush()
+            self.event(session, record)
+            self.schedule(session, record)
+        return record
+
+    async def get(self, processing_id: UUID, user_id: UUID) -> ProcessingRecord | None:
+        async with self.sessions() as session:
+            return await session.scalar(
+                select(ProcessingRecord).where(
+                    ProcessingRecord.id == processing_id,
+                    ProcessingRecord.user_id == user_id,
+                )
+            )
+
+    async def acquire(
+        self, processing_id: UUID, generation: int, owner: str
+    ) -> ProcessingRecord | None:
+        async with self.sessions.begin() as session:
+            record = await session.get(ProcessingRecord, processing_id, with_for_update=True)
+            now = await session.scalar(select(func.clock_timestamp()))
+            if (
+                record is None
+                or record.generation != generation
+                or record.status not in {"queued", "retrying"}
+                or record.available_at > now
+            ):
+                return None
+            record.status = "running"
+            record.attempts += 1
+            record.stage_attempts += 1
+            record.fencing_token += 1
+            record.version += 1
+            record.lease_owner = owner
+            record.lease_expires_at = now + timedelta(seconds=self.lease_seconds)
+            record.updated_at = now
+            record.error_code = None
+            self.event(session, record)
+        return record
+
+    @asynccontextmanager
+    async def leased(self, record: ProcessingRecord):
+        async with self.sessions.begin() as session:
+            current = await session.get(ProcessingRecord, record.id, with_for_update=True)
+            now = await session.scalar(select(func.clock_timestamp()))
+            if (
+                current is None
+                or current.status != "running"
+                or current.fencing_token != record.fencing_token
+                or current.lease_owner != record.lease_owner
+                or current.lease_expires_at <= now
+            ):
+                raise LeaseLost(str(record.id))
+            yield session, current, now
+
+    async def heartbeat(self, record: ProcessingRecord):
+        async with self.leased(record) as (_, current, now):
+            current.lease_expires_at = now + timedelta(seconds=self.lease_seconds)
+
+    async def advance(self, record: ProcessingRecord, stage: str, checkpoints: dict):
+        async with self.leased(record) as (session, current, now):
+            if current.version != record.version:
+                raise LeaseLost(str(record.id))
+            if current.stage != stage:
+                current.stage_attempts = 1
+            current.stage = stage
+            current.checkpoints = {**current.checkpoints, **checkpoints}
+            current.version += 1
+            current.updated_at = now
+            self.event(session, current)
+            version = current.version
+        record.stage, record.checkpoints, record.version = stage, current.checkpoints, version
+        record.stage_attempts = current.stage_attempts
+
+    async def finish(
+        self,
+        record: ProcessingRecord,
+        *,
+        status: str = "completed",
+        error_code: str | None = None,
+        retry_delay: float | None = None,
+    ):
+        if status not in {"completed", "failed", "waiting", "retrying"}:
+            raise ValueError("invalid_final_status")
+        async with self.leased(record) as (session, current, now):
+            if current.version != record.version:
+                raise LeaseLost(str(record.id))
+            current.status = status
+            current.error_code = error_code
+            current.version += 1
+            current.updated_at = now
+            current.lease_owner = None
+            current.lease_expires_at = None
+            if status == "retrying":
+                if retry_delay is None or retry_delay < 0:
+                    raise ValueError("invalid_retry_delay")
+                current.generation += 1
+                current.available_at = now + timedelta(seconds=retry_delay)
+                self.schedule(session, current)
+            self.event(session, current)
+
+    async def claim_outbox(self, limit: int = 20) -> list[ProcessingOutbox]:
+        async with self.sessions.begin() as session:
+            now = await session.scalar(select(func.clock_timestamp()))
+            rows = list(
+                (
+                    await session.scalars(
+                        select(ProcessingOutbox)
+                        .where(
+                            ProcessingOutbox.published_at.is_(None),
+                            ProcessingOutbox.available_at <= now,
+                            or_(
+                                ProcessingOutbox.claimed_until.is_(None),
+                                ProcessingOutbox.claimed_until <= now,
+                            ),
+                        )
+                        .order_by(ProcessingOutbox.available_at)
+                        .limit(limit)
+                        .with_for_update(skip_locked=True)
+                    )
+                ).all()
+            )
+            for row in rows:
+                row.claim_token = uuid4()
+                row.claimed_until = now + timedelta(seconds=self.lease_seconds)
+                row.attempts += 1
+        return rows
+
+    async def settle_outbox(self, row: ProcessingOutbox, *, published: bool):
+        async with self.sessions.begin() as session:
+            current = await session.get(ProcessingOutbox, row.id, with_for_update=True)
+            if current is None or current.claim_token != row.claim_token:
+                return
+            now = await session.scalar(select(func.clock_timestamp()))
+            if published:
+                current.published_at = now
+            else:
+                current.available_at = now + timedelta(seconds=min(60, 2 ** min(row.attempts, 6)))
+            current.claimed_until = None
+            current.claim_token = None
+
+    async def recover(self, replay_seconds: int = 300, max_attempts: int = 4) -> int:
+        """Recover dead workers and republish jobs lost with a broker/queue."""
+        async with self.sessions.begin() as session:
+            now = await session.scalar(select(func.clock_timestamp()))
+            rows = list(
+                (
+                    await session.scalars(
+                        select(ProcessingRecord)
+                        .where(
+                            or_(
+                                and_(
+                                    ProcessingRecord.status == "running",
+                                    ProcessingRecord.lease_expires_at <= now,
+                                ),
+                                and_(
+                                    ProcessingRecord.status.in_(["queued", "retrying"]),
+                                    ProcessingRecord.available_at
+                                    <= now - timedelta(seconds=replay_seconds),
+                                    ~select(ProcessingOutbox.id)
+                                    .where(
+                                        ProcessingOutbox.processing_id == ProcessingRecord.id,
+                                        ProcessingOutbox.generation == ProcessingRecord.generation,
+                                        ProcessingOutbox.published_at.is_(None),
+                                    )
+                                    .exists(),
+                                ),
+                            )
+                        )
+                        .limit(100)
+                        .with_for_update(skip_locked=True)
+                    )
+                ).all()
+            )
+            for record in rows:
+                expired = record.status == "running"
+                if expired:
+                    record.generation += 1
+                    record.fencing_token += 1
+                record.version += 1
+                if expired:
+                    record.status = (
+                        "failed" if record.stage_attempts >= max_attempts else "retrying"
+                    )
+                record.error_code = "worker_lease_expired" if expired else "delivery_recovered"
+                record.lease_owner = None
+                record.lease_expires_at = None
+                record.available_at = now
+                record.updated_at = now
+                if record.status in {"queued", "retrying"}:
+                    self.schedule(session, record)
+                self.event(session, record)
+        return len(rows)
+
+    @asynccontextmanager
+    async def resource_guard(self, processing_id: UUID):
+        """Serialize cooperating executors for the same workspace/resource.
+
+        Held on a dedicated connection for the execution, never a row lock.
+        External adapters must remain idempotent if that connection is lost.
+        """
+        async with self.sessions.begin() as session:
+            record = await session.get(ProcessingRecord, processing_id)
+            if record is None:
+                yield True
+                return
+            key = f"{record.user_id}:{record.resource_kind}:{record.resource_id}"
+            locked = await session.scalar(
+                select(
+                    func.pg_try_advisory_xact_lock(
+                        func.hashtextextended(key, 0),
+                    )
+                )
+            )
+            yield bool(locked)
+
+    async def workspace_active(self, user_id: UUID) -> bool:
+        async with self.sessions() as session:
+            return (
+                await session.scalar(
+                    select(UserWorkspace.status).where(
+                        UserWorkspace.user_id == user_id,
+                    )
+                )
+                == "active"
+            )

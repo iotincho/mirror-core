@@ -86,9 +86,9 @@ class RequestProcessing:
                 receipt.processing_id, receipt.accepted_at = record.id, now
         return record
 
-    async def reextract(self, document_id: UUID, profile: str, key: UUID):
+    async def reprocess_document(self, document_id: UUID, key: UUID):
         await self.runtime.document_store.get(document_id)
-        config = workflow_config(profile)
+        config = workflow_config()
 
         async def action(session, now):
             await self.repository.assert_inactive(self.runtime.context.user_id, document_id)
@@ -99,7 +99,8 @@ class RequestProcessing:
                 resource_kind="document",
                 resource_id=document_id,
                 document_id=document_id,
-                stage="extraction",
+                workflow_version=2,
+                stage="document_persistence",
                 config=config,
             )
             session.add(record)
@@ -109,9 +110,9 @@ class RequestProcessing:
             return record
 
         return await self.mutate(
-            "reextract",
+            "persist_document",
             key,
-            {"document_id": str(document_id), "profile": profile},
+            {"document_id": str(document_id)},
             document_id,
             action,
         )
@@ -130,8 +131,13 @@ class RequestProcessing:
                 return current
             if not lock:
                 raise SubmissionConflict("processing_state_changed")
-            if not current.retryable:
-                raise SubmissionConflict("processing_not_retryable")
+            if current.workflow == "document" and current.workflow_version == 1:
+                current.workflow_version = 2
+                current.stage = "document_persistence"
+                current.config = workflow_config()
+                current.checkpoints = {}
+                current.extraction_run_id = None
+                current.retryable = True
             # Parent retry resumes its failed child rather than retranscribing.
             child = (
                 await session.get(
@@ -140,10 +146,24 @@ class RequestProcessing:
                 if current.child_processing_id
                 else None
             )
+            if not current.retryable and not (
+                child
+                and child.workflow == "document"
+                and child.workflow_version == 1
+                and child.status == "failed"
+            ):
+                raise SubmissionConflict("processing_not_retryable")
             if child:
                 if child.resource_deleted:
                     raise SubmissionConflict("resource_deleted")
                 if child.status == "failed":
+                    if child.workflow == "document" and child.workflow_version == 1:
+                        child.workflow_version = 2
+                        child.stage = "document_persistence"
+                        child.config = workflow_config()
+                        child.checkpoints = {}
+                        child.extraction_run_id = None
+                        child.retryable = True
                     if not child.retryable:
                         raise SubmissionConflict("processing_not_retryable")
                     await self.runtime.document_store.get(child.resource_id)
@@ -220,6 +240,7 @@ class RequestProcessing:
                 workflow="audio",
                 resource_kind="audio",
                 resource_id=note.id,
+                workflow_version=2,
                 stage="document_creation",
                 config=workflow_config(),
             )

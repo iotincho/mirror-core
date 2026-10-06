@@ -11,30 +11,17 @@ from uuid import UUID
 from src.config import get_settings
 from src.domain.audio_notes import AudioNote
 from src.domain.documents import Document, NewDocument
-from src.extraction.profiles import get_profile
 from src.processing.execution import WorkflowFailure
 from src.processing.submissions import SubmissionConflict, SubmissionRepository, fingerprint
 from src.services.audio_note_store import AudioNoteAlreadyExistsError
 from src.services.document_store import DocumentAlreadyExistsError, DocumentNotFoundError
-from src.use_cases.transcribe_audio_note import validate_audio_upload
+from src.use_cases.create_audio_note import validate_audio_upload
 from src.workspaces.secrets import WorkspaceSecretError
 
 
-def workflow_config(profile_name="v4"):
+def workflow_config():
     settings = get_settings()
-    profile = get_profile(profile_name)
-    return {
-        "profile": profile.name,
-        "schema_version": profile.schema_version,
-        "prompt_version": profile.prompt_version,
-        "prompt_hash": hashlib.sha256(profile.instructions.encode()).hexdigest(),
-        "llm_provider": settings.llm_provider,
-        "llm_model": settings.openai_model or "unconfigured",
-        "transcription_model": settings.openai_transcription_model,
-        "embedding_provider": settings.embedding_provider,
-        "embedding_model": settings.openai_embedding_model,
-        "embedding_dimensions": settings.openai_embedding_dimensions,
-    }
+    return {"transcription_model": settings.openai_transcription_model}
 
 
 def document_identity(document):

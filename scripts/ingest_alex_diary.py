@@ -83,9 +83,17 @@ def load_fixtures(directory: Path, phase: str) -> list[tuple[Path, dict[str, Any
 
 
 def request_json(
-    url: str, payload: dict[str, Any], cookie: str | None = None
+    url: str,
+    payload: dict[str, Any],
+    cookie: str | None = None,
+    *,
+    extra_headers: dict[str, str] | None = None,
 ) -> tuple[int, Any, HTTPMessage]:
-    headers = {"Content-Type": "application/json", "Accept": "application/json"}
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        **(extra_headers or {}),
+    }
     if cookie:
         headers["Cookie"] = cookie
     request = Request(url, data=json.dumps(payload).encode("utf-8"), headers=headers, method="POST")

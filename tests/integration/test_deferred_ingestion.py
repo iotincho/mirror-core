@@ -94,29 +94,14 @@ class FakeGraph:
         self.runs, self.claims, self.documents = {}, {}, {}
         self.failure = None
 
-    async def persist_verified(self, document, run):
-        self.runs[str(run.id)] = run
+    async def persist_document(self, document):
+        self.documents[str(document.id)] = document
         if self.failure == "graph":
-            self.failure = None
-            # Simulate a commit that happened before the response was lost.
-            raise httpx.ReadTimeout("commit response lost")
-
-    async def persist_claim_embeddings(self, records, spec, *, verify=False):
-        self.claims.update({record.id: record for record in records})
-        if self.failure == "claims":
-            self.failure = None
-            raise httpx.ReadTimeout("commit response lost")
-
-    async def persist_document_embedding(self, record, spec, *, verify=False):
-        self.documents[record.id] = record
-        if self.failure == "document":
             self.failure = None
             raise httpx.ReadTimeout("commit response lost")
 
     async def delete_document(self, document_id):
-        self.documents = {
-            key: value for key, value in self.documents.items() if value.document_id != document_id
-        }
+        self.documents.pop(document_id, None)
 
     async def close(self):
         pass
@@ -155,12 +140,17 @@ async def ingestion(store, tmp_path, monkeypatch):  # noqa: F811
         yield runtime
 
     registry = WorkflowRegistry()
+    from src.processing.execution import WorkflowDefinition
+    from src.processing.workflows import retired_extraction
+
+    registry.register("document", 1, WorkflowDefinition(retired_extraction, frozenset()))
 
     def provider_factory(config):
-        return providers, providers, providers
+        return providers
 
-    registry.register("document", 1, ProcessDocument(factory, provider_factory).definition)
+    registry.register("document", 2, ProcessDocument(factory).definition)
     registry.register("audio", 1, ProcessAudioNote(factory, provider_factory).definition)
+    registry.register("audio", 2, ProcessAudioNote(factory, provider_factory).definition)
     return SimpleNamespace(
         repo=repo,
         owner=owner,
@@ -208,51 +198,28 @@ async def test_upload_does_not_call_models_or_graph_and_is_idempotent(ingestion)
         )
 
 
-async def test_document_completes_all_stages_with_stable_ids(ingestion):
+async def test_document_completes_without_models_or_extractions(ingestion):
     env = ingestion
     original, record = await submit(env)
     current = await run_current(env, record)
     assert (current.status, current.stage) == ("completed", "done")
-    assert current.document_id == original.id and current.extraction_run_id
+    assert current.document_id == original.id and current.extraction_run_id is None
     assert current.completed_at is not None
-    assert (env.providers.extractions, env.providers.embeddings) == (1, 2)
-    assert len(env.graph.runs) == len(env.graph.claims) == len(env.graph.documents) == 1
+    assert (env.providers.extractions, env.providers.embeddings) == (0, 0)
+    assert len(env.graph.documents) == 1 and not env.graph.runs and not env.graph.claims
     await env.executor(record.id, 1)
-    assert env.providers.extractions == 1
-    assert (await env.runtime.document_store.get(original.id)).title == "Nota de prueba"
+    assert len(env.graph.documents) == 1
+    assert (await env.runtime.document_store.get(original.id)).title is None
 
 
-@pytest.mark.parametrize("stage", ["graph", "claims", "document"])
-async def test_ambiguous_external_commit_replays_without_repaying_models(ingestion, stage):
+async def test_ambiguous_document_commit_replays_without_models(ingestion):
     env = ingestion
     _, record = await submit(env)
-    env.graph.failure = stage
-    current = await run_current(env, record)
-    assert current.status == "retrying"
-    calls = (env.providers.extractions, env.providers.embeddings)
-    current = await run_current(env, record)
-    assert current.status == "completed"
-    assert env.providers.extractions == 1
-    assert env.providers.embeddings == 2
-    assert len(env.graph.runs) == len(env.graph.claims) == len(env.graph.documents) == 1
-    if stage == "document":
-        assert calls == (1, 2)
-
-
-async def test_invalid_evidence_gets_one_extra_attempt_and_keeps_original(ingestion):
-    env = ingestion
-    original, record = await submit(env)
-    env.providers.invalid_evidence = True
+    env.graph.failure = "graph"
     assert (await run_current(env, record)).status == "retrying"
-    current = await run_current(env, record)
-    assert (current.status, current.error_code, current.retryable) == (
-        "failed",
-        "invalid_evidence",
-        False,
-    )
-    assert env.providers.extractions == 2
-    assert (await env.runtime.document_store.get(original.id)).content == original.content
-    assert len(await env.runtime.extraction_store.list_for_document(original.id)) == 2
+    assert (await run_current(env, record)).status == "completed"
+    assert env.providers.extractions == env.providers.embeddings == 0
+    assert len(env.graph.documents) == 1
 
 
 async def test_audio_hands_off_to_child_and_reuses_transcript(ingestion):
@@ -359,9 +326,9 @@ async def test_delete_and_reextract_reject_active_job_then_allow_completed(inges
     with pytest.raises(SubmissionConflict, match="processing_active"):
         await delete.execute(original.id)
     with pytest.raises(ValueError, match="processing_active"):
-        await RequestProcessing(env.repo, env.runtime).reextract(original.id, "v4", uuid4())
+        await RequestProcessing(env.repo, env.runtime).reprocess_document(original.id, uuid4())
     await run_current(env, record)
-    second = await RequestProcessing(env.repo, env.runtime).reextract(original.id, "v4", uuid4())
+    second = await RequestProcessing(env.repo, env.runtime).reprocess_document(original.id, uuid4())
     assert second.id != record.id
     await run_current(env, second)
     await delete.execute(original.id)
@@ -428,35 +395,27 @@ async def test_http_accepted_location_status_owner_and_size_limits(ingestion, mo
 @pytest.mark.skipif(
     not os.getenv("PROCESSING_TEST_ARCADEDB_URL"), reason="requires isolated ArcadeDB"
 )
-async def test_real_arcadedb_writes_and_embedding_verification(ingestion):
+async def test_real_arcadedb_document_write_and_replay(ingestion):
     from src.graph.arcadedb.store import ArcadeDBGraphStore
 
     env = ingestion
     graph = ArcadeDBGraphStore(
-        os.environ["PROCESSING_TEST_ARCADEDB_URL"], "processing_test", "root", "processing-test"
+        os.environ["PROCESSING_TEST_ARCADEDB_URL"],
+        "processing_test",
+        "root",
+        os.getenv("PROCESSING_TEST_ARCADEDB_PASSWORD", "processing-test"),
     )
     env.runtime.graph_store = graph
     try:
         original, record = await submit(env)
         current = await run_current(env, record)
         assert current.status == "completed", (current.stage, current.error_code)
+        await graph.persist_document(original)
         response = await graph._client.query(
-            "SELECT count(*) AS count FROM ExtractionRun WHERE document_id = :id",
-            {"id": str(original.id)},
+            "SELECT id, content FROM Document WHERE id = :id", {"id": str(original.id)}
         )
-        assert response["result"][0]["count"] == 1
-        # Replay graph and vector writes, preserving deterministic identities.
-        async with env.repo.sessions.begin() as session:
-            row = await session.get(ProcessingRecord, record.id)
-            row.status, row.stage = "queued", "graph_persistence"
-            row.generation += 1
-        replayed = await run_current(env, record)
-        assert replayed.status == "completed"
-        response = await graph._client.query(
-            "SELECT count(*) AS count FROM Claim WHERE document_id = :id", {"id": str(original.id)}
-        )
-        assert response["result"][0]["count"] == 1
-        assert env.providers.extractions == 1 and env.providers.embeddings == 2
+        assert response["result"] == [{"id": str(original.id), "content": original.content}]
+        assert env.providers.extractions == env.providers.embeddings == 0
     finally:
         await graph.close()
 
@@ -626,10 +585,12 @@ async def test_retry_key_and_reextract_key_replay_while_worker_holds_resource(in
     await run_current(env, first)
     key = uuid4()
     request = RequestProcessing(env.repo, env.runtime)
-    second = await request.reextract(original.id, "v4", key)
+    second = await request.reprocess_document(original.id, key)
     async with env.repo.lock_resource(env.owner, original.id) as acquired:
         assert acquired
-        repeated = await RequestProcessing(env.repo, env.runtime).reextract(original.id, "v4", key)
+        repeated = await RequestProcessing(env.repo, env.runtime).reprocess_document(
+            original.id, key
+        )
         assert repeated.id == second.id
         retry = RequestProcessing(env.repo, env.runtime)
         current = await retry.retry(second.id, uuid4())
@@ -691,3 +652,43 @@ async def test_http_files_audio_limit_and_sql_failure_keep_original(ingestion, m
             assert len(await env.runtime.document_store.list()) == 2
     finally:
         app.dependency_overrides.clear()
+
+
+async def test_legacy_document_is_retired_and_explicit_retry_only_persists_original(ingestion):
+    env = ingestion
+    original, record = await submit(env)
+    async with env.repo.sessions.begin() as session:
+        old = await session.get(ProcessingRecord, record.id)
+        old.workflow_version, old.stage = 1, "extraction"
+    failed = await run_current(env, record)
+    assert failed.status == "failed" and failed.error_code == "extraction_retired"
+    assert env.providers.extractions == 0
+    assert (await env.runtime.document_store.get(original.id)).content == original.content
+    retry = await RequestProcessing(env.repo, env.runtime).retry(record.id, uuid4())
+    assert retry.workflow_version == 2 and retry.stage == "document_persistence"
+    assert (await run_current(env, retry)).status == "completed"
+    assert env.providers.extractions == env.providers.embeddings == 0
+
+
+async def test_legacy_audio_parent_recovers_retired_child_without_retranscribing(ingestion):
+    env = ingestion
+    note, parent = await SubmitAudioNote(env.submissions, env.runtime, 1024).execute(
+        "voice.webm", "audio/webm", b"audio", None, uuid4()
+    )
+    async with env.repo.sessions.begin() as session:
+        row = await session.get(ProcessingRecord, parent.id)
+        row.workflow_version = 1
+    waiting = await run_current(env, parent)
+    child = await env.repo.child(waiting)
+    async with env.repo.sessions.begin() as session:
+        row = await session.get(ProcessingRecord, child.id)
+        row.workflow_version, row.stage = 1, "extraction"
+    assert (await run_current(env, child)).error_code == "extraction_retired"
+    failed = await run_current(env, parent)
+    assert failed.status == "failed" and not failed.retryable
+    resumed = await RequestProcessing(env.repo, env.runtime).retry(parent.id, uuid4())
+    assert resumed.status == "waiting"
+    assert (await run_current(env, child)).status == "completed"
+    assert (await run_current(env, parent)).status == "completed"
+    assert env.providers.transcriptions == 1 and env.providers.extractions == 0
+    assert (await env.runtime.audio_note_store.get(note.id)).document_error is None

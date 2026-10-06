@@ -3,13 +3,10 @@ from fastapi import APIRouter, Depends
 from src.api.routes import (
     audio_notes,
     auth,
-    constellation,
     documents,
     events,
-    extractions,
     processing,
-    reflections,
-    search,
+    retired,
     system,
 )
 from src.auth.session import require_authenticated
@@ -22,9 +19,6 @@ api_router.include_router(events.router)
 protected_router = APIRouter(dependencies=[Depends(require_authenticated)])
 protected_router.include_router(documents.router)
 protected_router.include_router(audio_notes.router)
-protected_router.include_router(extractions.router)
-protected_router.include_router(constellation.router)
-protected_router.include_router(search.router)
-protected_router.include_router(reflections.router)
 protected_router.include_router(processing.router)
+protected_router.include_router(retired.router)
 api_router.include_router(protected_router)

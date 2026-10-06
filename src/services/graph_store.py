@@ -16,6 +16,9 @@ class GraphPersistenceError(RuntimeError):
 class GraphStore(Protocol):
     """Infrastructure boundary shared by application use cases and delivery adapters."""
 
+    async def persist_document(self, document: Document) -> None:
+        """Persist and verify an original without creating extraction records."""
+
     async def persist(self, document: Document, extraction: ExtractionRun) -> None:
         """Write one completed, evidence-backed extraction atomically."""
 

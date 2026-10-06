@@ -6,8 +6,6 @@ from uuid import UUID
 
 from src.config import get_settings
 from src.processing.execution import WorkflowFailure
-from src.services.openai_embedding_provider import OpenAIEmbeddingProvider
-from src.services.openai_extractor import OpenAIExtractor
 from src.services.openai_transcription_provider import OpenAITranscriptionProvider
 from src.use_cases.process_audio_note import ProcessAudioNote
 from src.use_cases.process_document import ProcessDocument
@@ -51,30 +49,19 @@ _provider_instances = []
 
 
 @lru_cache(maxsize=32)
-def providers_for(llm_model, transcription_model, embedding_model, dimensions):
+def workflow_providers_configured(transcription_model):
     settings = get_settings()
-    if not settings.openai_api_key or llm_model == "unconfigured":
+    if not settings.openai_api_key:
         raise WorkflowFailure("provider_configuration", retryable=True)
-    providers = (
-        OpenAIExtractor(settings.openai_api_key, llm_model, max_retries=0),
-        OpenAITranscriptionProvider(settings.openai_api_key, transcription_model, max_retries=0),
-        OpenAIEmbeddingProvider(
-            settings.openai_api_key, embedding_model, dimensions, max_retries=0
-        ),
+    provider = OpenAITranscriptionProvider(
+        settings.openai_api_key, transcription_model, max_retries=0
     )
-    _provider_instances.extend(providers)
-    return providers
+    _provider_instances.append(provider)
+    return provider
 
 
 def workflow_providers(config):
-    if config["llm_provider"] != "openai" or config["embedding_provider"] != "openai":
-        raise WorkflowFailure("provider_configuration", retryable=True)
-    return providers_for(
-        config["llm_model"],
-        config["transcription_model"],
-        config["embedding_model"],
-        config["embedding_dimensions"],
-    )
+    return workflow_providers_configured(config["transcription_model"])
 
 
 async def close_workflow_providers():
@@ -83,9 +70,19 @@ async def close_workflow_providers():
             await provider.close()
     finally:
         _provider_instances.clear()
-        providers_for.cache_clear()
+        workflow_providers_configured.cache_clear()
+
+
+async def retired_extraction(context):
+    raise WorkflowFailure("extraction_retired")
 
 
 def register_workflows(registry):
-    registry.register("document", 1, ProcessDocument(worker_runtime, workflow_providers).definition)
+    # Old messages cannot recreate historical extractions after the cutover.
+    from src.processing.execution import WorkflowDefinition
+
+    registry.register("document", 1, WorkflowDefinition(retired_extraction, frozenset()))
+    registry.register("document", 2, ProcessDocument(worker_runtime).definition)
+    # Legacy audio can still reuse its transcript and hand off to a v2 document.
     registry.register("audio", 1, ProcessAudioNote(worker_runtime, workflow_providers).definition)
+    registry.register("audio", 2, ProcessAudioNote(worker_runtime, workflow_providers).definition)

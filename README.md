@@ -11,7 +11,9 @@ los contratos de I/O, el lifecycle de clientes y los límites de concurrencia.
 La [etapa 3: ejecución durable](docs/processing-runtime.md) agrega PostgreSQL,
 outbox, workers Taskiq/RabbitMQ y recuperación.
 La [etapa 4: uploads diferidos](docs/deferred-ingestion.md) conecta documentos/audio
-y recibos idempotentes mediante `/v2`; la PWA se adapta en etapa 5.
+y recibos idempotentes mediante `/v2`.
+La [etapa 5: PWA y SSE](docs/processing-pwa-events.md) conecta uploads v2,
+eventos autenticados con replay y recuperación por snapshots.
 
 ## Contexto
 

@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from src.api.schemas.audio_notes import AudioNoteResponse
 from src.api.schemas.documents import DocumentResponse
+from src.processing.projections import processing_projection
 
 
 class ProcessingError(BaseModel):
@@ -37,23 +38,7 @@ class ProcessingResponse(BaseModel):
 
     @classmethod
     def from_record(cls, record):
-        data = {
-            name: getattr(record, name)
-            for name in cls.model_fields
-            if name not in {"stage_attempt", "error", "next_attempt_at"}
-        }
-        return cls(
-            **data,
-            stage_attempt=record.stage_attempts,
-            error=ProcessingError(
-                code=record.error_code,
-                message="El procesamiento no pudo avanzar.",
-                retryable=record.retryable,
-            )
-            if record.error_code
-            else None,
-            next_attempt_at=record.available_at if record.status == "retrying" else None,
-        )
+        return cls.model_validate(processing_projection(record))
 
 
 class AcceptedDocument(BaseModel):

@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import aliased
 
 from src.processing.models import ProcessingEvent, ProcessingOutbox, ProcessingRecord
+from src.processing.projections import processing_projection
 from src.workspaces.models import UserWorkspace
 
 
@@ -33,6 +34,7 @@ class ProcessingRepository:
                 status=record.status,
                 stage=record.stage,
                 error_code=record.error_code,
+                payload=processing_projection(record),
             )
         )
 

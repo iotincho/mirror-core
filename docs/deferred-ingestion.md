@@ -8,8 +8,8 @@ aunque el cliente cierre la app y nunca consulte el estado.
 ## Transición de clientes
 
 Los uploads nuevos usan `/v2/documents`, `/v2/documents/files` y `/v2/audio-notes`.
-Las rutas existentes mantienen sus contratos para la PWA actual; su migración
-a `/v2` y SSE pertenece a etapa 5. Los endpoints nuevos no usan `BackgroundTasks`.
+Las rutas legacy mantienen sus contratos para clientes anteriores; la adaptación
+a `/v2` y SSE está documentada en la [etapa 5](processing-pwa-events.md). Los endpoints nuevos no usan `BackgroundTasks`.
 Las operaciones síncronas antiguas de extracción y el borrado participan en la
 exclusión por recurso y rechazan conflictos con trabajos diferidos activos.
 
@@ -175,4 +175,7 @@ evidencia inválida, padre/hijo y recuperación de audio legado, retry y borrado
 HTTP 202/200/409/413/503, snapshots, owner y límites de upload.
 También corre el dispatcher real con dos workers Taskiq y RabbitMQ/PostgreSQL/
 ArcadeDB reales, usando proveedores de IA simulados para no generar costo.
-SSE y adaptación de la PWA quedan para etapa 5; operación de producción para 6.
+La operación de producción queda para la etapa 6.
+
+La integración PWA y el stream SSE están implementados en la
+[etapa 5](processing-pwa-events.md). Los endpoints legacy continúan disponibles.

@@ -6,6 +6,7 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     DateTime,
@@ -73,7 +74,16 @@ class ProcessingEvent(Base):
     status: Mapped[str] = mapped_column(String(20))
     stage: Mapped[str] = mapped_column(String(100))
     error_code: Mapped[str | None] = mapped_column(String(100))
+    payload: Mapped[dict | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
+
+
+class ProcessingDelivery(Base):
+    __tablename__ = "processing_deliveries"
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    event_id: Mapped[int] = mapped_column(
+        ForeignKey("processing_events.id", ondelete="CASCADE"), unique=True
+    )
 
 
 class ProcessingOutbox(Base):

@@ -5,6 +5,7 @@ from src.api.routes import (
     auth,
     constellation,
     documents,
+    events,
     extractions,
     processing,
     reflections,
@@ -16,6 +17,8 @@ from src.auth.session import require_authenticated
 api_router = APIRouter()
 api_router.include_router(system.router)
 api_router.include_router(auth.router)
+# Events perform the same cookie checks in short sessions, also during the stream.
+api_router.include_router(events.router)
 protected_router = APIRouter(dependencies=[Depends(require_authenticated)])
 protected_router.include_router(documents.router)
 protected_router.include_router(audio_notes.router)

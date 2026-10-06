@@ -10,11 +10,11 @@ class IngestDocument:
     def __init__(self, document_store: DocumentStore) -> None:
         self._document_store = document_store
 
-    def execute(self, new_document: NewDocument) -> Document:
+    async def execute(self, new_document: NewDocument) -> Document:
         document = build_document(new_document)
-        self._document_store.save(document)
+        await self._document_store.save(document)
         return document
 
-    def get(self, document_id: object) -> Document:
+    async def get(self, document_id: object) -> Document:
         """Retrieve already stored material for a retryable processing flow."""
-        return self._document_store.get(document_id)
+        return await self._document_store.get(document_id)

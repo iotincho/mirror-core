@@ -6,7 +6,7 @@ from src.reflection.contracts import ClaimRelation
 
 
 class ReflectionContextStore(Protocol):
-    def get_claim_relations(self, claim_ids: list[str]) -> list[ClaimRelation]: ...
+    async def get_claim_relations(self, claim_ids: list[str]) -> list[ClaimRelation]: ...
 
 
 class ReflectionContextStoreError(RuntimeError):

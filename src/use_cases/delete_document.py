@@ -11,13 +11,33 @@ class DeleteDocument:
         documents: DocumentStore,
         extractions: ExtractionStore,
         graph: GraphStore,
+        processing=None,
+        user_id=None,
     ) -> None:
         self._documents = documents
         self._extractions = extractions
         self._graph = graph
+        self._processing, self._user_id = processing, user_id
 
-    def execute(self, document_id: UUID) -> None:
-        self._documents.get(document_id)
-        self._graph.delete_document(str(document_id))
-        self._extractions.delete_for_document(document_id)
-        self._documents.delete(document_id)
+    async def execute(self, document_id: UUID) -> None:
+        if self._processing is not None:
+            from src.processing.submissions import SubmissionConflict
+
+            async with self._processing.lock_resource(self._user_id, document_id) as locked:
+                if not locked:
+                    raise SubmissionConflict("processing_active")
+                try:
+                    await self._processing.assert_inactive(self._user_id, document_id)
+                except ValueError as error:
+                    raise SubmissionConflict("processing_active") from error
+                await self._documents.get(document_id)
+                await self._processing.mark_deleted(self._user_id, document_id)
+                await self._delete(document_id)
+            return
+        await self._delete(document_id)
+
+    async def _delete(self, document_id):
+        await self._documents.get(document_id)
+        await self._graph.delete_document(str(document_id))
+        await self._extractions.delete_for_document(document_id)
+        await self._documents.delete(document_id)

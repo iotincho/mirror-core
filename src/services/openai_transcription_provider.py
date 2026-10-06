@@ -1,26 +1,33 @@
 """OpenAI implementation of the speech-to-text port."""
 
+import asyncio
 from pathlib import Path
 from typing import Any
 
+from src.services.async_provider import AsyncProvider
 from src.services.transcription_provider import TranscriptionProviderError
 
 
-class OpenAITranscriptionProvider:
+class OpenAITranscriptionProvider(AsyncProvider):
     provider_name = "openai"
 
-    def __init__(self, api_key: str | None, model: str, client: Any | None = None) -> None:
+    def __init__(
+        self, api_key: str | None, model: str, client: Any | None = None, *, max_retries: int = 2
+    ) -> None:
         self._api_key = api_key
         self.model_name = model
-        self._client = client
+        self._configure_client(client)
+        self._sdk_max_retries = max_retries
 
-    def transcribe(self, audio_path: Path) -> str:
+    async def transcribe(self, audio_path: Path) -> str:
         client = self._get_client()
         try:
-            with audio_path.open("rb") as audio_file:
-                response = client.audio.transcriptions.create(
+            async with self._request_slot():
+                # Pass bytes to the SDK so multipart encoding never reads a file on the loop.
+                content = await asyncio.to_thread(audio_path.read_bytes)
+                response = await client.audio.transcriptions.create(
                     model=self.model_name,
-                    file=audio_file,
+                    file=(audio_path.name, content),
                 )
             transcript = response.text
         except Exception as error:
@@ -34,7 +41,9 @@ class OpenAITranscriptionProvider:
             return self._client
         if not self._api_key:
             raise TranscriptionProviderError("OpenAI requires OPENAI_API_KEY")
-        from openai import OpenAI
+        from openai import AsyncOpenAI
 
-        self._client = OpenAI(api_key=self._api_key)
+        self._client = AsyncOpenAI(
+            api_key=self._api_key, timeout=self._timeout, max_retries=self._sdk_max_retries
+        )
         return self._client

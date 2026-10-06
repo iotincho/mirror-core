@@ -30,18 +30,18 @@ class SearchSemantically:
         self._claim_store = claim_store
         self._document_store = document_store
 
-    def execute(self, query: str, limit: int = 10) -> list[SearchResult]:
+    async def execute(self, query: str, limit: int = 10) -> list[SearchResult]:
         if not query.strip() or not 1 <= limit <= 50:
             raise ValueError("query must not be blank and limit must be between 1 and 50")
         try:
-            vectors = self._provider.embed([query])
+            vectors = await self._provider.embed([query])
             if len(vectors) != 1:
                 raise EmbeddingProviderError("Provider returned an unexpected number of embeddings")
             query_vector = vectors[0]
-            claims = self._claim_store.search_claim_embeddings(
+            claims = await self._claim_store.search_claim_embeddings(
                 query_vector.vector, query_vector.spec, limit
             )
-            documents = self._document_store.search_document_embeddings(
+            documents = await self._document_store.search_document_embeddings(
                 query_vector.vector, query_vector.spec, limit
             )
             return sorted([*claims, *documents], key=lambda item: item.score, reverse=True)[:limit]

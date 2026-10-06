@@ -2,7 +2,11 @@ import httpx
 import pytest
 
 from src.auth.session import require_authenticated
-from src.dependencies import get_ingest_and_extract_document, get_ingest_document_file, get_list_documents
+from src.dependencies import (
+    get_ingest_and_extract_document,
+    get_ingest_document_file,
+    get_list_documents,
+)
 from src.domain.documents import Document
 from src.extraction.contracts import Concept, Evidence, ExtractionResult
 from src.main import app
@@ -20,7 +24,7 @@ class FakeExtractor:
     provider_name = "fake"
     model_name = "fake-model"
 
-    def extract(self, document: Document, profile) -> ProviderExtraction:
+    async def extract(self, document: Document, profile) -> ProviderExtraction:
         quote = "autonomía" if "autonomía" in document.content else document.content
         start = document.content.index(quote)
         return ProviderExtraction(

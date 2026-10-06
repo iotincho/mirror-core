@@ -57,6 +57,6 @@ class IngestDocumentFile:
             authored_at=authored_at,
         )
 
-    def execute(self, filename: str | None, content: bytes) -> Document:
+    async def execute(self, filename: str | None, content: bytes) -> Document:
         """Persist a file directly for callers that intentionally skip extraction."""
-        return self._ingest_document.execute(self.build_new_document(filename, content))
+        return await self._ingest_document.execute(self.build_new_document(filename, content))

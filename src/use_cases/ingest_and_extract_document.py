@@ -32,14 +32,14 @@ class IngestAndExtractDocument:
         self._ingest_document = ingest_document
         self._extract_document = extract_document
 
-    def execute(self, new_document: NewDocument) -> ProcessedDocument:
-        document = self._ingest_document.execute(new_document)
-        return self.process_existing(document.id)
+    async def execute(self, new_document: NewDocument) -> ProcessedDocument:
+        document = await self._ingest_document.execute(new_document)
+        return await self.process_existing(document.id)
 
-    def process_existing(self, document_id: object) -> ProcessedDocument:
+    async def process_existing(self, document_id: object) -> ProcessedDocument:
         """Process an already persisted document without creating a duplicate."""
-        document = self._ingest_document.get(document_id)
-        extraction = self._extract_document.execute(document.id)
+        document = await self._ingest_document.get(document_id)
+        extraction = await self._extract_document.execute(document.id)
         if extraction.result is not None:
             logger.info(
                 "extraction_completed document_id=%s run_id=%s result=%s",
@@ -48,5 +48,5 @@ class IngestAndExtractDocument:
                 extraction.result.model_dump_json(),
             )
         return ProcessedDocument(
-            document=self._ingest_document.get(document.id), extraction=extraction
+            document=await self._ingest_document.get(document.id), extraction=extraction
         )

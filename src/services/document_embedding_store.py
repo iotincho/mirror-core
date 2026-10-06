@@ -12,14 +12,14 @@ class DocumentEmbeddingStoreError(RuntimeError):
 class DocumentEmbeddingStore(Protocol):
     """Database-independent boundary for document vector persistence and retrieval."""
 
-    def persist_document_embedding(
+    async def persist_document_embedding(
         self,
         record: DocumentEmbeddingRecord,
         spec: EmbeddingSpec,
     ) -> None:
         """Store one document vector and ensure a vector index for its specification."""
 
-    def search_document_embeddings(
+    async def search_document_embeddings(
         self,
         vector: list[float],
         spec: EmbeddingSpec,

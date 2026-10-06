@@ -12,14 +12,14 @@ class ClaimEmbeddingStoreError(RuntimeError):
 class ClaimEmbeddingStore(Protocol):
     """Database-independent boundary for claim vector persistence and retrieval."""
 
-    def persist_claim_embeddings(
+    async def persist_claim_embeddings(
         self,
         records: list[ClaimEmbeddingRecord],
         spec: EmbeddingSpec,
     ) -> None:
         """Store embeddings and ensure a vector index for their exact specification."""
 
-    def search_claim_embeddings(
+    async def search_claim_embeddings(
         self,
         vector: list[float],
         spec: EmbeddingSpec,

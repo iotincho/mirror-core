@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from src.api.schemas.extractions import CreateExtractionRequest
 from src.dependencies import get_extract_persist_and_embed_document
 from src.extraction.profiles import UnknownExtractionProfileError
+from src.processing.submissions import SubmissionConflict
 from src.services.document_store import DocumentNotFoundError
 from src.services.extraction_store import ExtractionRun
 from src.use_cases.embed_claims import ClaimEmbeddingFailedError
@@ -26,7 +27,7 @@ router = APIRouter(prefix="/documents", tags=["extractions"])
     response_model=ExtractionRun,
     status_code=status.HTTP_201_CREATED,
 )
-def create_extraction(
+async def create_extraction(
     document_id: UUID,
     request: CreateExtractionRequest,
     use_case: Annotated[
@@ -36,9 +37,11 @@ def create_extraction(
 ) -> ExtractionRun:
     """Run a selected profile and persist its validated result in the graph store."""
     try:
-        return use_case.execute(document_id, request.profile)
+        return await use_case.execute(document_id, request.profile)
     except DocumentNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except SubmissionConflict as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
     except UnknownExtractionProfileError as error:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

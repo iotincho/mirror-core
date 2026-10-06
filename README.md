@@ -2,6 +2,19 @@
 
 > Un instrumento de introspección personal asistido por IA.
 
+El diseño del próximo flujo de ingreso está en
+[Procesamiento diferido: contratos y diseño](docs/deferred-processing.md).
+Define Taskiq + RabbitMQ, máquinas de estados por caso de uso y recuperación
+durable; corresponde a la etapa 1 y todavía no modifica el comportamiento actual.
+La [etapa 2: pipeline async](docs/async-pipeline.md) documenta la migración de
+los contratos de I/O, el lifecycle de clientes y los límites de concurrencia.
+La [etapa 3: ejecución durable](docs/processing-runtime.md) agrega PostgreSQL,
+outbox, workers Taskiq/RabbitMQ y recuperación.
+La [etapa 4: uploads diferidos](docs/deferred-ingestion.md) conecta documentos/audio
+y recibos idempotentes mediante `/v2`.
+La [etapa 5: PWA y SSE](docs/processing-pwa-events.md) conecta uploads v2,
+eventos autenticados con replay y recuperación por snapshots.
+
 ## Contexto
 
 El Espejo es una prueba de concepto (POC) para explorar si la IA puede ayudar a una persona a observar, recorrer y comprender sus propios pensamientos a lo largo del tiempo.

@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from contextlib import AbstractContextManager
+from contextlib import AbstractAsyncContextManager
 from typing import Any, Protocol
 
 from src.constellation.contracts import CrossDocumentLink, LinkNeighborhood, LinkType, SavedLink
@@ -20,7 +20,7 @@ from src.embeddings.contracts import (
 )
 from src.extraction.contracts import ExtractionResult
 from src.graph.arcadedb import queries
-from src.graph.arcadedb.client import ArcadeDBHTTPClient
+from src.graph.arcadedb.client import AsyncArcadeDBHTTPClient
 from src.graph.arcadedb.schema import embedding_type_names
 from src.reflection.contracts import ClaimRelation
 from src.services.claim_embedding_store import ClaimEmbeddingStoreError
@@ -39,7 +39,7 @@ _RELATION_TYPES = {
 
 
 class ArcadeDBCommandClient(Protocol):
-    def command(
+    async def command(
         self,
         statement: str,
         params: dict[str, Any] | None = None,
@@ -47,7 +47,7 @@ class ArcadeDBCommandClient(Protocol):
         language: str = "sql",
     ) -> dict[str, Any]: ...
 
-    def query(
+    async def query(
         self,
         statement: str,
         params: dict[str, Any] | None = None,
@@ -57,9 +57,9 @@ class ArcadeDBCommandClient(Protocol):
 
 
 class ArcadeDBStoreClient(ArcadeDBCommandClient, Protocol):
-    def transaction(self) -> AbstractContextManager[ArcadeDBCommandClient]: ...
+    def transaction(self) -> AbstractAsyncContextManager[ArcadeDBCommandClient]: ...
 
-    def close(self) -> None: ...
+    async def close(self) -> None: ...
 
 
 class ArcadeDBGraphStore(GraphBackend):
@@ -74,30 +74,75 @@ class ArcadeDBGraphStore(GraphBackend):
         *,
         client: ArcadeDBStoreClient | None = None,
     ) -> None:
-        self._client = client or ArcadeDBHTTPClient(http_url, database, username, password)
+        self._client = client or AsyncArcadeDBHTTPClient(http_url, database, username, password)
 
-    def persist(self, document: Document, extraction: ExtractionRun) -> None:
+    async def persist(self, document: Document, extraction: ExtractionRun) -> None:
         if extraction.status != "completed" or extraction.result is None:
             raise GraphPersistenceError("Only completed extractions can be persisted in the graph")
 
         try:
-            with self._client.transaction() as transaction:
-                self._write_extraction(transaction, document, extraction)
+            async with self._client.transaction() as transaction:
+                await self._write_extraction(transaction, document, extraction)
         except GraphPersistenceError:
             raise
         except Exception as error:
             raise GraphPersistenceError("ArcadeDB graph persistence failed") from error
 
-    def persist_claim_embeddings(
+
+    async def persist_verified(self, document: Document, extraction: ExtractionRun) -> None:
+        """Replay deterministic writes, verify their identities before committing."""
+        try:
+            async with self._client.transaction() as transaction:
+                await self._write_extraction(transaction, document, extraction)
+                params = {"run_id": str(extraction.id)}
+                items = self._rows(
+                    await transaction.query(queries.RUN_ITEM_IDS, params, language="cypher")
+                )
+                relations = self._rows(
+                    await transaction.query(queries.RUN_RELATION_IDS, params, language="cypher")
+                )
+                expected = {
+                    f"{extraction.id}:{kind}:{item.id}"
+                    for kind, values in (
+                        ("concept", extraction.result.concepts),
+                        ("entity", extraction.result.entities),
+                        ("claim", extraction.result.claims),
+                    )
+                    for item in values
+                }
+                expected_relations = {
+                    f"{extraction.id}:relationship:{index}"
+                    for index in range(len(extraction.result.relationships))
+                }
+                runs = self._rows(
+                    await transaction.query(
+                        "MATCH (document:Document {id: $document_id})-[:HAS_EXTRACTION]->"
+                        "(run:ExtractionRun {id: $run_id}) RETURN run.id AS id",
+                        {**params, "document_id": str(document.id)},
+                        language="cypher",
+                    )
+                )
+                if (
+                    {row["id"] for row in items} != expected
+                    or {row["id"] for row in relations} != expected_relations
+                    or {row["id"] for row in runs} != {str(extraction.id)}
+                ):
+                    raise GraphPersistenceError("Extraction write verification failed")
+        except GraphPersistenceError:
+            raise
+        except Exception as error:
+            raise GraphPersistenceError("ArcadeDB verified persistence failed") from error
+
+    async def persist_claim_embeddings(
         self,
         records: list[ClaimEmbeddingRecord],
         spec: EmbeddingSpec,
+        *,
+        verify: bool = False,
     ) -> None:
         if not records:
             return
-        if any(
-            record.spec != spec or len(record.vector) != spec.dimensions for record in records
-        ):
+        if any(record.spec != spec or len(record.vector) != spec.dimensions for record in records):
             raise ClaimEmbeddingStoreError(
                 "Claim embedding record does not match its specification"
             )
@@ -122,17 +167,26 @@ class ArcadeDBGraphStore(GraphBackend):
             for record in records
         ]
         try:
-            self._client.command(
+            if verify:
+                async with self._client.transaction() as transaction:
+                    response = await transaction.command(
+                        queries.CLAIM_EMBEDDINGS.format(embedding_type=embedding_type)
+                        + " RETURN embedding.id AS id",
+                        {"rows": rows},
+                        language="cypher",
+                    )
+                    if {row["id"] for row in self._rows(response)} != {r.id for r in records}:
+                        raise ClaimEmbeddingStoreError("Embedding write verification failed")
+                return
+            await self._client.command(
                 queries.CLAIM_EMBEDDINGS.format(embedding_type=embedding_type),
                 {"rows": rows},
                 language="cypher",
             )
         except Exception as error:
-            raise ClaimEmbeddingStoreError(
-                "ArcadeDB claim embedding persistence failed"
-            ) from error
+            raise ClaimEmbeddingStoreError("ArcadeDB claim embedding persistence failed") from error
 
-    def search_claim_embeddings(
+    async def search_claim_embeddings(
         self,
         vector: list[float],
         spec: EmbeddingSpec,
@@ -144,7 +198,7 @@ class ArcadeDBGraphStore(GraphBackend):
         embedding_type, _ = embedding_type_names(spec)
         try:
             neighbors = self._rows(
-                self._client.query(
+                await self._client.query(
                     queries.vector_neighbors(embedding_type),
                     {"vector": vector, "limit": limit},
                 )
@@ -157,7 +211,7 @@ class ArcadeDBGraphStore(GraphBackend):
             if not claim_ids:
                 return []
             details = self._rows(
-                self._client.query(
+                await self._client.query(
                     queries.CLAIM_DETAILS,
                     {"claim_ids": claim_ids},
                     language="cypher",
@@ -174,48 +228,47 @@ class ArcadeDBGraphStore(GraphBackend):
         except Exception as error:
             raise ClaimEmbeddingStoreError("ArcadeDB claim embedding search failed") from error
 
-    def persist_document_embedding(
+    async def persist_document_embedding(
         self,
         record: DocumentEmbeddingRecord,
         spec: EmbeddingSpec,
+        *,
+        verify: bool = False,
     ) -> None:
         if record.spec != spec or len(record.vector) != spec.dimensions:
-            raise DocumentEmbeddingStoreError(
-                "Document embedding record does not match its specification"
-            )
-
+            raise DocumentEmbeddingStoreError("Document embedding specification mismatch")
         _, embedding_type = embedding_type_names(spec)
+        params = {
+            "id": record.id,
+            "document_id": record.document_id,
+            "text_hash": record.text_hash,
+            "content": record.content,
+            "source": record.source,
+            "metadata_json": json.dumps(record.metadata, ensure_ascii=False, sort_keys=True),
+            "created_at": record.created_at.isoformat(),
+            "authored_at": record.authored_at.isoformat() if record.authored_at else None,
+            "vector": record.vector,
+            "provider": spec.provider,
+            "model": spec.model,
+            "dimensions": spec.dimensions,
+        }
+        statement = queries.DOCUMENT_EMBEDDING.format(embedding_type=embedding_type)
         try:
-            self._client.command(
-                queries.DOCUMENT_EMBEDDING.format(embedding_type=embedding_type),
-                {
-                    "id": record.id,
-                    "document_id": record.document_id,
-                    "text_hash": record.text_hash,
-                    "content": record.content,
-                    "source": record.source,
-                    "metadata_json": json.dumps(
-                        record.metadata,
-                        ensure_ascii=False,
-                        sort_keys=True,
-                    ),
-                    "created_at": record.created_at.isoformat(),
-                    "authored_at": record.authored_at.isoformat()
-                    if record.authored_at
-                    else None,
-                    "vector": record.vector,
-                    "provider": record.spec.provider,
-                    "model": record.spec.model,
-                    "dimensions": record.spec.dimensions,
-                },
-                language="cypher",
-            )
+            if verify:
+                async with self._client.transaction() as transaction:
+                    response = await transaction.command(
+                        statement + " RETURN embedding.id AS id", params, language="cypher"
+                    )
+                    if {row["id"] for row in self._rows(response)} != {record.id}:
+                        raise DocumentEmbeddingStoreError("Embedding write verification failed")
+            else:
+                await self._client.command(statement, params, language="cypher")
         except Exception as error:
             raise DocumentEmbeddingStoreError(
                 "ArcadeDB document embedding persistence failed"
             ) from error
 
-    def search_document_embeddings(
+    async def search_document_embeddings(
         self,
         vector: list[float],
         spec: EmbeddingSpec,
@@ -227,7 +280,7 @@ class ArcadeDBGraphStore(GraphBackend):
         _, embedding_type = embedding_type_names(spec)
         try:
             neighbors = self._rows(
-                self._client.query(
+                await self._client.query(
                     queries.vector_neighbors(embedding_type),
                     {"vector": vector, "limit": limit},
                 )
@@ -240,11 +293,11 @@ class ArcadeDBGraphStore(GraphBackend):
                 "ArcadeDB document embedding search failed"
             ) from error
 
-    def get_claim_relations(self, claim_ids: list[str]) -> list[ClaimRelation]:
+    async def get_claim_relations(self, claim_ids: list[str]) -> list[ClaimRelation]:
         if not claim_ids:
             return []
         try:
-            response = self._client.query(
+            response = await self._client.query(
                 queries.CLAIM_RELATIONS,
                 {"claim_ids": claim_ids},
                 language="cypher",
@@ -255,13 +308,13 @@ class ArcadeDBGraphStore(GraphBackend):
                 "ArcadeDB reflection context retrieval failed"
             ) from error
 
-    def persist_cross_document_links(self, links: list[CrossDocumentLink]) -> None:
+    async def persist_cross_document_links(self, links: list[CrossDocumentLink]) -> None:
         """Persist proposed links atomically inside the current user's database."""
         if not links:
             return
         try:
-            with self._client.transaction() as transaction:
-                self._write_cross_document_links(transaction, links)
+            async with self._client.transaction() as transaction:
+                await self._write_cross_document_links(transaction, links)
         except GraphPersistenceError:
             raise
         except Exception as error:
@@ -269,11 +322,11 @@ class ArcadeDBGraphStore(GraphBackend):
                 "ArcadeDB cross-document link persistence failed"
             ) from error
 
-    def existing_document_items(self, document_id: str) -> list[dict[str, Any]]:
+    async def existing_document_items(self, document_id: str) -> list[dict[str, Any]]:
         try:
             result = []
             for kind in ("Claim", "Entity", "Concept"):
-                result.extend(self._rows(self._client.query(
+                result.extend(self._rows(await self._client.query(
                     f"MATCH (item:{kind}) WHERE item.document_id = $document_id "
                     f"RETURN item.id AS id, '{kind.lower()}' AS kind, item.text AS text, "
                     "item.name AS name, item.type AS type ORDER BY id",
@@ -283,22 +336,22 @@ class ArcadeDBGraphStore(GraphBackend):
         except Exception as error:
             raise GraphPersistenceError("Existing source items are unavailable") from error
 
-    def persist_link_analysis(
+    async def persist_link_analysis(
         self, document: Document, supplement: ExtractionRun | None,
         links: list[CrossDocumentLink],
     ) -> None:
         try:
-            with self._client.transaction() as transaction:
+            async with self._client.transaction() as transaction:
                 if supplement is not None:
                     if supplement.document_id != document.id or supplement.result is None:
                         raise GraphPersistenceError("Supplement belongs to another document")
-                    self._write_extraction(transaction, document, supplement)
-                    found = self._rows(transaction.query(
+                    await self._write_extraction(transaction, document, supplement)
+                    found = self._rows(await transaction.query(
                         queries.RUN_ITEM_IDS, {"run_id": str(supplement.id)}, language="cypher",
                     ))
                     if {row["id"] for row in found} != set(supplement.item_graph_ids.values()):
                         raise GraphPersistenceError("Not all supplemental items were persisted")
-                    found_relations = self._rows(transaction.query(
+                    found_relations = self._rows(await transaction.query(
                         queries.RUN_RELATION_IDS, {"run_id": str(supplement.id)},
                         language="cypher",
                     ))
@@ -308,15 +361,15 @@ class ArcadeDBGraphStore(GraphBackend):
                     }
                     if {row["id"] for row in found_relations} != expected_relations:
                         raise GraphPersistenceError("Not all supplemental relations were persisted")
-                self._write_cross_document_links(transaction, links)
+                await self._write_cross_document_links(transaction, links)
         except GraphPersistenceError:
             raise
         except Exception as error:
             raise GraphPersistenceError("Link analysis transaction failed") from error
 
-    def supplemental_items_persisted(self, run: ExtractionRun) -> bool:
+    async def supplemental_items_persisted(self, run: ExtractionRun) -> bool:
         try:
-            found = self._rows(self._client.query(
+            found = self._rows(await self._client.query(
                 queries.RUN_ITEM_IDS, {"run_id": str(run.id)}, language="cypher",
             ))
             return bool(found) and {row["id"] for row in found} == set(run.item_graph_ids.values())
@@ -324,7 +377,7 @@ class ArcadeDBGraphStore(GraphBackend):
             raise GraphPersistenceError("Supplemental graph state is unavailable") from error
 
     @classmethod
-    def _write_cross_document_links(
+    async def _write_cross_document_links(
         cls, transaction: ArcadeDBCommandClient, links: list[CrossDocumentLink],
     ) -> None:
         if not links:
@@ -336,7 +389,7 @@ class ArcadeDBGraphStore(GraphBackend):
             for row in cls._cross_document_link_rows(link):
                 rows_by_id[row["id"]] = row
         rows = list(rows_by_id.values())
-        response = transaction.command(
+        response = await transaction.command(
             queries.CROSS_DOCUMENT_LINKS, {"rows": rows}, language="cypher"
         )
         persisted_ids = {
@@ -408,9 +461,9 @@ class ArcadeDBGraphStore(GraphBackend):
         )
         return [forward, reverse]
 
-    def delete_document(self, document_id: str) -> None:
+    async def delete_document(self, document_id: str) -> None:
         try:
-            self._client.command(
+            await self._client.command(
                 queries.DELETE_DOCUMENT,
                 {"document_id": document_id},
                 language="cypher",
@@ -418,7 +471,7 @@ class ArcadeDBGraphStore(GraphBackend):
         except Exception as error:
             raise GraphPersistenceError("ArcadeDB document deletion failed") from error
 
-    def get_link_neighborhood(
+    async def get_link_neighborhood(
         self, document_id: str, *, offset: int = 0, limit: int = 10,
         relation_type: LinkType | None = None,
     ) -> LinkNeighborhood:
@@ -431,18 +484,18 @@ class ArcadeDBGraphStore(GraphBackend):
             "offset": offset, "limit": limit,
         }
         try:
-            count = self._rows(self._client.query(
+            count = self._rows(await self._client.query(
                 queries.LINK_NEIGHBOR_COUNT, params, language="cypher"
             ))
             total = int(count[0]["total"]) if count else 0
-            page = self._rows(self._client.query(
+            page = self._rows(await self._client.query(
                 queries.LINK_NEIGHBOR_PAGE, params, language="cypher"
             ))
             neighbors = [str(row["neighbor_id"]) for row in page]
             detail_params = {
                 **params, "document_ids": [document_id, *neighbors], "link_limit": 501,
             }
-            rows = self._rows(self._client.query(
+            rows = self._rows(await self._client.query(
                 queries.LINK_NEIGHBOR_DETAILS, detail_params, language="cypher"
             )) if neighbors else []
             links_by_id = {}
@@ -462,13 +515,13 @@ class ArcadeDBGraphStore(GraphBackend):
         except Exception as error:
             raise GraphPersistenceError("ArcadeDB link neighborhood retrieval failed") from error
 
-    def ready_extraction_ids(
+    async def ready_extraction_ids(
         self, expected_claim_counts: dict[str, int], spec: EmbeddingSpec,
     ) -> set[str]:
         if not expected_claim_counts:
             return set()
         try:
-            rows = self._rows(self._client.query(
+            rows = self._rows(await self._client.query(
                 queries.EXTRACTION_READINESS,
                 {"run_ids": list(expected_claim_counts), "provider": spec.provider,
                  "model": spec.model, "dimensions": spec.dimensions},
@@ -482,11 +535,11 @@ class ArcadeDBGraphStore(GraphBackend):
         except Exception as error:
             raise GraphPersistenceError("ArcadeDB extraction readiness retrieval failed") from error
 
-    def close(self) -> None:
-        self._client.close()
+    async def close(self) -> None:
+        await self._client.close()
 
     @staticmethod
-    def _write_extraction(
+    async def _write_extraction(
         transaction: ArcadeDBCommandClient,
         document: Document,
         extraction: ExtractionRun,
@@ -495,7 +548,7 @@ class ArcadeDBGraphStore(GraphBackend):
         assert result is not None
         document_id = str(document.id)
         run_id = str(extraction.id)
-        transaction.command(
+        await transaction.command(
             queries.DOCUMENT_AND_RUN,
             {
                 "id": document_id,
@@ -531,7 +584,7 @@ class ArcadeDBGraphStore(GraphBackend):
             ("Entity", result.entities),
             ("Claim", result.claims),
         ):
-            ArcadeDBGraphStore._write_items(
+            await ArcadeDBGraphStore._write_items(
                 transaction,
                 item_type,
                 items,
@@ -540,7 +593,7 @@ class ArcadeDBGraphStore(GraphBackend):
                 extraction.item_graph_ids,
                 extraction.reused_item_keys,
             )
-        ArcadeDBGraphStore._write_relationships(
+        await ArcadeDBGraphStore._write_relationships(
             transaction,
             result,
             run_id,
@@ -549,7 +602,7 @@ class ArcadeDBGraphStore(GraphBackend):
         )
 
     @staticmethod
-    def _write_items(
+    async def _write_items(
         transaction: ArcadeDBCommandClient,
         item_type: str,
         items: list[Any],
@@ -592,25 +645,25 @@ class ArcadeDBGraphStore(GraphBackend):
                 for index, evidence in enumerate(item.evidence)
             )
         if reused_rows:
-            transaction.command(
+            await transaction.command(
                 queries.ATTACH_EXISTING_ITEMS.format(item_type=item_type),
                 {"rows": reused_rows}, language="cypher",
             )
         if rows:
-            transaction.command(
+            await transaction.command(
                 queries.ITEMS.format(item_type=item_type),
                 {"rows": rows},
                 language="cypher",
             )
         if evidence_rows:
-            transaction.command(
+            await transaction.command(
                 queries.EVIDENCE,
                 {"rows": evidence_rows},
                 language="cypher",
             )
 
     @staticmethod
-    def _write_relationships(
+    async def _write_relationships(
         transaction: ArcadeDBCommandClient,
         result: ExtractionResult,
         run_id: str,
@@ -644,7 +697,7 @@ class ArcadeDBGraphStore(GraphBackend):
                 }
             )
         for relation_type, rows in rows_by_type.items():
-            transaction.command(
+            await transaction.command(
                 queries.RELATIONSHIPS.format(relation_type=relation_type),
                 {"rows": rows},
                 language="cypher",

@@ -1,4 +1,4 @@
-from contextlib import contextmanager
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -36,20 +36,20 @@ class FakeArcadeDBClient:
         self.transaction_count = 0
         self.closed = False
 
-    @contextmanager
-    def transaction(self):
+    @asynccontextmanager
+    async def transaction(self):
         self.transaction_count += 1
         yield self
 
-    def command(self, statement, params=None, *, language="sql"):
+    async def command(self, statement, params=None, *, language="sql"):
         self.commands.append((statement, params, language))
         return self.command_results.pop(0) if self.command_results else {"result": []}
 
-    def query(self, statement, params=None, *, language="sql"):
+    async def query(self, statement, params=None, *, language="sql"):
         self.queries.append((statement, params, language))
         return self.query_results.pop(0)
 
-    def close(self) -> None:
+    async def close(self) -> None:
         self.closed = True
 
 
@@ -115,12 +115,13 @@ def build_store(client: FakeArcadeDBClient) -> ArcadeDBGraphStore:
     )
 
 
-def test_persist_writes_full_extraction_inside_one_transaction() -> None:
+@pytest.mark.anyio
+async def test_persist_writes_full_extraction_inside_one_transaction() -> None:
     client = FakeArcadeDBClient()
     document, run = completed_extraction()
 
     document = document.model_copy(update={"title": "Una reflexión personal"})
-    build_store(client).persist(document, run)
+    await build_store(client).persist(document, run)
 
     assert client.commands[0][1]["title"] == document.title
     joined = "\n".join(statement for statement, _, _ in client.commands)
@@ -133,7 +134,8 @@ def test_persist_writes_full_extraction_inside_one_transaction() -> None:
     assert all(language == "cypher" for _, _, language in client.commands)
 
 
-def test_cross_document_links_keep_both_evidence_spans_in_one_transaction() -> None:
+@pytest.mark.anyio
+async def test_cross_document_links_keep_both_evidence_spans_in_one_transaction() -> None:
     client = FakeArcadeDBClient()
     link = CrossDocumentLink(
         source_claim_id="run-a:claim:1", target_claim_id="run-b:claim:2",
@@ -148,7 +150,7 @@ def test_cross_document_links_keep_both_evidence_spans_in_one_transaction() -> N
     rows = store._cross_document_link_rows(link)
     client.command_results = [{"result": [{"persisted_id": row["id"]} for row in rows]}]
 
-    store.persist_cross_document_links([link, link])
+    await store.persist_cross_document_links([link, link])
 
     assert client.transaction_count == 1
     statement, params, language = client.commands[0]
@@ -163,7 +165,8 @@ def test_cross_document_links_keep_both_evidence_spans_in_one_transaction() -> N
     assert '"target": [{"quote": "Volví a pintar"' in params["rows"][0]["evidence_json"]
 
 
-def test_cross_document_link_persistence_fails_when_any_claim_was_not_matched() -> None:
+@pytest.mark.anyio
+async def test_cross_document_link_persistence_fails_when_any_claim_was_not_matched() -> None:
     client = FakeArcadeDBClient()
     link = CrossDocumentLink(
         source_claim_id="run-a:claim:1", target_claim_id="run-b:claim:2",
@@ -176,10 +179,11 @@ def test_cross_document_link_persistence_fails_when_any_claim_was_not_matched() 
     client.command_results = [{"result": []}]
 
     with pytest.raises(GraphPersistenceError, match="did not persist every"):
-        build_store(client).persist_cross_document_links([link])
+        await build_store(client).persist_cross_document_links([link])
 
 
-def test_claim_embedding_search_preserves_neighbor_order_and_hydrates_context() -> None:
+@pytest.mark.anyio
+async def test_claim_embedding_search_preserves_neighbor_order_and_hydrates_context() -> None:
     client = FakeArcadeDBClient()
     client.query_results = [
         {
@@ -210,7 +214,7 @@ def test_claim_embedding_search_preserves_neighbor_order_and_hydrates_context() 
         },
     ]
 
-    results = build_store(client).search_claim_embeddings(
+    results = await build_store(client).search_claim_embeddings(
         [1.0, 0.0, 0.0],
         embedding_spec(),
         limit=2,
@@ -226,7 +230,8 @@ def test_claim_embedding_search_preserves_neighbor_order_and_hydrates_context() 
     assert client.queries[1][2] == "cypher"
 
 
-def test_persist_and_search_document_embedding_uses_versioned_type() -> None:
+@pytest.mark.anyio
+async def test_persist_and_search_document_embedding_uses_versioned_type() -> None:
     client = FakeArcadeDBClient()
     spec = embedding_spec()
     record = DocumentEmbeddingRecord(
@@ -242,7 +247,7 @@ def test_persist_and_search_document_embedding_uses_versioned_type() -> None:
     )
     store = build_store(client)
 
-    store.persist_document_embedding(record, spec)
+    await store.persist_document_embedding(record, spec)
     client.query_results = [
         {
             "result": [
@@ -258,7 +263,7 @@ def test_persist_and_search_document_embedding_uses_versioned_type() -> None:
             ]
         }
     ]
-    results = store.search_document_embeddings(record.vector, spec, limit=1)
+    results = await store.search_document_embeddings(record.vector, spec, limit=1)
 
     statement = client.commands[0][0]
     assert f"DocumentEmbedding_{spec.index_suffix}" in statement
@@ -266,11 +271,12 @@ def test_persist_and_search_document_embedding_uses_versioned_type() -> None:
     assert results[0].score == 0.95
 
 
-def test_persist_claim_embeddings_and_delete_use_arcadedb_queries() -> None:
+@pytest.mark.anyio
+async def test_persist_claim_embeddings_and_delete_use_arcadedb_queries() -> None:
     client = FakeArcadeDBClient()
     spec = embedding_spec()
     store = build_store(client)
-    store.persist_claim_embeddings(
+    await store.persist_claim_embeddings(
         [
             ClaimEmbeddingRecord(
                 id="claim:embedding",
@@ -287,7 +293,7 @@ def test_persist_claim_embeddings_and_delete_use_arcadedb_queries() -> None:
         ],
         spec,
     )
-    store.delete_document("document")
+    await store.delete_document("document")
 
     assert f"ClaimEmbedding_{spec.index_suffix}" in client.commands[0][0]
     assert "DETACH DELETE" in client.commands[1][0]

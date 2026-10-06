@@ -13,7 +13,7 @@ from src.api.error_handlers import (
 )
 from src.api.router import api_router
 from src.config import get_settings
-from src.dependencies import close_graph_store
+from src.dependencies import close_provider_clients
 from src.logging import configure_logging
 from src.user_management.database import close_database
 from src.workspaces.provisioning import reconcile_active_workspaces
@@ -40,8 +40,10 @@ async def lifespan(_: FastAPI):
         reconciliation.cancel()
         with suppress(asyncio.CancelledError):
             await reconciliation
-        close_graph_store()
-        await close_database()
+        try:
+            await close_provider_clients()
+        finally:
+            await close_database()
 
 
 app = FastAPI(

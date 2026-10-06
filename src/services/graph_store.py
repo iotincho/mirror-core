@@ -16,10 +16,10 @@ class GraphPersistenceError(RuntimeError):
 class GraphStore(Protocol):
     """Infrastructure boundary shared by application use cases and delivery adapters."""
 
-    def persist(self, document: Document, extraction: ExtractionRun) -> None:
+    async def persist(self, document: Document, extraction: ExtractionRun) -> None:
         """Write one completed, evidence-backed extraction atomically."""
 
-    def delete_document(self, document_id: str) -> None:
+    async def delete_document(self, document_id: str) -> None:
         """Delete a document and all graph records owned by it."""
 
 
@@ -32,5 +32,5 @@ class GraphBackend(
 ):
     """Complete graph capability set supplied by the configured database adapter."""
 
-    def close(self) -> None:
+    async def close(self) -> None:
         """Release connections held by the adapter."""

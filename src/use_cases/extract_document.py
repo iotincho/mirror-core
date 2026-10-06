@@ -45,16 +45,16 @@ class ExtractDocument:
         self._extraction_store = extraction_store
         self._extractor = extractor
 
-    def execute(self, document_id: UUID, profile_name: str = "v4") -> ExtractionRun:
-        document = self._document_store.get(document_id)
+    async def execute(self, document_id: UUID, profile_name: str = "v4") -> ExtractionRun:
+        document = await self._document_store.get(document_id)
         profile = get_profile(profile_name)
         provider_extraction = None
         try:
-            provider_extraction = self._extractor.extract(document, profile)
+            provider_extraction = await self._extractor.extract(document, profile)
             result = resolve_evidence(document.content, provider_extraction.result)
             validate_evidence(document.content, result)
             if result.title is not None:
-                self._document_store.update_title(document.id, result.title)
+                await self._document_store.update_title(document.id, result.title)
         except Exception as error:
             failed_run = new_extraction_run(
                 document_id=document.id,
@@ -83,7 +83,7 @@ class ExtractDocument:
                     failed_run.id,
                     provider_extraction.result.model_dump_json(),
                 )
-            self._extraction_store.save(failed_run)
+            await self._extraction_store.save(failed_run)
             raise ExtractionRunFailedError(failed_run.id) from error
 
         completed_run = new_extraction_run(
@@ -98,12 +98,12 @@ class ExtractDocument:
             response_id=provider_extraction.response_id,
             usage=provider_extraction.usage,
         )
-        self._extraction_store.save(completed_run)
+        await self._extraction_store.save(completed_run)
         return completed_run
 
-    def get_document(self, document_id: UUID):
+    async def get_document(self, document_id: UUID):
         """Expose the preserved source only to composed application use cases."""
-        return self._document_store.get(document_id)
+        return await self._document_store.get(document_id)
 
 def resolve_evidence(content: str, result: ExtractionResult) -> ExtractionResult:
     """Locate evidence without trusting model offsets.

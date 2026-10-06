@@ -39,7 +39,7 @@ async def create_audio_note(
 ) -> AudioNoteResponse:
     """Persist completed audio and start transcription after responding."""
     try:
-        note = create_use_case.execute(
+        note = await create_use_case.execute(
             file.filename,
             file.content_type,
             await file.read(),
@@ -71,7 +71,7 @@ async def get_audio_note(
     store: Annotated[FileAudioNoteStore, Depends(get_audio_note_store)],
 ) -> AudioNoteResponse:
     try:
-        note = store.get(audio_note_id)
+        note = await store.get(audio_note_id)
     except AudioNoteNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
     return AudioNoteResponse(**note.model_dump())
@@ -90,7 +90,7 @@ async def retry_audio_document_persistence(
 ) -> AudioNoteResponse:
     """Retry document creation for an already transcribed audio note."""
     try:
-        note = store.get(audio_note_id)
+        note = await store.get(audio_note_id)
     except AudioNoteNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
 

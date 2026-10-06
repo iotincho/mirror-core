@@ -10,7 +10,7 @@ from src.main import app
 
 
 class FakeSearchSemantically:
-    def execute(self, query: str, limit: int):
+    async def execute(self, query: str, limit: int):
         assert query == "autonomía"
         assert limit == 3
         return [

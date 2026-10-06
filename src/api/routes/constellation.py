@@ -10,7 +10,7 @@ from src.config import get_settings
 from src.constellation.contracts import ExtractionSummary, LinkNeighborhood, LinkReport, LinkType
 from src.constellation.link_documents import LinkDocuments
 from src.constellation.provider import OpenAILinkProvider
-from src.dependencies import get_embedding_provider
+from src.dependencies import get_embedding_provider, get_link_provider
 from src.embeddings.contracts import EmbeddingSpec
 from src.services.document_store import DocumentNotFoundError
 from src.services.embedding_provider import EmbeddingProvider
@@ -29,7 +29,7 @@ class LinkRequest(BaseModel):
 
 
 @router.get("/{document_id}/links", response_model=LinkNeighborhood)
-def read_links(
+async def read_links(
     document_id: UUID,
     runtime: Annotated[WorkspaceRuntime, Depends(get_workspace_runtime)],
     offset: Annotated[int, Query(ge=0)] = 0,
@@ -37,8 +37,8 @@ def read_links(
     relation_type: LinkType | None = None,
 ) -> LinkNeighborhood:
     try:
-        runtime.document_store.get(document_id)
-        return runtime.graph_store.get_link_neighborhood(
+        await runtime.document_store.get(document_id)
+        return await runtime.graph_store.get_link_neighborhood(
             str(document_id), offset=offset, limit=limit, relation_type=relation_type,
         )
     except DocumentNotFoundError as error:
@@ -48,15 +48,15 @@ def read_links(
 
 
 @router.get("/{document_id}/extractions", response_model=list[ExtractionSummary])
-def read_extractions(
+async def read_extractions(
     document_id: UUID,
     runtime: Annotated[WorkspaceRuntime, Depends(get_workspace_runtime)],
 ) -> list[ExtractionSummary]:
     try:
-        runtime.document_store.get(document_id)
-        runs = runtime.extraction_store.list_for_document(document_id)
+        await runtime.document_store.get(document_id)
+        runs = await runtime.extraction_store.list_for_document(document_id)
         settings = get_settings()
-        ready = runtime.graph_store.ready_extraction_ids(
+        ready = await runtime.graph_store.ready_extraction_ids(
             {str(run.id): len(run.result.claims) for run in runs
              if run.status == "completed" and run.result is not None},
             EmbeddingSpec(provider=settings.embedding_provider,
@@ -68,7 +68,7 @@ def read_extractions(
             created_at=run.created_at, claim_count=len(run.result.claims) if run.result else 0,
             ready=str(run.id) in ready,
             origin=run.origin,
-            graph_persisted=(runtime.graph_store.supplemental_items_persisted(run)
+            graph_persisted=(await runtime.graph_store.supplemental_items_persisted(run)
                              if run.origin == "constellation" else str(run.id) in ready),
         ) for run in runs]
     except DocumentNotFoundError as error:
@@ -78,15 +78,16 @@ def read_extractions(
 
 
 @router.post("/{document_id}/links", response_model=LinkReport)
-def link_document(
+async def link_document(
     document_id: UUID,
     request: LinkRequest,
     runtime: Annotated[WorkspaceRuntime, Depends(get_workspace_runtime)],
     embeddings: Annotated[EmbeddingProvider, Depends(get_embedding_provider)],
+    provider: Annotated[OpenAILinkProvider, Depends(get_link_provider)],
 ) -> LinkReport:
     """Compare one completed run against evidence from other notes in this workspace."""
     try:
-        run = runtime.extraction_store.get(document_id, request.run_id)
+        run = await runtime.extraction_store.get(document_id, request.run_id)
     except FileNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="Extraction run not found") from error
@@ -95,20 +96,16 @@ def link_document(
                             detail="Extraction run is not completed")
     settings = get_settings()
     try:
-        document = runtime.document_store.get(document_id)
+        document = await runtime.document_store.get(document_id)
     except DocumentNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="Document not found") from error
-    provider = OpenAILinkProvider(
-        settings.openai_api_key,
-        settings.openai_reflection_model or settings.openai_model,
-    )
     use_case = LinkDocuments(
         embeddings, runtime.graph_store, provider, runtime.graph_store, runtime.extraction_store,
         model_name=settings.openai_reflection_model or settings.openai_model or "unconfigured",
     )
     try:
-        return use_case.execute(
+        return await use_case.execute(
             run,
             document,
             persist=request.persist,
@@ -124,20 +121,20 @@ def link_document(
 
 
 @router.post("/{document_id}/extractions/{run_id}/embeddings")
-def retry_supplement_embeddings(
+async def retry_supplement_embeddings(
     document_id: UUID, run_id: UUID,
     runtime: Annotated[WorkspaceRuntime, Depends(get_workspace_runtime)],
     embeddings: Annotated[EmbeddingProvider, Depends(get_embedding_provider)],
 ) -> dict[str, str | int]:
     """Retry vectors for a saved supplement, without calling the analysis model."""
     try:
-        document = runtime.document_store.get(document_id)
-        run = runtime.extraction_store.get(document_id, run_id)
+        document = await runtime.document_store.get(document_id)
+        run = await runtime.extraction_store.get(document_id, run_id)
         if run.origin != "constellation" or run.status != "completed":
             raise HTTPException(status_code=422, detail="A completed supplement is required")
-        if not runtime.graph_store.supplemental_items_persisted(run):
+        if not await runtime.graph_store.supplemental_items_persisted(run):
             raise HTTPException(status_code=409, detail="Supplement is not persisted in the graph")
-        count = EmbedClaims(embeddings, runtime.graph_store).execute(document, run)
+        count = await EmbedClaims(embeddings, runtime.graph_store).execute(document, run)
         return {"run_id": str(run.id), "embeddings_status": "ready", "claim_count": count}
     except (DocumentNotFoundError, FileNotFoundError) as error:
         raise HTTPException(status_code=404, detail="Supplement not found") from error

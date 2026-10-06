@@ -18,7 +18,7 @@ async def resolve_question(
     use_case: Annotated[ResolveQuestion, Depends(get_resolve_question)],
 ) -> ReflectionRun:
     try:
-        return use_case.execute(request.question, request.limit, request.profile_name)
+        return await use_case.execute(request.question, request.limit, request.profile_name)
     except ValueError as error:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

@@ -2,7 +2,6 @@ from src.embeddings.contracts import EmbeddingSpec
 from src.graph.arcadedb.schema import (
     apply_schema,
     bootstrap_statements,
-    embedding_type_names,
     migration_version,
     schema_statements,
 )
@@ -27,28 +26,14 @@ def embedding_spec() -> EmbeddingSpec:
     return EmbeddingSpec(provider="openai", model="text-embedding-3-small", dimensions=1536)
 
 
-def test_schema_contains_graph_types_constraints_and_vector_indexes() -> None:
+def test_schema_contains_only_original_documents():
     spec = embedding_spec()
-    claim_type, document_type = embedding_type_names(spec)
     statements = schema_statements(spec)
-
     assert "CREATE VERTEX TYPE Document IF NOT EXISTS" in statements
-    assert "CREATE PROPERTY Document.title IF NOT EXISTS STRING" in statements
-    assert migration_version(spec).startswith("v4:")
-    assert "CREATE EDGE TYPE HAS_EXTRACTION IF NOT EXISTS" in statements
-    assert "CREATE EDGE TYPE CROSS_DOCUMENT_LINK IF NOT EXISTS" in statements
-    assert "CREATE EDGE TYPE EXPRESSES_EMOTION IF NOT EXISTS" in statements
-    assert "ALTER TYPE HAS_EXTRACTION WITH unique = true" in statements
-    assert "CREATE INDEX IF NOT EXISTS ON Claim (id) UNIQUE" in statements
-    assert f"CREATE VERTEX TYPE {claim_type} IF NOT EXISTS EXTENDS ClaimEmbedding" in statements
-    assert (
-        f"CREATE VERTEX TYPE {document_type} IF NOT EXISTS EXTENDS DocumentEmbedding"
-        in statements
-    )
-    assert any(
-        statement.startswith(f"CREATE INDEX IF NOT EXISTS ON {claim_type} (vector) LSM_VECTOR")
-        and "dimensions: 1536" in statement
-        for statement in statements
+    assert "CREATE PROPERTY Document.content IF NOT EXISTS STRING" in statements
+    assert migration_version(spec) == "v5-documents"
+    assert not any(
+        "Embedding" in value or "Extraction" in value or "EDGE" in value for value in statements
     )
 
 

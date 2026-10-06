@@ -9,7 +9,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from src.api.routes.constellation import router
+from src.api.routes.retired import router
 from src.constellation.contracts import (
     DiscoveryLink,
     DocumentLinkAnalysis,
@@ -19,7 +19,6 @@ from src.constellation.contracts import (
 from src.constellation.link_documents import LinkDocuments
 from src.constellation.provider import OpenAILinkProvider
 from src.constellation.supplement import prepare_supplement
-from src.dependencies import get_embedding_provider
 from src.domain.documents import Document
 from src.extraction.contracts import (
     Claim,
@@ -32,11 +31,9 @@ from src.extraction.contracts import (
     RelationshipType,
 )
 from src.extraction.profiles import V5_PROFILE
-from src.services.document_store import FileDocumentStore
 from src.services.embedding_provider import EmbeddingProviderError
 from src.services.extraction_store import FileExtractionStore
 from src.use_cases.extract_document import ExtractionEvidenceError
-from src.workspaces.dependencies import get_workspace_runtime
 from tests.test_constellation_links import Embeddings, Graph, Search, candidate, run
 
 CONTENT = "Quiero volver a pintar. El viernes descansé. Fue una buena forma de cerrar el viernes."
@@ -322,38 +319,15 @@ async def test_empty_parent_extraction_still_discovers_source_items(tmp_path):
 
 
 @pytest.mark.anyio
-async def test_retry_endpoint_requires_own_persisted_supplement(tmp_path):
-    use_case, document, parent, _, graph, history = setup_case(tmp_path / "extractions")
-    documents = FileDocumentStore(tmp_path / "documents")
-    await documents.save(document)
-    report = await use_case.execute(parent, document)
-    supplement = report.supplemental_extraction
-    await history.save(supplement)
-    await history.save(parent)
+async def test_supplement_retry_endpoint_is_retired():
     app = FastAPI()
     app.include_router(router)
-    app.dependency_overrides[get_workspace_runtime] = lambda: SimpleNamespace(
-        document_store=documents,
-        extraction_store=history,
-        graph_store=graph,
-    )
-    app.dependency_overrides[get_embedding_provider] = lambda: Embeddings()
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app), base_url="http://test"
     ) as client:
-        path = f"/documents/{document.id}/extractions/{supplement.id}/embeddings"
-        assert (await client.post(path)).status_code == 409  # staged, not committed
-        assert (await client.post(path.replace(str(document.id), str(uuid4())))).status_code == 404
-        parent_path = path.replace(str(supplement.id), str(parent.id))
-        assert (await client.post(parent_path)).status_code == 422
-        await graph.persist_link_analysis(document, supplement, report.links)
-        response = await client.post(path)
-        assert response.status_code == 200 and response.json()["claim_count"] == 1
-        assert graph.vectors[0].claim_graph_id == supplement.item_graph_ids["claim:rest"]
-        history_response = await client.get(f"/documents/{document.id}/extractions")
-        assert history_response.status_code == 200
-        record = next(item for item in history_response.json() if item["id"] == str(supplement.id))
-        assert record["origin"] == "constellation" and record["graph_persisted"]
+        assert (
+            await client.post("/documents/source/extractions/run/embeddings")
+        ).status_code == 410
 
 
 @pytest.fixture

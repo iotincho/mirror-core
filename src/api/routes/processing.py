@@ -20,7 +20,6 @@ from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
 from src.api.schemas.documents import CreateDocumentRequest, DocumentResponse
-from src.api.schemas.extractions import CreateExtractionRequest
 from src.api.schemas.processing import (
     AcceptedAudio,
     AcceptedDocument,
@@ -31,11 +30,11 @@ from src.api.schemas.processing import (
 )
 from src.config import get_settings
 from src.domain.documents import NewDocument
-from src.extraction.profiles import UnknownExtractionProfileError
 from src.processing.runtime import get_repository
 from src.processing.submissions import SubmissionConflict, SubmissionRepository
 from src.services.audio_note_store import AudioNoteNotFoundError
 from src.services.document_store import DocumentNotFoundError
+from src.use_cases.create_audio_note import AudioFileTooLargeError, UnsupportedAudioFileError
 from src.use_cases.ingest_document_file import (
     IngestDocumentFile,
     InvalidDocumentEncodingError,
@@ -43,7 +42,6 @@ from src.use_cases.ingest_document_file import (
 )
 from src.use_cases.request_processing import RequestProcessing
 from src.use_cases.submit_processing import SubmitAudioNote, SubmitDocument
-from src.use_cases.transcribe_audio_note import AudioFileTooLargeError, UnsupportedAudioFileError
 from src.workspaces.dependencies import WorkspaceRuntime, get_workspace_runtime
 
 router = APIRouter(tags=["processing"])
@@ -62,7 +60,7 @@ def http_error(error):
         return HTTPException(413, str(error))
     if isinstance(
         error,
-        (ValidationError, InvalidDocumentEncodingError, UnknownExtractionProfileError, ValueError),
+        (ValidationError, InvalidDocumentEncodingError, ValueError),
     ):
         return HTTPException(422, "Invalid upload or processing request")
     if isinstance(error, SQLAlchemyError):
@@ -202,19 +200,18 @@ async def retry_processing(
 
 
 @router.post(
-    "/v2/documents/{document_id}/extractions", response_model=ProcessingResponse, status_code=202
+    "/v2/documents/{document_id}/processing", response_model=ProcessingResponse, status_code=202
 )
-async def request_extraction(
+async def request_document_processing(
     document_id: UUID,
-    payload: CreateExtractionRequest,
     runtime: Runtime,
     key: Key,
     request: Request,
     response: Response,
 ):
     try:
-        record = await RequestProcessing(get_repository(), runtime).reextract(
-            document_id, payload.profile, key
+        record = await RequestProcessing(get_repository(), runtime).reprocess_document(
+            document_id, key
         )
     except Exception as error:
         raise http_error(error) from error

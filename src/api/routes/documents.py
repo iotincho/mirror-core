@@ -19,6 +19,7 @@ from src.dependencies import (
     get_list_documents,
 )
 from src.domain.documents import NewDocument
+from src.processing.submissions import SubmissionConflict
 from src.services.document_store import DocumentAlreadyExistsError, DocumentNotFoundError
 from src.use_cases.delete_document import DeleteDocument
 from src.use_cases.embed_claims import ClaimEmbeddingFailedError
@@ -40,7 +41,7 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 async def list_documents(
     use_case: Annotated[ListDocuments, Depends(get_list_documents)],
 ) -> list[DocumentResponse]:
-    return [DocumentResponse(**document.model_dump()) for document in use_case.execute()]
+    return [DocumentResponse(**document.model_dump()) for document in await use_case.execute()]
 
 
 @router.post("", response_model=ProcessedDocumentResponse, status_code=status.HTTP_201_CREATED)
@@ -50,7 +51,9 @@ async def create_document(
 ) -> ProcessedDocumentResponse:
     """Store and immediately extract knowledge from source material."""
     try:
-        processed = use_case.execute(NewDocument(**request.model_dump()))
+        processed = await use_case.execute(NewDocument(**request.model_dump()))
+    except SubmissionConflict as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
     except DocumentAlreadyExistsError as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
     except ExtractionRunFailedError as error:
@@ -100,7 +103,9 @@ async def create_document_from_file(
         ) from error
 
     try:
-        processed = use_case.execute(new_document)
+        processed = await use_case.execute(new_document)
+    except SubmissionConflict as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
     except DocumentAlreadyExistsError as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
     except ExtractionRunFailedError as error:
@@ -122,9 +127,11 @@ async def delete_document(
     use_case: Annotated[DeleteDocument, Depends(get_delete_document)],
 ) -> None:
     try:
-        use_case.execute(document_id)
+        await use_case.execute(document_id)
     except DocumentNotFoundError as error:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+    except ValueError as error:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
 
 
 def _extraction_failed_response(error: ExtractionRunFailedError) -> HTTPException:

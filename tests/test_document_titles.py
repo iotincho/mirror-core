@@ -19,7 +19,7 @@ class TitleExtractor:
         self.title = title
         self.quote = quote
 
-    def extract(self, document, profile) -> ProviderExtraction:
+    async def extract(self, document, profile) -> ProviderExtraction:
         return ProviderExtraction(
             result=ExtractionResult(
                 title=self.title,
@@ -46,9 +46,10 @@ def test_titles_are_normalized_and_bounded_but_old_extractions_still_load() -> N
             ExtractionResult(title=title, **payload)
 
 
-def test_generated_title_is_persisted_and_reprocessing_preserves_original(tmp_path) -> None:
+@pytest.mark.anyio
+async def test_generated_title_is_persisted_and_reprocessing_preserves_original(tmp_path) -> None:
     store = FileDocumentStore(tmp_path / "documents")
-    document = IngestDocument(store).execute(
+    document = await IngestDocument(store).execute(
         NewDocument(
             content="Quiero más autonomía.",
             source="manual",
@@ -59,45 +60,49 @@ def test_generated_title_is_persisted_and_reprocessing_preserves_original(tmp_pa
     extractor = TitleExtractor("Buscar más autonomía")
     use_case = ExtractDocument(store, FileExtractionStore(tmp_path / "extractions"), extractor)
 
-    run = use_case.execute(document.id)
-    assert run.result.title == store.get(document.id).title == "Buscar más autonomía"
-    assert store.get(document.id).model_dump(exclude={"title"}) == document.model_dump(
+    run = await use_case.execute(document.id)
+    assert run.result.title == (await store.get(document.id)).title == "Buscar más autonomía"
+    assert (await store.get(document.id)).model_dump(exclude={"title"}) == document.model_dump(
         exclude={"title"}
     )
     extractor.title = "Una decisión pendiente"
-    use_case.execute(document.id)
-    assert store.list()[0].title == "Una decisión pendiente"
-    assert store.get(document.id).content == document.content
+    await use_case.execute(document.id)
+    assert (await store.list())[0].title == "Una decisión pendiente"
+    assert (await store.get(document.id)).content == document.content
 
     # A legacy provider without a title must not erase the existing one.
     extractor.title = None
-    use_case.execute(document.id)
-    assert store.get(document.id).title == "Una decisión pendiente"
+    await use_case.execute(document.id)
+    assert (await store.get(document.id)).title == "Una decisión pendiente"
 
 
-def test_invalid_extraction_cannot_replace_the_previous_title(tmp_path) -> None:
+@pytest.mark.anyio
+async def test_invalid_extraction_cannot_replace_the_previous_title(tmp_path) -> None:
     store = FileDocumentStore(tmp_path / "documents")
-    document = IngestDocument(store).execute(NewDocument(content="Quiero más autonomía."))
-    store.update_title(document.id, "Título anterior")
+    document = await IngestDocument(store).execute(NewDocument(content="Quiero más autonomía."))
+    await store.update_title(document.id, "Título anterior")
     use_case = ExtractDocument(
         store,
         FileExtractionStore(tmp_path / "extractions"),
         TitleExtractor("Título nuevo", quote="inventado"),
     )
     with pytest.raises(ExtractionRunFailedError):
-        use_case.execute(document.id)
-    assert store.get(document.id).title == "Título anterior"
+        await use_case.execute(document.id)
+    assert (await store.get(document.id)).title == "Título anterior"
 
 
-def test_legacy_document_loads_and_title_update_does_not_create_missing_documents(tmp_path) -> None:
+@pytest.mark.anyio
+async def test_legacy_document_loads_and_title_update_does_not_create_missing_documents(
+    tmp_path,
+) -> None:
     store = FileDocumentStore(tmp_path)
-    document = IngestDocument(store).execute(NewDocument(content="Nota antigua."))
+    document = await IngestDocument(store).execute(NewDocument(content="Nota antigua."))
     path = tmp_path / f"{document.id}.json"
     path.write_text(document.model_dump_json(exclude={"title"}), encoding="utf-8")
-    assert store.get(document.id).title is None
-    store.delete(document.id)
+    assert (await store.get(document.id)).title is None
+    await store.delete(document.id)
     with pytest.raises(DocumentNotFoundError):
-        store.update_title(document.id, "Un título")
+        await store.update_title(document.id, "Un título")
     assert not path.exists()
 
 

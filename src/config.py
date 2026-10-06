@@ -13,6 +13,26 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     environment: str = Field(default="development", validation_alias="ENVIRONMENT")
+    rabbitmq_url: str = Field(
+        default="amqp://guest:guest@localhost:5672/",
+        validation_alias="RABBITMQ_URL",
+        repr=False,
+    )
+    processing_concurrency: int = Field(
+        default=4,
+        validation_alias="PROCESSING_CONCURRENCY",
+        gt=0,
+    )
+    processing_queue_name: str = Field(
+        default="el_espejo.processing.v1",
+        validation_alias="PROCESSING_QUEUE_NAME",
+        min_length=1,
+    )
+    processing_lease_seconds: int = Field(
+        default=90,
+        validation_alias="PROCESSING_LEASE_SECONDS",
+        ge=15,
+    )
     log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
     database_url: str = Field(
         default="postgresql+asyncpg://el_espejo:el-espejo-local-password@localhost:5432/el_espejo",
@@ -57,6 +77,19 @@ class Settings(BaseSettings):
     audio_max_upload_bytes: int = Field(
         default=25 * 1024 * 1024, validation_alias="AUDIO_MAX_UPLOAD_BYTES", gt=0
     )
+    document_max_upload_bytes: int = Field(
+        default=5 * 1024 * 1024,
+        validation_alias="DOCUMENT_MAX_UPLOAD_BYTES",
+        gt=0,
+    )
+    provider_timeout_seconds: float = Field(
+        default=120, validation_alias="PROVIDER_TIMEOUT_SECONDS", gt=0
+    )
+    provider_max_concurrency: int = Field(
+        default=4, validation_alias="PROVIDER_MAX_CONCURRENCY", gt=0
+    )
+    graph_timeout_seconds: float = Field(default=30, validation_alias="GRAPH_TIMEOUT_SECONDS", gt=0)
+    graph_max_connections: int = Field(default=20, validation_alias="GRAPH_MAX_CONNECTIONS", gt=0)
     reflection_provider: str = Field(default="openai", validation_alias="REFLECTION_PROVIDER")
     openai_reflection_model: str | None = Field(
         default=None, validation_alias="OPENAI_REFLECTION_MODEL"

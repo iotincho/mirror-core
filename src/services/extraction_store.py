@@ -1,5 +1,6 @@
 """Durable, local storage for extraction runs before graph persistence exists."""
 
+import asyncio
 import json
 import shutil
 from datetime import UTC, datetime
@@ -10,6 +11,7 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field
 
 from src.extraction.contracts import ExtractionResult
+from src.services.durable_files import sync_published
 from src.services.structured_extractor import TokenUsage
 
 
@@ -43,10 +45,14 @@ def new_extraction_run(**values: object) -> ExtractionRun:
 
 
 class ExtractionStore(Protocol):
-    def delete_for_document(self, document_id: object) -> None: ...
+    async def delete_for_document(self, document_id: object) -> None: ...
 
-    def save(self, run: ExtractionRun) -> None:
+    async def save(self, run: ExtractionRun) -> None:
         """Persist one immutable extraction attempt."""
+
+    async def get(self, document_id: UUID, run_id: UUID) -> ExtractionRun: ...
+
+    async def list_for_document(self, document_id: UUID) -> list[ExtractionRun]: ...
 
 
 class FileExtractionStore:
@@ -55,23 +61,36 @@ class FileExtractionStore:
     def __init__(self, directory: Path) -> None:
         self._directory = directory
 
-    def delete_for_document(self, document_id: object) -> None:
+    async def delete_for_document(self, document_id: object) -> None:
+        return await asyncio.to_thread(self._delete_for_document, document_id)
+
+    async def save(self, run: ExtractionRun) -> None:
+        return await asyncio.to_thread(self._save, run)
+
+    async def get(self, document_id: UUID, run_id: UUID) -> ExtractionRun:
+        return await asyncio.to_thread(self._get, document_id, run_id)
+
+    async def list_for_document(self, document_id: UUID) -> list[ExtractionRun]:
+        return await asyncio.to_thread(self._list_for_document, document_id)
+
+    def _delete_for_document(self, document_id: object) -> None:
         directory = self._directory / str(document_id)
         if directory.exists():
             shutil.rmtree(directory)
 
-    def save(self, run: ExtractionRun) -> None:
+    def _save(self, run: ExtractionRun) -> None:
         directory = self._directory / str(run.document_id)
         directory.mkdir(parents=True, exist_ok=True)
         destination = directory / f"{run.id}.json"
-        temporary = destination.with_suffix(".json.tmp")
+        temporary = destination.with_suffix(f".{uuid4().hex}.tmp")
         temporary.write_text(
             json.dumps(run.model_dump(mode="json"), ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
         temporary.replace(destination)
+        sync_published(destination)
 
-    def get(self, document_id: UUID, run_id: UUID) -> ExtractionRun:
+    def _get(self, document_id: UUID, run_id: UUID) -> ExtractionRun:
         """Load only a run under the authenticated workspace's document directory."""
         source = self._directory / str(document_id) / f"{run_id}.json"
         if not source.is_file():
@@ -81,10 +100,10 @@ class FileExtractionStore:
             raise ValueError("Extraction run identity does not match its path")
         return run
 
-    def list_for_document(self, document_id: UUID) -> list[ExtractionRun]:
+    def _list_for_document(self, document_id: UUID) -> list[ExtractionRun]:
         """Read immutable runs only inside this workspace's document directory."""
         runs = [
-            self.get(document_id, UUID(path.stem))
+            self._get(document_id, UUID(path.stem))
             for path in (self._directory / str(document_id)).glob("*.json")
         ]
         return sorted(runs, key=lambda run: run.created_at, reverse=True)

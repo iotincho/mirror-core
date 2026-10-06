@@ -25,11 +25,11 @@ class ExtractAndPersistDocument:
         self._extract_document = extract_document
         self._graph_store = graph_store
 
-    def execute(self, document_id: UUID, profile_name: str = "v4") -> ExtractionRun:
-        extraction = self._extract_document.execute(document_id, profile_name)
-        document = self._extract_document.get_document(document_id)
+    async def execute(self, document_id: UUID, profile_name: str = "v4") -> ExtractionRun:
+        extraction = await self._extract_document.execute(document_id, profile_name)
+        document = await self._extract_document.get_document(document_id)
         try:
-            self._graph_store.persist(document, extraction)
+            await self._graph_store.persist(document, extraction)
         except GraphPersistenceError as error:
             logger.exception(
                 "graph_persistence_failed document_id=%s run_id=%s error_type=%s",
@@ -40,6 +40,6 @@ class ExtractAndPersistDocument:
             raise GraphPersistenceFailedError(extraction.id) from error
         return extraction
 
-    def get_document(self, document_id: UUID):
+    async def get_document(self, document_id: UUID):
         """Expose preserved input to the embedding composition use case."""
-        return self._extract_document.get_document(document_id)
+        return await self._extract_document.get_document(document_id)

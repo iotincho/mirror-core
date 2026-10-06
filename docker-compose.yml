@@ -1,3 +1,34 @@
+x-processing: &processing
+  build:
+    context: .
+  env_file:
+    - .env.local
+  environment:
+    DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-el_espejo}:${POSTGRES_PASSWORD:-el-espejo-local-password}@postgres:5432/${POSTGRES_DB:-el_espejo}
+    RABBITMQ_URL: amqp://${RABBITMQ_USER:-processing}:${RABBITMQ_PASSWORD:-processing-local-password}@rabbitmq:5672/
+    PROCESSING_CONCURRENCY: ${PROCESSING_CONCURRENCY:-4}
+    ARCADEDB_HTTP_URL: http://arcadedb:2480
+    WORKSPACES_PATH: /data/users
+    DOCUMENTS_PATH: /data/documents
+    AUDIO_NOTES_PATH: /data/audio-notes
+    EXTRACTIONS_PATH: /data/extractions
+    REFLECTIONS_PATH: /data/reflections
+  volumes:
+    - core_data:/data
+    - ./src:/app/src
+  depends_on:
+    rabbitmq:
+      condition: service_healthy
+    database-migrations:
+      condition: service_completed_successfully
+    arcadedb:
+      condition: service_healthy
+    arcadedb-schema:
+      condition: service_completed_successfully
+  restart: unless-stopped
+  stop_grace_period: 45s
+
+
 services:
   api:
     build:
@@ -128,8 +159,35 @@ services:
       retries: 20
       start_period: 10s
 
+  rabbitmq:
+    image: rabbitmq:4.3.6-management-alpine
+    hostname: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-processing}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-processing-local-password}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  processing-worker:
+    <<: *processing
+    command: >-
+      taskiq worker src.processing.broker:broker src.processing.tasks
+      --workers 1 --max-async-tasks ${PROCESSING_CONCURRENCY:-4}
+      --max-prefetch 0 --ack-type manual
+
+  processing-dispatcher:
+    <<: *processing
+    command: python -m src.processing.dispatcher
+
 volumes:
   arcadedb_data:
   pwa_node_modules:
   core_data:
   postgres_data:
+  rabbitmq_data:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, AsyncIterator
 
 from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -104,5 +104,9 @@ def build_workspace_runtime(binding: WorkspaceBinding, settings: Settings) -> Wo
 
 async def get_workspace_runtime(
     binding: Annotated[WorkspaceBinding, Depends(get_workspace_binding)],
-) -> WorkspaceRuntime:
-    return build_workspace_runtime(binding, get_settings())
+) -> AsyncIterator[WorkspaceRuntime]:
+    runtime = build_workspace_runtime(binding, get_settings())
+    try:
+        yield runtime
+    finally:
+        await runtime.graph_store.close()

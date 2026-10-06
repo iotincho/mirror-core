@@ -26,7 +26,7 @@ class FakeExtractor:
     provider_name = "fake"
     model_name = "fake-model"
 
-    def extract(self, document: Document, profile) -> ProviderExtraction:
+    async def extract(self, document: Document, profile) -> ProviderExtraction:
         quote = "autonomía"
         start = document.content.index(quote)
         return ProviderExtraction(
@@ -54,29 +54,29 @@ class FakeGraphStore(GraphStore):
     def __init__(self) -> None:
         self.persisted: list[tuple[Document, object]] = []
 
-    def persist(self, document: Document, extraction: object) -> None:
+    async def persist(self, document: Document, extraction: object) -> None:
         self.persisted.append((document, extraction))
 
-    def delete_document(self, document_id: str) -> None:
+    async def delete_document(self, document_id: str) -> None:
         return None
 
-    def persist_claim_embeddings(self, records, spec) -> None:
+    async def persist_claim_embeddings(self, records, spec) -> None:
         return None
 
-    def search_claim_embeddings(self, vector, spec, limit):
+    async def search_claim_embeddings(self, vector, spec, limit):
         return []
 
-    def persist_document_embedding(self, record, spec) -> None:
+    async def persist_document_embedding(self, record, spec) -> None:
         return None
 
-    def search_document_embeddings(self, vector, spec, limit):
+    async def search_document_embeddings(self, vector, spec, limit):
         return []
 
 
 class FakeEmbeddingProvider(EmbeddingProvider):
     spec = EmbeddingSpec(provider="fake", model="fake-model", dimensions=2)
 
-    def embed(self, texts: list[str]) -> list[EmbeddingVector]:
+    async def embed(self, texts: list[str]) -> list[EmbeddingVector]:
         return [EmbeddingVector(vector=[0.1, 0.2], spec=self.spec) for _ in texts]
 
 
@@ -90,7 +90,7 @@ async def test_create_extraction_persists_the_completed_run_in_the_graph(tmp_pat
         created_at=datetime.now(UTC),
     )
     document_store = FileDocumentStore(tmp_path / "documents")
-    document_store.save(document)
+    await document_store.save(document)
 
     graph_store = FakeGraphStore()
 

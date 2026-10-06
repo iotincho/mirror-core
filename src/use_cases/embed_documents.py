@@ -26,16 +26,16 @@ class EmbedDocument:
         self._provider = provider
         self._store = store
 
-    def execute(self, document: Document) -> None:
+    async def execute(self, document: Document) -> None:
         try:
-            vectors = self._provider.embed([document.content])
+            vectors = await self._provider.embed([document.content])
             if len(vectors) != 1:
                 raise EmbeddingProviderError("Provider returned an unexpected number of embeddings")
             vector = vectors[0]
             if len(vector.vector) != vector.spec.dimensions:
                 raise EmbeddingProviderError("Provider returned an invalid embedding dimension")
             text_hash = hashlib.sha256(document.content.encode()).hexdigest()
-            self._store.persist_document_embedding(
+            await self._store.persist_document_embedding(
                 DocumentEmbeddingRecord(
                     id=f"{document.id}:embedding:{vector.spec.index_suffix}:{text_hash[:16]}",
                     document_id=str(document.id),

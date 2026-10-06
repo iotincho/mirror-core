@@ -27,7 +27,7 @@ class FakeExtractor:
     def __init__(self, result: ExtractionResult) -> None:
         self._result = result
 
-    def extract(self, document: Document, profile) -> ProviderExtraction:
+    async def extract(self, document: Document, profile) -> ProviderExtraction:
         return ProviderExtraction(
             result=self._result,
             provider=self.provider_name,
@@ -58,18 +58,19 @@ def valid_result(content: str) -> ExtractionResult:
     )
 
 
-def test_extract_document_records_a_versioned_completed_run(tmp_path) -> None:
+@pytest.mark.anyio
+async def test_extract_document_records_a_versioned_completed_run(tmp_path) -> None:
     document = source_document("Quiero más autonomía.")
     document_store = FileDocumentStore(tmp_path / "documents")
     extraction_path = tmp_path / "extractions"
-    document_store.save(document)
+    await document_store.save(document)
     use_case = ExtractDocument(
         document_store,
         FileExtractionStore(extraction_path),
         FakeExtractor(valid_result(document.content)),
     )
 
-    run = use_case.execute(document.id)
+    run = await use_case.execute(document.id)
 
     assert run.status == "completed"
     assert run.profile_name == "v4"
@@ -82,11 +83,14 @@ def test_extract_document_records_a_versioned_completed_run(tmp_path) -> None:
     assert (extraction_path / str(document.id) / f"{run.id}.json").is_file()
 
 
-def test_extract_document_records_failure_when_evidence_does_not_match(tmp_path, caplog) -> None:
+@pytest.mark.anyio
+async def test_extract_document_records_failure_when_evidence_does_not_match(
+    tmp_path, caplog
+) -> None:
     document = source_document("Quiero más autonomía.")
     document_store = FileDocumentStore(tmp_path / "documents")
     extraction_store = FileExtractionStore(tmp_path / "extractions")
-    document_store.save(document)
+    await document_store.save(document)
     invalid_result = valid_result(document.content).model_copy(
         update={
             "concepts": [
@@ -102,7 +106,7 @@ def test_extract_document_records_failure_when_evidence_does_not_match(tmp_path,
 
     caplog.set_level("ERROR", logger="src.use_cases.extract_document")
     with pytest.raises(ExtractionRunFailedError) as error:
-        use_case.execute(document.id)
+        await use_case.execute(document.id)
 
     saved = next((tmp_path / "extractions" / str(document.id)).glob("*.json"))
     assert error.value.run_id
@@ -113,14 +117,15 @@ def test_extract_document_records_failure_when_evidence_does_not_match(tmp_path,
     assert "extraction_failed_result" in caplog.text
 
 
-def test_openai_extractor_uses_structured_output_contract() -> None:
+@pytest.mark.anyio
+async def test_openai_extractor_uses_structured_output_contract() -> None:
     content = "Quiero más autonomía."
     document = source_document(content)
     expected = valid_result(content)
     captured: dict[str, object] = {}
 
     class FakeResponses:
-        def parse(self, **kwargs):
+        async def parse(self, **kwargs):
             captured.update(kwargs)
             return SimpleNamespace(
                 output_parsed=expected,
@@ -135,7 +140,7 @@ def test_openai_extractor_uses_structured_output_contract() -> None:
         client=SimpleNamespace(responses=FakeResponses()),
     )
 
-    extraction = extractor.extract(document, V3_PROFILE)
+    extraction = await extractor.extract(document, V3_PROFILE)
 
     assert captured["text_format"] is ExtractionResult
     assert extraction.result == expected
@@ -185,7 +190,8 @@ def test_resolve_evidence_discards_provider_offsets() -> None:
     assert resolved.concepts[0].evidence[0].end_char == 20
 
 
-def test_ingest_and_extract_logs_the_completed_result(tmp_path, caplog) -> None:
+@pytest.mark.anyio
+async def test_ingest_and_extract_logs_the_completed_result(tmp_path, caplog) -> None:
     document = source_document("Quiero más autonomía.")
     document_store = FileDocumentStore(tmp_path / "documents")
     process = IngestAndExtractDocument(
@@ -198,7 +204,7 @@ def test_ingest_and_extract_logs_the_completed_result(tmp_path, caplog) -> None:
     )
 
     caplog.set_level("INFO", logger="src.use_cases.ingest_and_extract_document")
-    processed = process.execute(NewDocument(content=document.content, source="test"))
+    processed = await process.execute(NewDocument(content=document.content, source="test"))
 
     assert processed.extraction.status == "completed"
     assert "extraction_completed" in caplog.text

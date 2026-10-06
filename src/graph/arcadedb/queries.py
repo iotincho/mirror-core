@@ -1,5 +1,16 @@
 """ArcadeDB-specific Cypher and SQL used by the runtime adapter."""
 
+DOCUMENT = """
+MERGE (document:Document {id: $id})
+SET document.content = $content,
+    document.source = $source,
+    document.title = $title,
+    document.metadata_json = $metadata_json,
+    document.created_at = $created_at,
+    document.authored_at = $authored_at
+RETURN document.id AS id, document.content AS content
+"""
+
 DOCUMENT_AND_RUN = """
 MERGE (document:Document {id: $id})
 SET document.source = $source,

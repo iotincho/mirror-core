@@ -2,18 +2,22 @@
 
 > Un instrumento de introspección personal asistido por IA.
 
-El diseño del próximo flujo de ingreso está en
-[Procesamiento diferido: contratos y diseño](docs/deferred-processing.md).
-Define Taskiq + RabbitMQ, máquinas de estados por caso de uso y recuperación
-durable; corresponde a la etapa 1 y todavía no modifica el comportamiento actual.
-La [etapa 2: pipeline async](docs/async-pipeline.md) documenta la migración de
-los contratos de I/O, el lifecycle de clientes y los límites de concurrencia.
-La [etapa 3: ejecución durable](docs/processing-runtime.md) agrega PostgreSQL,
-outbox, workers Taskiq/RabbitMQ y recuperación.
-La [etapa 4: uploads diferidos](docs/deferred-ingestion.md) conecta documentos/audio
-y recibos idempotentes mediante `/v2`.
-La [etapa 5: PWA y SSE](docs/processing-pwa-events.md) conecta uploads v2,
-eventos autenticados con replay y recuperación por snapshots.
+El flujo actual conserva documentos y transcribe audio mediante procesamiento
+durable `/v2` con PostgreSQL, Taskiq/RabbitMQ y SSE. La extracción genérica
+exploratoria, sus embeddings y las funciones de búsqueda/reflexión/Constelación
+se retiraron del flujo activo. Los documentos se guardan en ArcadeDB de forma
+independiente, sin generar título mediante un modelo.
+
+El [retiro y procedimiento de limpieza](docs/extraction-retirement.md) documenta
+la migración masiva automática pendiente de ejecutar al desplegar. El [plan de extracción por capas](docs/extraction-layers-requirements-plan.md)
+define los extractores independientes a incorporar después.
+
+Los documentos de [contratos diferidos](docs/deferred-processing.md),
+[pipeline async](docs/async-pipeline.md), [runtime durable](docs/processing-runtime.md),
+[uploads diferidos](docs/deferred-ingestion.md) y [PWA/SSE](docs/processing-pwa-events.md)
+conservan las etapas previas; sus referencias al pipeline de extracción v1 son
+históricas. Las secciones de visión y experimentos de este README describen el
+objetivo del producto y exploraciones anteriores, no capacidades activas.
 
 ## Contexto
 

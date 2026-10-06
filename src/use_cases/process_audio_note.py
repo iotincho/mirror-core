@@ -69,7 +69,7 @@ class ProcessAudioNote:
                                 "model": note.transcription_model or "unknown",
                             }
                         else:
-                            _, transcriber, _ = self.provider_factory(record.config)
+                            transcriber = self.provider_factory(record.config)
                             await context.assert_lease()
                             await runtime.audio_note_store.save(
                                 note.model_copy(

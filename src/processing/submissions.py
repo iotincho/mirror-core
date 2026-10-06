@@ -143,7 +143,10 @@ class SubmissionRepository:
                 id=uuid4(),
                 user_id=receipt.user_id,
                 workflow="document" if receipt.resource_kind == "document" else "audio",
-                stage="extraction" if receipt.resource_kind == "document" else "transcription",
+                workflow_version=2,
+                stage="document_persistence"
+                if receipt.resource_kind == "document"
+                else "transcription",
                 resource_kind=receipt.resource_kind,
                 resource_id=receipt.resource_id,
                 document_id=receipt.resource_id if receipt.resource_kind == "document" else None,

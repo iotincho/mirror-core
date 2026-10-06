@@ -76,6 +76,35 @@ class ArcadeDBGraphStore(GraphBackend):
     ) -> None:
         self._client = client or AsyncArcadeDBHTTPClient(http_url, database, username, password)
 
+    async def persist_document(self, document: Document) -> None:
+        try:
+            async with self._client.transaction() as transaction:
+                rows = self._rows(
+                    await transaction.command(
+                        queries.DOCUMENT,
+                        {
+                            "id": str(document.id),
+                            "content": document.content,
+                            "source": document.source,
+                            "title": document.title,
+                            "metadata_json": json.dumps(
+                                document.metadata, ensure_ascii=False, sort_keys=True
+                            ),
+                            "created_at": document.created_at.isoformat(),
+                            "authored_at": document.authored_at.isoformat()
+                            if document.authored_at
+                            else None,
+                        },
+                        language="cypher",
+                    )
+                )
+                if rows != [{"id": str(document.id), "content": document.content}]:
+                    raise GraphPersistenceError("Document write could not be verified")
+        except GraphPersistenceError:
+            raise
+        except Exception as error:
+            raise GraphPersistenceError("ArcadeDB document persistence failed") from error
+
     async def persist(self, document: Document, extraction: ExtractionRun) -> None:
         if extraction.status != "completed" or extraction.result is None:
             raise GraphPersistenceError("Only completed extractions can be persisted in the graph")

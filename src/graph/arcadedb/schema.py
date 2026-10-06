@@ -10,7 +10,7 @@ from typing import Any, Protocol
 from src.embeddings.contracts import EmbeddingSpec
 from src.graph.arcadedb.client import ArcadeDBClientError, ArcadeDBHTTPClient
 
-SCHEMA_VERSION = "v4"
+SCHEMA_VERSION = "v5-documents"
 
 
 class ArcadeDBSchemaError(ArcadeDBClientError):
@@ -47,7 +47,7 @@ class ArcadeDBSchemaConfig:
 
 
 def migration_version(spec: EmbeddingSpec) -> str:
-    return f"{SCHEMA_VERSION}:{spec.index_suffix}"
+    return SCHEMA_VERSION
 
 
 def embedding_type_names(spec: EmbeddingSpec) -> tuple[str, str]:
@@ -72,6 +72,21 @@ def bootstrap_statements() -> tuple[str, ...]:
 
 
 def schema_statements(spec: EmbeddingSpec) -> tuple[str, ...]:
+    """New workspaces contain originals only; layers will define their own schema."""
+    return (
+        "CREATE VERTEX TYPE Document IF NOT EXISTS",
+        "CREATE PROPERTY Document.id IF NOT EXISTS STRING (MANDATORY true, NOTNULL true)",
+        "CREATE PROPERTY Document.content IF NOT EXISTS STRING",
+        "CREATE PROPERTY Document.title IF NOT EXISTS STRING",
+        "CREATE PROPERTY Document.source IF NOT EXISTS STRING",
+        "CREATE PROPERTY Document.metadata_json IF NOT EXISTS STRING",
+        "CREATE PROPERTY Document.created_at IF NOT EXISTS STRING",
+        "CREATE PROPERTY Document.authored_at IF NOT EXISTS STRING",
+        "CREATE INDEX IF NOT EXISTS ON Document (id) UNIQUE",
+    )
+
+
+def legacy_schema_statements(spec: EmbeddingSpec) -> tuple[str, ...]:
     claim_embedding_type, document_embedding_type = embedding_type_names(spec)
     statements: list[str] = []
 

@@ -8,6 +8,8 @@ x-processing: &processing
     RABBITMQ_URL: amqp://${RABBITMQ_USER:-processing}:${RABBITMQ_PASSWORD:-processing-local-password}@rabbitmq:5672/
     PROCESSING_CONCURRENCY: ${PROCESSING_CONCURRENCY:-4}
     ARCADEDB_HTTP_URL: http://arcadedb:2480
+    ARCADEDB_USERNAME: root
+    ARCADEDB_ROOT_PASSWORD: ${ARCADEDB_ROOT_PASSWORD:-el-espejo-local-password}
     WORKSPACES_PATH: /data/users
     DOCUMENTS_PATH: /data/documents
     AUDIO_NOTES_PATH: /data/audio-notes
@@ -20,6 +22,8 @@ x-processing: &processing
     rabbitmq:
       condition: service_healthy
     database-migrations:
+      condition: service_completed_successfully
+    data-migrations:
       condition: service_completed_successfully
     arcadedb:
       condition: service_healthy
@@ -61,6 +65,8 @@ services:
         condition: service_completed_successfully
       database-migrations:
         condition: service_completed_successfully
+      data-migrations:
+        condition: service_completed_successfully
 
   database-migrations:
     build:
@@ -74,6 +80,18 @@ services:
       postgres:
         condition: service_healthy
     restart: "no"
+
+  data-migrations:
+    <<: *processing
+    restart: "no"
+    command: python -m src.maintenance.data_migrations --apply --services-stopped
+    depends_on:
+      database-migrations:
+        condition: service_completed_successfully
+      arcadedb-schema:
+        condition: service_completed_successfully
+      arcadedb:
+        condition: service_healthy
 
   arcadedb-schema:
     build:

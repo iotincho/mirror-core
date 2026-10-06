@@ -22,7 +22,10 @@ providers = FakeProviders()
 async def runtime(user_id):
     root = Path(os.environ["PROCESSING_TEST_WORKSPACE_ROOT"])
     graph = ArcadeDBGraphStore(
-        os.environ["PROCESSING_TEST_ARCADEDB_URL"], "processing_test", "root", "processing-test"
+        os.environ["PROCESSING_TEST_ARCADEDB_URL"],
+        "processing_test",
+        "root",
+        os.getenv("PROCESSING_TEST_ARCADEDB_PASSWORD", "processing-test"),
     )
     try:
         yield SimpleNamespace(
@@ -37,8 +40,8 @@ async def runtime(user_id):
 
 
 def factory(config):
-    return providers, providers, providers
+    return providers
 
 
-registry.definitions[("document", 1)] = ProcessDocument(runtime, factory).definition
-registry.definitions[("audio", 1)] = ProcessAudioNote(runtime, factory).definition
+registry.definitions[("document", 2)] = ProcessDocument(runtime).definition
+registry.definitions[("audio", 2)] = ProcessAudioNote(runtime, factory).definition

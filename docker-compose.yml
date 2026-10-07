@@ -13,8 +13,6 @@ x-processing: &processing
     WORKSPACES_PATH: /data/users
     DOCUMENTS_PATH: /data/documents
     AUDIO_NOTES_PATH: /data/audio-notes
-    EXTRACTIONS_PATH: /data/extractions
-    REFLECTIONS_PATH: /data/reflections
   volumes:
     - core_data:/data
     - ./src:/app/src
@@ -47,7 +45,6 @@ services:
       ARCADEDB_USERNAME: root
       ARCADEDB_ROOT_PASSWORD: ${ARCADEDB_ROOT_PASSWORD:-el-espejo-local-password}
       DOCUMENTS_PATH: /data/documents
-      EXTRACTIONS_PATH: /data/extractions
       WORKSPACES_PATH: /data/users
     volumes:
       - core_data:/data

@@ -15,7 +15,6 @@ for path in (
     "/resolve",
     "/documents/{document_id}/extractions",
     "/documents/{document_id}/extractions/{path:path}",
-    "/documents/{document_id}/links",
     "/v2/documents/{document_id}/extractions",
 ):
     router.add_api_route(path, extraction_retired, methods=["GET", "POST"], include_in_schema=False)
@@ -27,3 +26,7 @@ async def durable_upload_required():
 
 for path in ("/documents", "/documents/files", "/audio-notes", "/audio-notes/{id}/documents"):
     router.add_api_route(path, durable_upload_required, methods=["POST"], include_in_schema=False)
+
+router.add_api_route(
+    "/documents/{document_id}/links", extraction_retired, methods=["POST"], include_in_schema=False
+)

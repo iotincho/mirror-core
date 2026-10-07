@@ -10,6 +10,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 
+from src.processing.configuration import document_workflow_version
 from src.processing.models import ProcessingReceipt, ProcessingRecord
 from src.processing.repository import ProcessingRepository
 
@@ -143,7 +144,9 @@ class SubmissionRepository:
                 id=uuid4(),
                 user_id=receipt.user_id,
                 workflow="document" if receipt.resource_kind == "document" else "audio",
-                workflow_version=2,
+                workflow_version=document_workflow_version(receipt.config)
+                if receipt.resource_kind == "document"
+                else 2,
                 stage="document_persistence"
                 if receipt.resource_kind == "document"
                 else "transcription",

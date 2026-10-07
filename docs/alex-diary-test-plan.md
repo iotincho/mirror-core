@@ -1,5 +1,9 @@
 # Plan de pruebas: diario sintético de Alex
 
+> Documento histórico: el extractor exploratorio y el análisis anterior de
+> Constelación se retiraron. El estado actual está en
+> [Retiro de la extracción](extraction-retirement.md).
+
 Este dataset permite evaluar la POC con evidencia conocida, sin incorporar pensamientos reales. Cada archivo de [`data/fixtures/alex-diary`](../data/fixtures/alex-diary) es un `NewDocument` serializado y se debe cargar como documento independiente.
 
 ## Contrato de las notas

@@ -101,5 +101,3 @@ def test_runtime_builds_every_file_store_under_one_workspace_root(tmp_path: Path
 
     assert runtime.document_store._directory == binding.context.filesystem_root / "documents"
     assert runtime.audio_note_store._directory == binding.context.filesystem_root / "audio-notes"
-    assert runtime.extraction_store._directory == binding.context.filesystem_root / "extractions"
-    assert runtime.reflection_store._directory == binding.context.filesystem_root / "reflections"

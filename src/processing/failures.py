@@ -9,7 +9,6 @@ import httpx
 from src.processing.artifacts import ArtifactCorrupted
 from src.processing.execution import WorkflowFailure
 from src.services.document_store import DocumentNotFoundError
-from src.use_cases.extract_document import ExtractionEvidenceError
 from src.workspaces.secrets import WorkspaceSecretError
 
 
@@ -24,8 +23,6 @@ def failure_for(error, attempts, service):
         return WorkflowFailure("original_missing")
     if any(isinstance(item, ArtifactCorrupted) for item in chain):
         return WorkflowFailure("artifact_corrupted")
-    if any(isinstance(item, ExtractionEvidenceError) for item in chain):
-        return WorkflowFailure("invalid_evidence", retry_delay=0 if attempts < 2 else None)
     for item in chain:
         response = getattr(item, "response", None)
         status = getattr(item, "status_code", None) or getattr(response, "status_code", None)

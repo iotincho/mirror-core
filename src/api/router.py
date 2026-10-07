@@ -6,6 +6,7 @@ from src.api.routes import (
     document_archive,
     documents,
     events,
+    graph,
     processing,
     retired,
     system,
@@ -22,5 +23,6 @@ protected_router.include_router(document_archive.router)
 protected_router.include_router(documents.router)
 protected_router.include_router(audio_notes.router)
 protected_router.include_router(processing.router)
+protected_router.include_router(graph.router)
 protected_router.include_router(retired.router)
 api_router.include_router(protected_router)

@@ -172,14 +172,22 @@ class AsyncArcadeDBTransaction:
         self._session_id = session_id
 
     async def command(
-        self, statement: str, params: dict[str, Any] | None = None, *, language: str = "sql",
+        self,
+        statement: str,
+        params: dict[str, Any] | None = None,
+        *,
+        language: str = "sql",
     ) -> dict[str, Any]:
         return await self._client.command(
             statement, params, language=language, session_id=self._session_id
         )
 
     async def query(
-        self, statement: str, params: dict[str, Any] | None = None, *, language: str = "sql",
+        self,
+        statement: str,
+        params: dict[str, Any] | None = None,
+        *,
+        language: str = "sql",
     ) -> dict[str, Any]:
         return await self._client.query(
             statement, params, language=language, session_id=self._session_id

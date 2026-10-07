@@ -5,7 +5,7 @@
 El flujo actual conserva documentos y transcribe audio mediante procesamiento
 durable `/v2` con PostgreSQL, Taskiq/RabbitMQ y SSE. La extracción genérica
 exploratoria, sus embeddings y las funciones de búsqueda/reflexión/Constelación
-se retiraron del flujo activo. Los documentos se guardan en ArcadeDB de forma
+se retiraron. Se conserva el visor de la PWA y la API de lectura del grafo. Los documentos se guardan en ArcadeDB de forma
 independiente, sin generar título mediante un modelo.
 
 El [retiro y procedimiento de limpieza](docs/extraction-retirement.md) documenta
@@ -23,6 +23,13 @@ Los documentos de [contratos diferidos](docs/deferred-processing.md),
 conservan las etapas previas; sus referencias al pipeline de extracción v1 son
 históricas. Las secciones de visión y experimentos de este README describen el
 objetivo del producto y exploraciones anteriores, no capacidades activas.
+
+El [extractor de emociones de prueba](docs/emotion-extractor.md) implementa el
+contrato común de capas y permite extraer en dry run o persistir un artefacto
+más tarde. Las notas nuevas ejecutan automáticamente el workflow de documento v3:
+`document_persistence → layer_extraction → layer_persistence → done`. Incluye los
+documentos creados desde audio; los trabajos históricos v2 siguen guardando sólo
+documentos. Se requieren `LLM_PROVIDER=openai`, `OPENAI_API_KEY` y `OPENAI_MODEL`.
 
 ## Contexto
 
@@ -211,53 +218,20 @@ Las respuestas deben distinguir siempre entre:
 
 Una inferencia nunca debe presentarse silenciosamente como hecho.
 
-## Extracción estructurada con LLM
+## Extractores por propósito
 
-El primer componente de IA recibe un `Document` y devuelve una estructura validable:
+Cada extractor define sus modelos, validaciones, entidades, relaciones y escritura
+en el grafo. El contrato común está en `src/extractors`; la prueba inicial es el
+[extractor de emociones](docs/emotion-extractor.md), que usa citas del documento
+completo y admite extracción sin escritura y persistencia posterior.
 
-```json
-{
-  "concepts": [],
-  "entities": [],
-  "claims": [],
-  "relationships": []
-}
-```
+El pipeline automático guarda primero el documento y luego ejecuta emociones. La
+extracción genérica, sus embeddings y la implementación anterior de Constelación
+se retiraron. La PWA conserva el visor y `GET /documents/{id}/links` conserva la
+respuesta de navegación paginada del grafo. El análisis de nuevas relaciones
+queda pendiente de refactorización.
 
-Ejemplo de material:
-
-> Estoy pensando en dejar mi trabajo. Me gusta cuánto aprendo, pero siento que pierdo libertad. Al mismo tiempo me preocupa perder estabilidad económica.
-
-Posible extracción:
-
-```json
-{
-  "concepts": ["trabajo", "aprendizaje", "libertad", "estabilidad económica"],
-  "claims": [
-    {"text": "Estoy considerando dejar mi trabajo", "type": "desire"},
-    {"text": "Aprendo mucho en mi trabajo", "type": "observation"},
-    {"text": "Siento que pierdo libertad", "type": "concern"},
-    {"text": "Me preocupa perder estabilidad económica", "type": "concern"}
-  ],
-  "relationships": []
-}
-```
-
-El esquema y el prompt del extractor son el principal espacio de experimentación. No se debe pedir análisis psicológico ni atribuir rasgos de personalidad. La historia, los contratos y el criterio para crear una nueva variante están en el [README de perfiles](src/extraction/README.md).
-
-## Sentimiento y emoción
-
-El análisis de sentimiento o emoción no debe definir automáticamente el grafo. Puede añadirse luego como metadato de documentos, afirmaciones o relaciones si demuestra ser útil.
-
-```text
-Claim
-- sentiment
-- emotion
-- intensity
-- confidence
-```
-
-## Recuperación y reflexión
+## Recuperación y reflexión (diseño futuro)
 
 Una consulta futura combinará recuperación vectorial, recorrido del grafo y documentos originales:
 
@@ -323,16 +297,16 @@ Audio --> Speech-to-text --> Document --> Extracción
 
 Una futura PWA o app móvil solo debería escribir, grabar, consultar y explorar; la inferencia principal vive en el backend.
 
-## Estructura sugerida
+## Estructura actual
 
 ```text
 el_espejo/
 ├── src/
-│   ├── ingestion/
-│   ├── extraction/
+│   ├── domain/
+│   ├── extractors/
 │   ├── graph/
-│   ├── embeddings/
-│   └── query/
+│   ├── processing/
+│   └── use_cases/
 ├── data/
 │   └── notes/
 ├── tests/
@@ -361,33 +335,14 @@ inicializa y versiona por separado de las operaciones normales del store. El dir
 `arcadedb/` contiene el adaptador activo; esta frontera permite reemplazar el motor sin modificar
 los casos de uso.
 
-## Fases de implementación
+## Etapas actuales
 
-1. **Foundation:** proyecto Python, dependencias, Docker Compose, ArcadeDB, configuración, logging y tests básicos. Sin LLM.
-2. **Ingestion:** Markdown/TXT a `Document`, con IDs estables, contenido original, fecha y metadatos de fuente.
-3. **Knowledge extraction:** `Document` a conceptos, entidades, afirmaciones y relaciones mediante salida estructurada.
-4. **Graph persistence:** persistencia en ArcadeDB y consultas de inspección manual.
-5. **Embeddings:** embeddings de documentos o afirmaciones y búsqueda semántica básica.
-6. **Reflection:** una función `answer(question)` que combine grafo, vectores, evidencia y LLM.
-7. **Experiments:** batería de preguntas reales para evaluar utilidad, precisión y alucinaciones.
-8. **Mobile/API:** únicamente cuando el motor demuestre valor.
-
-La persistencia de grafo está documentada en el [README de grafo](src/graph/README.md),
-la recuperación vectorial en el [README de embeddings](src/embeddings/README.md) y la
-resolución en el [README de reflexión](src/reflection/README.md).
-
-## Primer hito técnico
-
-Con 20–50 notas personales reales, el sistema debe poder:
-
-1. Ingerir las notas.
-2. Extraer conceptos, entidades, afirmaciones y relaciones.
-3. Persistirlos en ArcadeDB.
-4. Mantener enlaces de evidencia a los documentos originales.
-5. Generar embeddings.
-6. Hacer búsqueda semántica.
-7. Responder algunas preguntas reflexivas con recuperación por grafo y vectores.
-8. Exponer la evidencia utilizada por cada observación.
+La transición y sus criterios de aceptación están en el
+[plan de extracción por capas](docs/extraction-layers-requirements-plan.md).
+El retiro del proceso exploratorio y las etapas durables de emociones están implementados.
+Quedan la coordinación de ramas independientes para varias capas, su ejecución paralela y las
+consultas por capas. La persistencia y la respuesta del visor están documentadas
+en el [README de grafo](src/graph/README.md).
 
 ## Evaluación
 
@@ -435,18 +390,8 @@ La POC existe para descubrir qué representación de pensamientos personales res
 
 ## Títulos de documentos
 
-La extracción genera `title` en la misma llamada al modelo: entre 3 y 8 palabras,
-con un máximo de 80 caracteres y en el idioma de la nota. El título se guarda
-como campo propio del documento y de la extracción. No modifica `content`,
-la identidad, los metadatos ni las fechas originales.
-
-`POST /documents`, `POST /documents/files` y `GET /documents` incluyen el título
-en el documento devuelto. Las transcripciones usan el mismo procesamiento.
-Los perfiles registran las versiones de prompt y esquema con el sufijo
-`-title-v1`; el esquema de ArcadeDB pasa a `v4` para agregar `Document.title`
-también en bases existentes, mediante la reconciliación de workspaces.
-
-Los JSON antiguos siguen siendo válidos y devuelven `title: null`. Al reprocesar
-con `POST /documents/{id}/extractions` se genera y actualiza el título. No se
-reprocesan notas anteriores automáticamente ni se generan llamadas adicionales
-al modelo para listar documentos.
+Se conservan los títulos existentes, incluidos los recuperados desde archivos de
+respaldo. La ingestión no llama modelos para crear ni modificar títulos. Los
+documentos sin título siguen siendo válidos; la PWA muestra un nombre a partir
+del contenido. Reprocesar con `/v2/documents/{id}/processing` vuelve a persistir
+el original y crea una nueva ejecución de emociones con la configuración actual.

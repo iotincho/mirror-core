@@ -1,10 +1,14 @@
 # Extracción por capas: requerimientos y plan
 
 Fecha: 2026-10-06.
-Estado: etapa 1 implementada y validada localmente. La limpieza de bases de
+Estado: etapa 1 implementada y validada localmente. Contrato común y extractor
+de emociones de prueba implementados; ver [alcance y uso](emotion-extractor.md). La limpieza de bases de
 usuario queda para el despliegue, según la decisión posterior del usuario.
 El detalle del código y procedimiento está en [Retiro de la extracción](extraction-retirement.md).
-Las etapas 2 a 5 siguen siendo diseño; no se implementaron nuevos extractores.
+La integración de emociones al pipeline está implementada mediante etapas
+recuperables del workflow de documento v3. El paralelismo entre ramas y las consultas
+por capas siguen pendientes. Se completó la eliminación del runtime exploratorio, conservando
+la API de lectura y el visor del grafo.
 
 ## Objetivo
 
@@ -37,9 +41,9 @@ crear relaciones entre ellas ni inferir causalidad.
 - Las extracciones actuales se pueden eliminar porque los documentos permiten
   recrearlas. Es válido dejar únicamente documentos en el grafo.
 
-## Punto de partida verificado
+## Punto de partida histórico (antes del retiro)
 
-El código actual tiene un único `ExtractionResult` con título, conceptos,
+El código anterior tenía un único `ExtractionResult` con título, conceptos,
 entidades, afirmaciones y relaciones. Los perfiles `v1` a `v5` cambian las
 instrucciones, pero `OpenAIExtractor` siempre utiliza ese mismo contrato.
 
@@ -59,8 +63,7 @@ La PWA tiene llamadas que seleccionan explícitamente `v4` y `v5`.
 
 Referencias locales:
 
-- [Contratos actuales](../src/extraction/contracts.py).
-- [Perfiles actuales](../src/extraction/profiles.py).
+- Los contratos y perfiles exploratorios se eliminaron; consultar el historial Git.
 - [Workflow de documento](../src/use_cases/process_document.py).
 - [Configuración de submissions](../src/use_cases/submit_processing.py).
 - [Runtime durable](processing-runtime.md).
@@ -85,13 +88,13 @@ Referencias locales:
 
 ## Contratos y responsabilidades
 
-Interfaz conceptual, no firma definitiva de implementación:
+Contrato público implementado en `src/extractors/base.py` (firma abreviada):
 
 ```python
-class Extractor(Protocol):
+class Extractor(ABC):
     name: str
 
-    async def extract(self, document: Document) -> ExtractionOutput: ...
+    async def extract(self, document: Document, *, dry_run=True, run_id=None) -> ExtractionOutput: ...
 
     async def persist(self, output: ExtractionOutput) -> None: ...
 ```
@@ -216,8 +219,8 @@ no depende de elegir el primer extractor ni de migrar a capas nuevas.
    extracción. Conservar audio → transcripción → documento y recuperación de
    originales, sin ejecutar perfiles antiguos ni embeddings de afirmaciones.
 3. Retirar rutas, composiciones y modelos exploratorios sin consumidores activos;
-   deshabilitar explícitamente reflexión/Constelación u otras funciones que
-   requieren resultados retirados. Adaptar la PWA para conservar ingestión,
+   retirar reflexión y análisis de Constelación que requieren resultados retirados,
+   conservando la API de navegación y el visor del grafo. Adaptar la PWA para conservar ingestión,
    estados y recuperación sin exigir una extracción.
 4. Preparar migración masiva de inventario/dry run, respaldo, limpieza y verificación,
    con descubrimiento automático de workspaces, registro de avance y recuperación.
@@ -241,8 +244,8 @@ no ejecuta la limpieza.
 ### Etapa 2 — Cerrar contratos y alcance
 
 1. Elegir el primer extractor real: propósito, payload, evidencia, relaciones,
-   persistencia e índices necesarios. Emociones y eventos fueron ejemplos,
-   no extractores ya aprobados.
+   persistencia e índices necesarios. El primer extractor aprobado es emociones: ocurrencias
+   expresadas por el autor y respaldadas por citas literales, sin inferencias.
 2. Definir interfaz, envoltorio durable y registro de extractores.
 3. Concretar jobs por capa, agregación, locks, API de selección/dry run/
    persistencia diferida y proyección de estado para PWA.
@@ -255,6 +258,9 @@ la implementación del primer extractor requiere su propósito definido.
 
 ### Etapa 3 — Núcleo de extractores y grafo de documentos
 
+Implementado para emociones y conectado al procesamiento automático de notas.
+Las ramas independientes y las consultas por capas siguen en las etapas 4 y 5.
+
 1. Incorporar interfaz, envoltorio, serialización y composición de dependencias.
 2. Reutilizar la persistencia independiente del documento incorporada en la etapa 1.
 3. Implementar el primer extractor con su payload y persistencia propia, usando
@@ -266,6 +272,12 @@ Salida: extracción y persistencia invocables separadamente, sin depender del
 contrato genérico antiguo, sobre la base limpia de la etapa 1.
 
 ### Etapa 4 — Pipeline durable por capas
+
+Implementada la primera integración para emociones: workflow v3 con persistencia
+original, extracción y persistencia de capa separadas; configuración aceptada,
+artefactos con identidad estable, retries y handoff desde audio. Se mantiene el
+workflow v2 de los trabajos anteriores. Pendientes jobs por capa, paralelismo,
+estados agregados y API de selección de extractores.
 
 1. Adaptar submissions y workflow de documento para cero o varios extractores.
 2. Integrar ramas concurrentes, artefactos y checkpoints por extractor.

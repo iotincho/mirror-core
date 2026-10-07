@@ -1,5 +1,9 @@
 # Constelación: primer experimento entre documentos
 
+> Documento histórico: el extractor exploratorio y el análisis anterior de
+> Constelación se retiraron. El estado actual está en
+> [Retiro de la extracción](extraction-retirement.md).
+
 ## Hipótesis
 
 La extracción fiel de cada nota más una comparación acotada de claims cercanos

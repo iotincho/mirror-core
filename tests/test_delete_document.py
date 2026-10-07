@@ -19,7 +19,7 @@ class RecordingDocumentStore:
         self.deleted.append(document_id)
 
 
-class RecordingExtractionStore:
+class RecordingLayerArtifacts:
     def __init__(self) -> None:
         self.deleted: list[UUID] = []
 
@@ -31,9 +31,6 @@ class RecordingGraphStore(GraphStore):
     def __init__(self) -> None:
         self.deleted: list[str] = []
 
-    async def persist(self, document: object, extraction: object) -> None:
-        raise AssertionError("persist should not be called while deleting a document")
-
     async def delete_document(self, document_id: str) -> None:
         self.deleted.append(document_id)
 
@@ -42,12 +39,21 @@ class RecordingGraphStore(GraphStore):
 async def test_delete_document_depends_on_graph_contract() -> None:
     document_id = uuid4()
     documents = RecordingDocumentStore()
-    extractions = RecordingExtractionStore()
     graph = RecordingGraphStore()
 
-    await DeleteDocument(documents, extractions, graph).execute(document_id)
+    await DeleteDocument(documents, graph).execute(document_id)
 
     assert documents.loaded == [document_id]
     assert graph.deleted == [str(document_id)]
-    assert extractions.deleted == [document_id]
+    assert documents.deleted == [document_id]
+
+
+@pytest.mark.anyio
+async def test_delete_document_removes_derived_layer_artifacts():
+    document_id = uuid4()
+    documents = RecordingDocumentStore()
+    layers = RecordingLayerArtifacts()
+    graph = RecordingGraphStore()
+    await DeleteDocument(documents, graph, layer_artifacts=layers).execute(document_id)
+    assert layers.deleted == [document_id]
     assert documents.deleted == [document_id]

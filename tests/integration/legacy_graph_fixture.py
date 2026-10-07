@@ -1,0 +1,191 @@
+"""Retired schema fixture for migration tests; not application infrastructure."""
+
+import hashlib
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class EmbeddingSpec:
+    provider: str
+    model: str
+    dimensions: int
+
+    @property
+    def index_suffix(self):
+        return hashlib.sha256(
+            f"{self.provider}:{self.model}:{self.dimensions}".encode()
+        ).hexdigest()[:16]
+
+
+def embedding_type_names(spec: EmbeddingSpec) -> tuple[str, str]:
+    return (
+        f"ClaimEmbedding_{spec.index_suffix}",
+        f"DocumentEmbedding_{spec.index_suffix}",
+    )
+
+
+def legacy_schema_statements(spec: EmbeddingSpec) -> tuple[str, ...]:
+    claim_embedding_type, document_embedding_type = embedding_type_names(spec)
+    statements: list[str] = []
+
+    vertex_properties: dict[str, tuple[tuple[str, str], ...]] = {
+        "Document": (
+            ("id", "STRING"),
+            ("title", "STRING"),
+            ("source", "STRING"),
+            ("metadata_json", "STRING"),
+            ("created_at", "STRING"),
+            ("authored_at", "STRING"),
+        ),
+        "ExtractionRun": (
+            ("id", "STRING"),
+            ("document_id", "STRING"),
+            ("profile_name", "STRING"),
+            ("schema_version", "STRING"),
+            ("prompt_version", "STRING"),
+            ("provider", "STRING"),
+            ("model", "STRING"),
+            ("created_at", "STRING"),
+        ),
+        "Concept": (
+            ("id", "STRING"),
+            ("local_id", "STRING"),
+            ("run_id", "STRING"),
+            ("document_id", "STRING"),
+            ("name", "STRING"),
+        ),
+        "Entity": (
+            ("id", "STRING"),
+            ("local_id", "STRING"),
+            ("run_id", "STRING"),
+            ("document_id", "STRING"),
+            ("name", "STRING"),
+            ("type", "STRING"),
+        ),
+        "Claim": (
+            ("id", "STRING"),
+            ("local_id", "STRING"),
+            ("run_id", "STRING"),
+            ("document_id", "STRING"),
+            ("text", "STRING"),
+            ("type", "STRING"),
+        ),
+        "Evidence": (
+            ("id", "STRING"),
+            ("run_id", "STRING"),
+            ("document_id", "STRING"),
+            ("quote", "STRING"),
+            ("start_char", "INTEGER"),
+            ("end_char", "INTEGER"),
+            ("start_line", "INTEGER"),
+            ("end_line", "INTEGER"),
+        ),
+        "ClaimEmbedding": (
+            ("id", "STRING"),
+            ("claim_graph_id", "STRING"),
+            ("claim_local_id", "STRING"),
+            ("document_id", "STRING"),
+            ("run_id", "STRING"),
+            ("profile_name", "STRING"),
+            ("prompt_version", "STRING"),
+            ("text_hash", "STRING"),
+            ("provider", "STRING"),
+            ("model", "STRING"),
+            ("dimensions", "INTEGER"),
+            ("created_at", "STRING"),
+        ),
+        "DocumentEmbedding": (
+            ("id", "STRING"),
+            ("document_id", "STRING"),
+            ("text_hash", "STRING"),
+            ("content", "STRING"),
+            ("source", "STRING"),
+            ("metadata_json", "STRING"),
+            ("created_at", "STRING"),
+            ("authored_at", "STRING"),
+            ("provider", "STRING"),
+            ("model", "STRING"),
+            ("dimensions", "INTEGER"),
+        ),
+    }
+
+    for type_name, properties in vertex_properties.items():
+        statements.append(f"CREATE VERTEX TYPE {type_name} IF NOT EXISTS")
+        for property_name, property_type in properties:
+            constraints = " (MANDATORY true, NOTNULL true)" if property_name == "id" else ""
+            statements.append(
+                f"CREATE PROPERTY {type_name}.{property_name} IF NOT EXISTS "
+                f"{property_type}{constraints}"
+            )
+        statements.append(f"CREATE INDEX IF NOT EXISTS ON {type_name} (id) UNIQUE")
+
+    for edge_type in (
+        "HAS_EXTRACTION",
+        "EXTRACTED",
+        "SUPPORTED_BY",
+        "FROM_DOCUMENT",
+        "HAS_EMBEDDING",
+    ):
+        # ArcadeDB 26.9.1 does not accept UNIQUE and IF NOT EXISTS together in
+        # CREATE EDGE TYPE, despite both clauses being valid independently.
+        statements.extend(
+            (
+                f"CREATE EDGE TYPE {edge_type} IF NOT EXISTS",
+                f"ALTER TYPE {edge_type} WITH unique = true",
+            )
+        )
+
+    for edge_type in (
+        "ABOUT",
+        "RELATES_TO",
+        "SUPPORTS",
+        "CONTRADICTS",
+        "EXPRESSES_EMOTION",
+        "DESIRES",
+        "FEARS",
+        "VALUES",
+        "QUESTIONS",
+        "DECIDES",
+        "ASSOCIATES_WITH",
+    ):
+        statements.extend(
+            (
+                f"CREATE EDGE TYPE {edge_type} IF NOT EXISTS",
+                f"CREATE PROPERTY {edge_type}.id IF NOT EXISTS STRING "
+                "(MANDATORY true, NOTNULL true)",
+                f"CREATE PROPERTY {edge_type}.run_id IF NOT EXISTS STRING",
+                f"CREATE PROPERTY {edge_type}.document_id IF NOT EXISTS STRING",
+                f"CREATE PROPERTY {edge_type}.evidence_json IF NOT EXISTS STRING",
+                f"CREATE INDEX IF NOT EXISTS ON {edge_type} (id) UNIQUE",
+            )
+        )
+
+    for child_type, parent_type in (
+        (claim_embedding_type, "ClaimEmbedding"),
+        (document_embedding_type, "DocumentEmbedding"),
+    ):
+        statements.extend(
+            (
+                f"CREATE VERTEX TYPE {child_type} IF NOT EXISTS EXTENDS {parent_type}",
+                f"CREATE PROPERTY {child_type}.vector IF NOT EXISTS ARRAY_OF_FLOATS",
+                f"CREATE INDEX IF NOT EXISTS ON {child_type} (vector) LSM_VECTOR "
+                f"METADATA {{ dimensions: {spec.dimensions}, similarity: 'COSINE' }}",
+            )
+        )
+
+    statements.extend(
+        (
+            "CREATE EDGE TYPE CROSS_DOCUMENT_LINK IF NOT EXISTS",
+            "CREATE PROPERTY CROSS_DOCUMENT_LINK.id IF NOT EXISTS STRING "
+            "(MANDATORY true, NOTNULL true)",
+            "CREATE PROPERTY CROSS_DOCUMENT_LINK.link_id IF NOT EXISTS STRING "
+            "(MANDATORY true, NOTNULL true)",
+            "CREATE PROPERTY CROSS_DOCUMENT_LINK.relation_type IF NOT EXISTS STRING",
+            "CREATE PROPERTY CROSS_DOCUMENT_LINK.profile IF NOT EXISTS STRING",
+            "CREATE PROPERTY CROSS_DOCUMENT_LINK.source_document_id IF NOT EXISTS STRING",
+            "CREATE PROPERTY CROSS_DOCUMENT_LINK.target_document_id IF NOT EXISTS STRING",
+            "CREATE PROPERTY CROSS_DOCUMENT_LINK.evidence_json IF NOT EXISTS STRING",
+            "CREATE INDEX IF NOT EXISTS ON CROSS_DOCUMENT_LINK (id) UNIQUE",
+        )
+    )
+    return tuple(statements)

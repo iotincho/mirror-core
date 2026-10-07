@@ -12,6 +12,11 @@ El [retiro y procedimiento de limpieza](docs/extraction-retirement.md) documenta
 la migración masiva automática pendiente de ejecutar al desplegar. El [plan de extracción por capas](docs/extraction-layers-requirements-plan.md)
 define los extractores independientes a incorporar después.
 
+El [respaldo e importación de documentos](docs/document-archives.md) permite
+descargar JSON desde la PWA y restaurar originales después de recrear las bases.
+Incluye una herramienta administrativa independiente de los motores para
+exportar antes de un reset si la API no puede arrancar.
+
 Los documentos de [contratos diferidos](docs/deferred-processing.md),
 [pipeline async](docs/async-pipeline.md), [runtime durable](docs/processing-runtime.md),
 [uploads diferidos](docs/deferred-ingestion.md) y [PWA/SSE](docs/processing-pwa-events.md)

@@ -5,10 +5,18 @@ from functools import lru_cache
 from uuid import UUID
 
 from src.config import get_settings
+from src.extractors.artifacts import LayerArtifacts
+from src.extractors.contracts import ExtractorProfile
+from src.extractors.emotions import EmotionExtractor
+from src.extractors.openai_emotions import OpenAIEmotionProvider
+from src.extractors.registry import ExtractorRegistry
 from src.processing.execution import WorkflowFailure
 from src.services.openai_transcription_provider import OpenAITranscriptionProvider
 from src.use_cases.process_audio_note import ProcessAudioNote
 from src.use_cases.process_document import ProcessDocument
+from src.use_cases.process_document_extractors import ProcessDocumentExtractors
+from src.use_cases.process_document_layers import ProcessDocumentLayers
+from src.use_cases.process_extractor import ProcessExtractor
 from src.user_management.database import get_session_maker
 from src.workspaces.context import UserWorkspaceContext
 from src.workspaces.dependencies import WorkspaceBinding, build_workspace_runtime
@@ -64,6 +72,44 @@ def workflow_providers(config):
     return workflow_providers_configured(config["transcription_model"])
 
 
+@lru_cache(maxsize=32)
+def emotion_provider_configured(provider_name, model):
+    settings = get_settings()
+    if provider_name != "openai" or not model or not settings.openai_api_key:
+        raise WorkflowFailure("provider_configuration", retryable=True)
+    provider = OpenAIEmotionProvider(settings.openai_api_key, model, max_retries=0)
+    _provider_instances.append(provider)
+    return provider
+
+
+def build_emotion_extractor(runtime, specification, *, extracting):
+    return EmotionExtractor(
+        documents=runtime.document_store,
+        artifacts=LayerArtifacts(runtime.context.filesystem_root / "layers"),
+        graph=runtime.graph_store.database_client,
+        profile=ExtractorProfile.model_validate(specification["profile"]),
+        provider=emotion_provider_configured(specification["provider"], specification["model"])
+        if extracting
+        else None,
+    )
+
+
+_extractor_registry = ExtractorRegistry()
+_extractor_registry.register("emotions", build_emotion_extractor)
+
+
+def workflow_extractor(runtime, specification, *, extracting):
+    try:
+        return _extractor_registry.create(
+            specification["name"],
+            runtime=runtime,
+            specification=specification,
+            extracting=extracting,
+        )
+    except ValueError as error:
+        raise WorkflowFailure("extractor_configuration") from error
+
+
 async def close_workflow_providers():
     try:
         for provider in _provider_instances:
@@ -71,6 +117,7 @@ async def close_workflow_providers():
     finally:
         _provider_instances.clear()
         workflow_providers_configured.cache_clear()
+        emotion_provider_configured.cache_clear()
 
 
 async def retired_extraction(context):
@@ -83,6 +130,13 @@ def register_workflows(registry):
 
     registry.register("document", 1, WorkflowDefinition(retired_extraction, frozenset()))
     registry.register("document", 2, ProcessDocument(worker_runtime).definition)
-    # Legacy audio can still reuse its transcript and hand off to a v2 document.
+    registry.register(
+        "document", 3, ProcessDocumentLayers(worker_runtime, workflow_extractor).definition
+    )
+    registry.register("document", 4, ProcessDocumentExtractors(worker_runtime).definition)
+    registry.register(
+        "extractor", 1, ProcessExtractor(worker_runtime, workflow_extractor).definition
+    )
+    # Audio reuses its transcript and passes the accepted layer configuration to its child.
     registry.register("audio", 1, ProcessAudioNote(worker_runtime, workflow_providers).definition)
     registry.register("audio", 2, ProcessAudioNote(worker_runtime, workflow_providers).definition)

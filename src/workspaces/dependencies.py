@@ -12,8 +12,6 @@ from src.config import Settings, get_settings
 from src.graph.arcadedb.store import ArcadeDBGraphStore
 from src.services.audio_note_store import FileAudioNoteStore
 from src.services.document_store import FileDocumentStore
-from src.services.extraction_store import FileExtractionStore
-from src.services.reflection_store import FileReflectionStore
 from src.user_management.database import get_async_session
 from src.user_management.dependencies import AuthenticatedUser, get_authenticated_user
 from src.workspaces.context import UserWorkspaceContext
@@ -37,8 +35,6 @@ class WorkspaceRuntime:
     context: UserWorkspaceContext
     document_store: FileDocumentStore
     audio_note_store: FileAudioNoteStore
-    extraction_store: FileExtractionStore
-    reflection_store: FileReflectionStore
     graph_store: ArcadeDBGraphStore
 
 
@@ -91,8 +87,6 @@ def build_workspace_runtime(binding: WorkspaceBinding, settings: Settings) -> Wo
         context=binding.context,
         document_store=FileDocumentStore(root / "documents"),
         audio_note_store=FileAudioNoteStore(root / "audio-notes"),
-        extraction_store=FileExtractionStore(root / "extractions"),
-        reflection_store=FileReflectionStore(root / "reflections"),
         graph_store=ArcadeDBGraphStore(
             settings.arcadedb_http_url,
             binding.context.database_name,

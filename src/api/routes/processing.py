@@ -183,6 +183,18 @@ async def get_processing(processing_id: UUID, runtime: Runtime):
     return ProcessingResponse.from_record(record)
 
 
+@router.get("/processing/{processing_id}/extractors", response_model=list[ProcessingResponse])
+async def extractor_states(processing_id: UUID, runtime: Runtime):
+    repository = get_repository()
+    record = await repository.get(processing_id, runtime.context.user_id)
+    if record is None:
+        raise HTTPException(404, "Processing not found")
+    return [
+        ProcessingResponse.from_record(child)
+        for child in await repository.extractor_children(record.id, runtime.context.user_id)
+    ]
+
+
 @router.post(
     "/processing/{processing_id}/retry", response_model=ProcessingResponse, status_code=202
 )

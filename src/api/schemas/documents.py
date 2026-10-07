@@ -6,7 +6,6 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from src.domain.documents import NewDocument
-from src.services.extraction_store import ExtractionRun
 
 
 class CreateDocumentRequest(NewDocument):
@@ -21,8 +20,3 @@ class DocumentResponse(BaseModel):
     metadata: dict[str, str]
     created_at: datetime
     authored_at: datetime | None = None
-
-
-class ProcessedDocumentResponse(BaseModel):
-    document: DocumentResponse
-    extraction: ExtractionRun

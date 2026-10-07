@@ -7,13 +7,12 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from legacy_graph_fixture import EmbeddingSpec, legacy_schema_statements
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from src.domain.documents import NewDocument, build_document
-from src.embeddings.contracts import EmbeddingSpec
 from src.graph.arcadedb.client import AsyncArcadeDBHTTPClient
-from src.graph.arcadedb.schema import legacy_schema_statements
 from src.maintenance.data_migrations import DataMigrations
 from src.maintenance.models import DataMigration
 from src.processing.models import ProcessingEvent, ProcessingOutbox, ProcessingRecord

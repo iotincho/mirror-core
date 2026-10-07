@@ -1,0 +1,157 @@
+# ruff: noqa: F811
+"""Navigate original document vertices without retired extraction schemas."""
+
+import json
+import os
+
+import pytest
+from test_emotion_layer import layer_database  # noqa: F401, F811
+
+from src.domain.documents import NewDocument, build_document
+from src.graph.contracts import LinkType
+
+pytestmark = [
+    pytest.mark.anyio,
+    pytest.mark.skipif(
+        not os.getenv("EMOTIONS_TEST_ARCADEDB_URL"), reason="requires isolated ArcadeDB"
+    ),
+]
+
+
+@pytest.fixture
+def anyio_backend():
+    return "asyncio"
+
+
+async def test_new_database_and_emotion_layer_return_empty_neighborhood(layer_database):
+    extractor, document, _, _, graph = layer_database
+    assert (await graph.get_link_neighborhood(str(document.id))).total_neighbors == 0
+    await extractor.extract(document, dry_run=False)
+    result = await graph.get_link_neighborhood(str(document.id))
+    assert result.neighbor_ids == [] and result.links == []
+
+
+async def test_graph_reads_generic_endpoints_paging_filters_and_direction(layer_database):
+    _, document, client, _, graph = layer_database
+    neighbors = [build_document(NewDocument(content=f"Nota {i}")) for i in range(2)]
+    for neighbor in neighbors:
+        await graph.persist_document(neighbor)
+    await client.command("CREATE EDGE TYPE CROSS_DOCUMENT_LINK")
+
+    async def edge(source, target, kind, link_id):
+        evidence = {"source": [{"quote": source.content}], "target": [{"quote": target.content}]}
+        await client.command(
+            """
+        MATCH (source:Document {id: $source}), (target:Document {id: $target})
+        CREATE (source)-[link:CROSS_DOCUMENT_LINK]->(target)
+        SET link.link_id=$link_id, link.source_document_id=$source,
+            link.target_document_id=$target, link.relation_type=$kind,
+            link.profile=$profile, link.evidence_json=$evidence
+        """,
+            {
+                "source": str(source.id),
+                "target": str(target.id),
+                "link_id": link_id,
+                "kind": kind,
+                "profile": "presentation-test",
+                "evidence": json.dumps(evidence),
+            },
+            language="cypher",
+        )
+
+    await edge(document, neighbors[0], "SAME_REFERENT", "symmetric")
+    await edge(neighbors[0], document, "SAME_REFERENT", "symmetric")
+    await edge(neighbors[1], document, "REVISITS", "directed")
+    result = await graph.get_link_neighborhood(str(document.id))
+    assert result.total_neighbors == 2
+    assert set(result.neighbor_ids) == {str(d.id) for d in neighbors}
+    assert {link.link_id for link in result.links} == {"symmetric", "directed"}
+    directed = next(link for link in result.links if link.link_id == "directed")
+    assert directed.source_document_id == str(neighbors[1].id)
+    assert directed.target_document_id == str(document.id)
+    assert directed.source_evidence[0].quote == neighbors[1].content
+    first = await graph.get_link_neighborhood(str(document.id), limit=1)
+    assert first.total_neighbors == 2 and first.next_offset == 1
+    second = await graph.get_link_neighborhood(str(document.id), offset=1, limit=1)
+    assert second.next_offset is None and len(second.neighbor_ids) == 1
+    assert set(first.neighbor_ids + second.neighbor_ids) == set(result.neighbor_ids)
+    filtered = await graph.get_link_neighborhood(str(document.id), relation_type=LinkType.REVISITS)
+    assert filtered.neighbor_ids == [str(neighbors[1].id)]
+    assert len(filtered.links) == 1 and filtered.links[0].link_id == "directed"
+    # The same directed edge remains directed when navigating from its source.
+    from_source = await graph.get_link_neighborhood(str(neighbors[1].id))
+    assert from_source.links[0].source_document_id == str(neighbors[1].id)
+    types = (await client.query("SELECT name FROM schema:types"))["result"]
+    assert not any(row["name"] == "Claim" for row in types)
+
+
+async def test_extraction_graph_returns_source_before_extraction(layer_database):
+    _, document, _, _, graph = layer_database
+    result = await graph.get_extraction_graph(str(document.id))
+    assert result.root_id == f"Document:{document.id}"
+    assert len(result.nodes) == 1 and result.nodes[0].type == "Document"
+    assert result.layers == [] and result.edges == []
+
+
+async def test_emotions_are_projected_with_evidence_without_execution_nodes(layer_database):
+    extractor, document, _, _, graph = layer_database
+    await extractor.extract(document, dry_run=False)
+    result = await graph.get_extraction_graph(str(document.id))
+    assert result.layers == ["emotions"]
+    assert len(result.nodes) == 3 and len(result.edges) == 2
+    emotions = [node for node in result.nodes if node.type == "Emotion"]
+    assert {node.label for node in emotions} == {"alegría", "miedo"}
+    assert all(
+        node.quote in document.content and node.profile_id == "emotions/v1" for node in emotions
+    )
+    assert all(edge.source == result.root_id and edge.layer == "emotions" for edge in result.edges)
+    assert all(node.type != "EmotionExtraction" for node in result.nodes)
+    absent = await graph.get_extraction_graph(str(document.id), layer="events")
+    assert absent.layers == ["emotions"] and len(absent.nodes) == 1 and absent.edges == []
+
+
+async def test_empty_extraction_is_a_selectable_layer(layer_database):
+    extractor, document, _, provider, graph = layer_database
+    from src.extractors.emotions import Emotions
+
+    provider.payload = Emotions(occurrences=[])
+    await extractor.extract(document, dry_run=False)
+    result = await graph.get_extraction_graph(str(document.id))
+    assert result.layers == ["emotions"] and len(result.nodes) == 1 and result.edges == []
+
+
+async def test_generic_immediate_connections_filter_layers_and_preserve_incoming_direction(
+    layer_database,
+):
+    extractor, document, client, _, graph = layer_database
+    await extractor.extract(document, dry_run=False)
+    await client.command("CREATE VERTEX TYPE Event")
+    await client.command("CREATE EDGE TYPE MENTIONS_EVENT")
+    for item, doc in [("connected", str(document.id)), ("unrelated", "another-document")]:
+        await client.command(
+            "CREATE VERTEX Event SET id=:id, label=:label, layer=:layer, document_id=:doc",
+            {"id": item, "label": "Viaje", "layer": "events", "doc": doc},
+        )
+    await client.command(
+        """
+    MATCH (event:Event {id:$id}), (document:Document {id:$document_id})
+    CREATE (event)-[edge:MENTIONS_EVENT]->(document)
+    SET edge.id=$edge_id, edge.layer=$layer
+    """,
+        {
+            "id": "connected",
+            "document_id": str(document.id),
+            "edge_id": "incoming",
+            "layer": "events",
+        },
+        language="cypher",
+    )
+    result = await graph.get_extraction_graph(str(document.id))
+    assert result.layers == ["emotions", "events"]
+    assert len(result.nodes) == 4 and len(result.edges) == 3
+    assert not any(node.id == "Event:unrelated" for node in result.nodes)
+    filtered = await graph.get_extraction_graph(str(document.id), layer="events")
+    assert {node.id for node in filtered.nodes} == {filtered.root_id, "Event:connected"}
+    assert len(filtered.edges) == 1
+    assert filtered.edges[0].source == "Event:connected"
+    assert filtered.edges[0].target == filtered.root_id

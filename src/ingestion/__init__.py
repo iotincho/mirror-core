@@ -1,1 +1,0 @@
-"""Future document-ingestion boundary."""

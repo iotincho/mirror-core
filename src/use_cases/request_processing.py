@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 
+from src.processing.configuration import document_workflow_version
 from src.processing.models import ProcessingReceipt, ProcessingRecord
 from src.processing.submissions import SubmissionConflict, fingerprint
 from src.services.document_store import DocumentNotFoundError
@@ -18,7 +19,7 @@ class RequestProcessing:
         self.repository, self.runtime = repository, runtime
         self.changed = False
 
-    async def mutate(self, operation, key, request, resource_id, action, lock=True):
+    async def mutate(self, operation, key, request, resource_id, action, lock=True, branch_id=None):
         owner = self.runtime.context.user_id
         async with self.repository.sessions() as session:
             previous = await session.scalar(
@@ -40,7 +41,12 @@ class RequestProcessing:
         @asynccontextmanager
         async def guard():
             if lock:
-                async with self.repository.lock_resource(owner, resource_id) as acquired:
+                manager = (
+                    self.repository.lock_extractor(owner, resource_id, branch_id)
+                    if branch_id
+                    else self.repository.lock_resource(owner, resource_id)
+                )
+                async with manager as acquired:
                     yield acquired
             else:
                 yield True
@@ -99,7 +105,7 @@ class RequestProcessing:
                 resource_kind="document",
                 resource_id=document_id,
                 document_id=document_id,
-                workflow_version=2,
+                workflow_version=document_workflow_version(config),
                 stage="document_persistence",
                 config=config,
             )
@@ -131,74 +137,8 @@ class RequestProcessing:
                 return current
             if not lock:
                 raise SubmissionConflict("processing_state_changed")
-            if current.workflow == "document" and current.workflow_version == 1:
-                current.workflow_version = 2
-                current.stage = "document_persistence"
-                current.config = workflow_config()
-                current.checkpoints = {}
-                current.extraction_run_id = None
-                current.retryable = True
-            # Parent retry resumes its failed child rather than retranscribing.
-            child = (
-                await session.get(
-                    ProcessingRecord, current.child_processing_id, with_for_update=True
-                )
-                if current.child_processing_id
-                else None
-            )
-            if not current.retryable and not (
-                child
-                and child.workflow == "document"
-                and child.workflow_version == 1
-                and child.status == "failed"
-            ):
-                raise SubmissionConflict("processing_not_retryable")
-            if child:
-                if child.resource_deleted:
-                    raise SubmissionConflict("resource_deleted")
-                if child.status == "failed":
-                    if child.workflow == "document" and child.workflow_version == 1:
-                        child.workflow_version = 2
-                        child.stage = "document_persistence"
-                        child.config = workflow_config()
-                        child.checkpoints = {}
-                        child.extraction_run_id = None
-                        child.retryable = True
-                    if not child.retryable:
-                        raise SubmissionConflict("processing_not_retryable")
-                    await self.runtime.document_store.get(child.resource_id)
-                    self.reset(session, child, now)
-                current.status = "waiting"
-                self.changed = True
-                current.stage_attempts = 0
-                current.error_code = None
-                current.retryable = False
-                current.version += 1
-                current.updated_at = now
-                self.repository.event(session, current)
-                if child.status == "completed":
-                    await self.repository.wake_parent(session, child, now)
-            else:
-                if current.resource_kind == "document":
-                    await self.runtime.document_store.get(current.resource_id)
-                else:
-                    await self.runtime.audio_note_store.get(current.resource_id)
-                await self.repository.assert_inactive(
-                    current.user_id,
-                    current.resource_id,
-                    exclude=[current.id]
-                    + ([current.parent_processing_id] if current.parent_processing_id else []),
-                )
-                self.reset(session, current, now)
-                if current.parent_processing_id:
-                    parent = await session.get(
-                        ProcessingRecord, current.parent_processing_id, with_for_update=True
-                    )
-                    if parent.status == "failed":
-                        parent.status, parent.error_code = "waiting", None
-                        parent.version += 1
-                        parent.updated_at = now
-                        self.repository.event(session, parent)
+            await self.retry_record(session, current, now)
+            await self.resume_ancestors(session, current, now)
             return current
 
         return await self.mutate(
@@ -208,7 +148,100 @@ class RequestProcessing:
             record.resource_id,
             action,
             lock=lock,
+            branch_id=record.id if record.workflow == "extractor" else None,
         )
+
+    async def retry_record(self, session, current, now):
+        """Resume only retryable failed descendants; completed siblings stay untouched."""
+        if current.resource_deleted:
+            raise SubmissionConflict("resource_deleted")
+        if current.workflow == "document" and current.workflow_version == 1:
+            current.workflow_version = 2
+            current.stage = "document_persistence"
+            current.config = workflow_config()
+            current.checkpoints = {}
+            current.extraction_run_id = None
+            current.retryable = True
+        children = []
+        if current.workflow == "document" and current.workflow_version == 4:
+            children = list(
+                (
+                    await session.scalars(
+                        select(ProcessingRecord)
+                        .where(
+                            ProcessingRecord.parent_processing_id == current.id,
+                            ProcessingRecord.user_id == current.user_id,
+                            ProcessingRecord.workflow == "extractor",
+                        )
+                        .with_for_update()
+                    )
+                ).all()
+            )
+        elif current.child_processing_id:
+            child = await session.get(
+                ProcessingRecord, current.child_processing_id, with_for_update=True
+            )
+            if child is not None:
+                children = [child]
+        legacy_child = any(
+            child.workflow == "document"
+            and child.workflow_version == 1
+            and child.status == "failed"
+            for child in children
+        )
+        if not current.retryable and not legacy_child:
+            raise SubmissionConflict("processing_not_retryable")
+        if children:
+            restarted = False
+            for child in children:
+                if child.resource_deleted:
+                    raise SubmissionConflict("resource_deleted")
+                if child.status == "failed" and (
+                    child.retryable
+                    or (child.workflow == "document" and child.workflow_version == 1)
+                ):
+                    await self.retry_record(session, child, now)
+                    restarted = True
+            if not restarted and all(child.status == "failed" for child in children):
+                raise SubmissionConflict("processing_not_retryable")
+            self.wait(session, current, now)
+            for child in children:
+                if child.status in {"completed", "failed"}:
+                    await self.repository.wake_parent(session, child, now)
+        else:
+            if current.resource_kind == "document":
+                await self.runtime.document_store.get(current.resource_id)
+            else:
+                await self.runtime.audio_note_store.get(current.resource_id)
+            if current.workflow != "extractor":
+                await self.repository.assert_inactive(
+                    current.user_id,
+                    current.resource_id,
+                    exclude=[current.id]
+                    + ([current.parent_processing_id] if current.parent_processing_id else []),
+                )
+            self.reset(session, current, now)
+
+    def wait(self, session, record, now):
+        self.changed = True
+        record.status = "waiting"
+        record.stage_attempts = 0
+        record.error_code = None
+        record.retryable = False
+        record.completed_at = None
+        record.version += 1
+        record.updated_at = now
+        self.repository.event(session, record)
+
+    async def resume_ancestors(self, session, record, now):
+        parent_id = record.parent_processing_id
+        while parent_id:
+            parent = await session.get(ProcessingRecord, parent_id, with_for_update=True)
+            if parent is None or parent.user_id != record.user_id or parent.resource_deleted:
+                raise SubmissionConflict("resource_deleted")
+            if parent.status == "failed":
+                self.wait(session, parent, now)
+            parent_id = parent.parent_processing_id
 
     def reset(self, session, current, now):
         self.changed = True

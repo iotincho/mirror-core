@@ -11,6 +11,7 @@ from uuid import UUID
 from src.config import get_settings
 from src.domain.audio_notes import AudioNote
 from src.domain.documents import Document, NewDocument
+from src.extractors.emotions import EMOTIONS_PROFILE
 from src.processing.execution import WorkflowFailure
 from src.processing.submissions import SubmissionConflict, SubmissionRepository, fingerprint
 from src.services.audio_note_store import AudioNoteAlreadyExistsError
@@ -21,7 +22,18 @@ from src.workspaces.secrets import WorkspaceSecretError
 
 def workflow_config():
     settings = get_settings()
-    return {"transcription_model": settings.openai_transcription_model}
+    return {
+        "transcription_model": settings.openai_transcription_model,
+        "document_workflow_version": 4,
+        "extractors": [
+            {
+                "name": "emotions",
+                "profile": EMOTIONS_PROFILE.model_dump(mode="json"),
+                "provider": settings.llm_provider,
+                "model": settings.openai_model,
+            }
+        ],
+    }
 
 
 def document_identity(document):

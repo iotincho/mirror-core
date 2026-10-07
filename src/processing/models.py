@@ -33,6 +33,20 @@ class ProcessingRecord(Base):
         ),
         Index("ix_processing_recovery", "status", "available_at", "lease_expires_at"),
         Index("ix_processing_owner", "user_id", "created_at"),
+        Index("ix_processing_parent", "parent_processing_id"),
+        Index(
+            "uq_processing_extractor_child",
+            "parent_processing_id",
+            "extractor_name",
+            unique=True,
+            postgresql_where=text("workflow = 'extractor'"),
+        ),
+        CheckConstraint(
+            "workflow <> 'extractor' OR (parent_processing_id IS NOT NULL AND "
+            "extractor_name IS NOT NULL AND extraction_run_id IS NOT NULL "
+            "AND resource_kind = 'document')",
+            name="ck_processing_extractor_identity",
+        ),
     )
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     user_id: Mapped[UUID] = mapped_column(ForeignKey("user_graphs.user_id"), nullable=False)
@@ -57,6 +71,7 @@ class ProcessingRecord(Base):
     extraction_run_id: Mapped[UUID | None] = mapped_column()
     parent_processing_id: Mapped[UUID | None] = mapped_column(ForeignKey("processing_records.id"))
     child_processing_id: Mapped[UUID | None] = mapped_column(ForeignKey("processing_records.id"))
+    extractor_name: Mapped[str | None] = mapped_column(String(80))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     resource_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())

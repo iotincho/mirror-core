@@ -58,12 +58,6 @@ class Settings(BaseSettings):
     audio_notes_path: Path = Field(
         default=Path("data/audio-notes"), validation_alias="AUDIO_NOTES_PATH"
     )
-    extractions_path: Path = Field(
-        default=Path("data/extractions"), validation_alias="EXTRACTIONS_PATH"
-    )
-    reflections_path: Path = Field(
-        default=Path("data/reflections"), validation_alias="REFLECTIONS_PATH"
-    )
     workspaces_path: Path = Field(
         default=Path("data/users"),
         validation_alias="WORKSPACES_PATH",
@@ -90,15 +84,6 @@ class Settings(BaseSettings):
     )
     graph_timeout_seconds: float = Field(default=30, validation_alias="GRAPH_TIMEOUT_SECONDS", gt=0)
     graph_max_connections: int = Field(default=20, validation_alias="GRAPH_MAX_CONNECTIONS", gt=0)
-    reflection_provider: str = Field(default="openai", validation_alias="REFLECTION_PROVIDER")
-    openai_reflection_model: str | None = Field(
-        default=None, validation_alias="OPENAI_REFLECTION_MODEL"
-    )
-    embedding_provider: str = Field(default="openai", validation_alias="EMBEDDING_PROVIDER")
-    openai_embedding_model: str = Field(
-        default="text-embedding-3-small",
-        validation_alias="OPENAI_EMBEDDING_MODEL",
-    )
     auth_session_secret: str | None = Field(
         default=None,
         validation_alias="AUTH_SESSION_SECRET",
@@ -134,12 +119,6 @@ class Settings(BaseSettings):
         gt=0,
     )
     auth_cookie_secure: bool = Field(default=True, validation_alias="AUTH_COOKIE_SECURE")
-
-    openai_embedding_dimensions: int = Field(
-        default=1536,
-        validation_alias="OPENAI_EMBEDDING_DIMENSIONS",
-        gt=0,
-    )
 
 
 @lru_cache

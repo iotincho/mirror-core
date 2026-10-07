@@ -1,7 +1,6 @@
 from uuid import UUID
 
 from src.services.document_store import DocumentStore
-from src.services.extraction_store import ExtractionStore
 from src.services.graph_store import GraphStore
 
 
@@ -9,15 +8,15 @@ class DeleteDocument:
     def __init__(
         self,
         documents: DocumentStore,
-        extractions: ExtractionStore,
         graph: GraphStore,
         processing=None,
         user_id=None,
+        layer_artifacts=None,
     ) -> None:
         self._documents = documents
-        self._extractions = extractions
         self._graph = graph
         self._processing, self._user_id = processing, user_id
+        self._layer_artifacts = layer_artifacts
 
     async def execute(self, document_id: UUID) -> None:
         if self._processing is not None:
@@ -39,5 +38,6 @@ class DeleteDocument:
     async def _delete(self, document_id):
         await self._documents.get(document_id)
         await self._graph.delete_document(str(document_id))
-        await self._extractions.delete_for_document(document_id)
+        if self._layer_artifacts is not None:
+            await self._layer_artifacts.delete_for_document(document_id)
         await self._documents.delete(document_id)

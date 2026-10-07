@@ -26,8 +26,9 @@ objetivo del producto y exploraciones anteriores, no capacidades activas.
 
 El [extractor de emociones de prueba](docs/emotion-extractor.md) implementa el
 contrato común de capas y permite extraer en dry run o persistir un artefacto
-más tarde. Las notas nuevas ejecutan automáticamente el workflow de documento v3:
-`document_persistence → layer_extraction → layer_persistence → done`. Incluye los
+más tarde. Las notas nuevas ejecutan automáticamente el workflow de documento v4:
+`document_persistence → extractor_processing → done`, con un trabajo independiente
+por capa (`extraction → persistence → done`). Incluye los
 documentos creados desde audio; los trabajos históricos v2 siguen guardando sólo
 documentos. Se requieren `LLM_PROVIDER=openai`, `OPENAI_API_KEY` y `OPENAI_MODEL`.
 
@@ -340,8 +341,9 @@ los casos de uso.
 La transición y sus criterios de aceptación están en el
 [plan de extracción por capas](docs/extraction-layers-requirements-plan.md).
 El retiro del proceso exploratorio y las etapas durables de emociones están implementados.
-Quedan la coordinación de ramas independientes para varias capas, su ejecución paralela y las
-consultas por capas. La persistencia y la respuesta del visor están documentadas
+Los trabajos por capa, su ejecución paralela y los retries independientes están
+implementados; ver [coordinación durable](docs/extractor-jobs.md). Quedan la selección
+de extractores por API y las consultas de varias capas simultáneas. La persistencia y la respuesta del visor están documentadas
 en el [README de grafo](src/graph/README.md).
 
 ## Evaluación

@@ -25,9 +25,10 @@ def test_new_upload_pins_emotion_profile_provider_and_model(monkeypatch):
             "profile": EMOTIONS_PROFILE.model_dump(mode="json"),
         }
     ]
-    assert document_workflow_version(config) == 3
+    assert document_workflow_version(config) == 4
     assert document_workflow_version({"transcription_model": "old"}) == 2
     assert document_workflow_version({"extractors": []}) == 2
+    assert document_workflow_version({"document_workflow_version": 4, "extractors": []}) == 2
 
 
 def test_extraction_factory_uses_accepted_model_and_prompt(monkeypatch, tmp_path):

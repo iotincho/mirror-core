@@ -300,15 +300,12 @@ class ProcessingRepository:
             if record is None:
                 yield True
                 return
-            key = f"{record.user_id}:{record.resource_id}"
-            locked = await session.scalar(
-                select(
-                    func.pg_try_advisory_xact_lock(
-                        func.hashtextextended(key, 0),
-                    )
-                )
+            yield await self._acquire_resource_lock(
+                session,
+                record.user_id,
+                record.resource_id,
+                record.id if record.workflow == "extractor" else None,
             )
-            yield bool(locked)
 
     async def workspace_active(self, user_id: UUID) -> bool:
         async with self.sessions() as session:
@@ -328,19 +325,84 @@ class ProcessingRepository:
         parent = await session.get(
             ProcessingRecord, child.parent_processing_id, with_for_update=True
         )
-        if (
-            parent
-            and parent.status == "waiting"
-            and parent.user_id == child.user_id
-            and parent.child_processing_id == child.id
-        ):
-            parent.status = "queued"
-            parent.generation += 1
-            parent.version += 1
-            parent.available_at = now
-            parent.updated_at = now
-            ProcessingRepository.event(session, parent)
-            ProcessingRepository.schedule(session, parent)
+        if parent is None or parent.user_id != child.user_id or parent.status != "waiting":
+            return
+        if child.workflow == "extractor":
+            if parent.workflow != "document" or parent.workflow_version != 4:
+                return
+            active = await session.scalar(
+                select(ProcessingRecord.id)
+                .where(
+                    ProcessingRecord.parent_processing_id == parent.id,
+                    ProcessingRecord.workflow == "extractor",
+                    ProcessingRecord.status.not_in(["completed", "failed"]),
+                )
+                .limit(1)
+            )
+            if active is not None:
+                return
+        elif parent.child_processing_id != child.id:
+            return
+        parent.status = "queued"
+        parent.generation += 1
+        parent.version += 1
+        parent.available_at = now
+        parent.updated_at = now
+        ProcessingRepository.event(session, parent)
+        ProcessingRepository.schedule(session, parent)
+
+    async def extractor_children(self, parent_id: UUID, user_id: UUID):
+        async with self.sessions() as session:
+            return list(
+                (
+                    await session.scalars(
+                        select(ProcessingRecord)
+                        .where(
+                            ProcessingRecord.parent_processing_id == parent_id,
+                            ProcessingRecord.user_id == user_id,
+                            ProcessingRecord.workflow == "extractor",
+                        )
+                        .order_by(ProcessingRecord.extractor_name)
+                    )
+                ).all()
+            )
+
+    async def extractors_and_wait(self, record: ProcessingRecord, specifications: list[dict]):
+        """Fork all layers, events and outbox atomically, or resume the same children."""
+        async with self.leased(record) as (session, current, now):
+            if current.version != record.version:
+                raise LeaseLost(str(record.id))
+            for spec in specifications:
+                identifier = uuid5(current.id, "extractor:" + spec["name"])
+                child = await session.get(ProcessingRecord, identifier)
+                if child is None:
+                    child = ProcessingRecord(
+                        id=identifier,
+                        user_id=current.user_id,
+                        workflow="extractor",
+                        workflow_version=1,
+                        resource_kind="document",
+                        resource_id=current.resource_id,
+                        document_id=current.resource_id,
+                        stage="extraction",
+                        extractor_name=spec["name"],
+                        extraction_run_id=uuid5(current.id, spec["name"]),
+                        config={"extractor": spec},
+                        parent_processing_id=current.id,
+                    )
+                    session.add(child)
+                    await session.flush()
+                    self.event(session, child)
+                    self.schedule(session, child)
+                elif child.config != {"extractor": spec} or child.user_id != current.user_id:
+                    raise ValueError("extractor_configuration_changed")
+            current.status = "waiting"
+            current.stage_attempts = 0
+            current.version += 1
+            current.updated_at = now
+            current.lease_owner = None
+            current.lease_expires_at = None
+            self.event(session, current)
 
     async def child_and_wait(self, record: ProcessingRecord, document_id: UUID):
         async with self.leased(record) as (session, current, now):
@@ -425,23 +487,42 @@ class ProcessingRepository:
                     ProcessingRecord.user_id == user_id,
                     ProcessingRecord.resource_id == resource_id,
                     ProcessingRecord.resource_kind == kind,
+                    ProcessingRecord.workflow == kind,
                 )
                 .order_by(ProcessingRecord.created_at.desc(), ProcessingRecord.id.desc())
                 .limit(1)
             )
 
-    @asynccontextmanager
-    async def lock_resource(self, user_id: UUID, resource_id: UUID):
-        async with self.sessions.begin() as session:
-            yield bool(
+    @staticmethod
+    async def _acquire_resource_lock(session, user_id, resource_id, branch_id=None):
+        key = func.hashtextextended(f"{user_id}:{resource_id}", 0)
+        lock = (
+            func.pg_try_advisory_xact_lock_shared if branch_id else func.pg_try_advisory_xact_lock
+        )
+        if not await session.scalar(select(lock(key))):
+            return False
+        if branch_id is not None:
+            return bool(
                 await session.scalar(
                     select(
                         func.pg_try_advisory_xact_lock(
-                            func.hashtextextended(f"{user_id}:{resource_id}", 0),
+                            func.hashtextextended(f"{user_id}:extractor-job:{branch_id}", 0),
                         )
                     )
                 )
             )
+        return True
+
+    @asynccontextmanager
+    async def lock_resource(self, user_id: UUID, resource_id: UUID):
+        async with self.sessions.begin() as session:
+            yield await self._acquire_resource_lock(session, user_id, resource_id)
+
+    @asynccontextmanager
+    async def lock_extractor(self, user_id: UUID, resource_id: UUID, processing_id: UUID):
+        """Concurrent branches share the document guard, and exclude duplicate executors."""
+        async with self.sessions.begin() as session:
+            yield await self._acquire_resource_lock(session, user_id, resource_id, processing_id)
 
     async def assert_inactive(self, user_id: UUID, resource_id: UUID, exclude=()):
         async with self.sessions() as session:

@@ -24,6 +24,7 @@ def workflow_config():
     settings = get_settings()
     return {
         "transcription_model": settings.openai_transcription_model,
+        "document_workflow_version": 4,
         "extractors": [
             {
                 "name": "emotions",

@@ -195,7 +195,11 @@ class ArcadeDBGraphStore(GraphBackend):
                     rows = self._rows(await transaction.query(query, params, language="cypher"))
                     for row in rows:
                         extraction = row.get("layer")
-                        if not extraction or (layer is not None and extraction != layer):
+                        if (
+                            row.get("visualizable") is False
+                            or not extraction
+                            or (layer is not None and extraction != layer)
+                        ):
                             continue
                         if (
                             not row.get("node_id")

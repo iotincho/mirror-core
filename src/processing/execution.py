@@ -110,6 +110,21 @@ class ExecuteProcessing:
                 await self.repository.finish(record)
             except WorkflowFailure as error:
                 retry = error.retry_delay is not None and record.stage_attempts < self.max_attempts
+                logger.log(
+                    logging.WARNING if retry else logging.ERROR,
+                    "Workflow failure: processing_id=%s document_id=%s resource_id=%s "
+                    "workflow=%s extractor=%s stage=%s attempt=%s error_code=%s retry=%s",
+                    processing_id,
+                    record.document_id,
+                    record.resource_id,
+                    record.workflow,
+                    record.extractor_name,
+                    record.stage,
+                    record.stage_attempts,
+                    error.code,
+                    retry,
+                    exc_info=True,
+                )
                 await self.repository.finish(
                     record,
                     status="retrying" if retry else "failed",
@@ -124,9 +139,26 @@ class ExecuteProcessing:
                 return
             except SQLAlchemyError:
                 # Unexpected errors keep the lease unacknowledged until recovery.
+                logger.exception(
+                    "Workflow database error: processing_id=%s document_id=%s "
+                    "workflow=%s extractor=%s stage=%s",
+                    processing_id,
+                    record.document_id,
+                    record.workflow,
+                    record.extractor_name,
+                    record.stage,
+                )
                 raise
             except Exception:
-                logger.error("Workflow internal error: %s", processing_id)
+                logger.exception(
+                    "Workflow internal error: processing_id=%s document_id=%s "
+                    "workflow=%s extractor=%s stage=%s",
+                    processing_id,
+                    record.document_id,
+                    record.workflow,
+                    record.extractor_name,
+                    record.stage,
+                )
                 await self.repository.finish(
                     record,
                     status="failed",

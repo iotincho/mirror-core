@@ -51,6 +51,7 @@ ORDER BY link_id LIMIT $link_limit
 # run is an administrative container; its children are projected onto the document.
 GRAPH_LAYERS = """
 MATCH (document:Document {id:$document_id})-[edge]-(node)
+WHERE coalesce(edge.visualizable, node.visualizable, true) = true
 RETURN DISTINCT coalesce(edge.layer, node.layer) AS layer
 """
 
@@ -60,7 +61,8 @@ RETURN node.id AS node_id, labels(node) AS node_types,
        node.name AS node_name, node.text AS node_text,
        node.document_id AS node_document_id, node.quote AS quote,
        node.profile_id AS profile_id, edge.id AS edge_id, type(edge) AS edge_type,
-       coalesce(edge.layer, node.layer) AS layer
+       coalesce(edge.layer, node.layer) AS layer,
+       coalesce(edge.visualizable, node.visualizable, true) AS visualizable
 """
 
 GRAPH_OUTGOING = (

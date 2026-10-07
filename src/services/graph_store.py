@@ -18,7 +18,7 @@ class GraphStore(Protocol):
 
 class GraphBackend(GraphStore, Protocol):
     async def get_extraction_graph(
-        self, document_id: str, *, layer: str | None = None
+        self, document_id: str, *, layer: str | None = None, layers: list[str] | None = None
     ) -> ExtractionGraph: ...
 
     async def get_link_neighborhood(

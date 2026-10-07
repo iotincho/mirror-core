@@ -244,3 +244,39 @@ async def test_graph_api_requires_authentication():
 async def test_incomplete_inventory_is_not_mistaken_for_empty_graph(response):
     with pytest.raises(GraphPersistenceError):
         await store(Client([response])).get_link_neighborhood("doc-a")
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("selected", [None, ["emotions", "events"], []])
+async def test_extraction_graph_layer_catalog_and_multiple_selection(monkeypatch, selected):
+    from src.extractors.presentation import LAYER_PRESENTATIONS
+    from src.graph.contracts import GraphLayer
+
+    monkeypatch.setitem(
+        LAYER_PRESENTATIONS,
+        "document_embedding",
+        GraphLayer(id="document_embedding", label="Búsqueda semántica", visualizable=False),
+    )
+    names = ["emotions", "events", "decisions", "document_embedding"]
+    rows = [
+        dict(
+            layer=name,
+            node_id=name,
+            edge_id=name,
+            node_types=["Item"],
+            node_label=name,
+            edge_type="HAS_ITEM",
+        )
+        for name in names
+    ]
+    client = Client([[{"layer": name} for name in names], rows, [], []])
+    result = await store(client).get_extraction_graph("doc", layers=selected)
+    assert result.layers == sorted(names)
+    assert {option.id: option.label for option in result.layer_options}["emotions"] == "Emociones"
+    assert {option.id: option.visualizable for option in result.layer_options}[
+        "document_embedding"
+    ] is False
+    expected = set(names[:-1] if selected is None else selected)
+    assert {edge.layer for edge in result.edges} == expected
+    assert len(result.nodes) == len(expected) + 1
+    assert result.root_id in {node.id for node in result.nodes}

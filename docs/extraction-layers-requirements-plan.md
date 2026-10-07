@@ -310,6 +310,20 @@ y la visualización de entidades y evidencia en Constelaciones. `/graph` proyect
 los contenedores administrativos sin modificar la persistencia. El visor ya no
 usa filtros por relaciones exploratorias ni un límite de 40 nodos.
 
+Implementada también la selección múltiple de capas. La disponibilidad se obtiene
+del grafo de cada documento; `layer_options` agrega `id`, `label` y `visualizable`
+a la respuesta y conserva `layers` para clientes anteriores. El catálogo de
+presentación está en `src/extractors/presentation.py`: las nuevas capas pueden
+declarar su etiqueta y desactivar su visualización sin construir proveedores.
+Las capas no declaradas usan una etiqueta derivada de su identificador.
+
+La API admite `?layers=emotions&layers=events`; conserva `?layer=emotions`
+y combina ambos parámetros si se reciben juntos. Sin parámetros devuelve todas
+las capas visuales. Los filtros no alteran el catálogo disponible del documento.
+La PWA permite activar/desactivar cada capa, seleccionar todas y conservar la
+selección al actualizar; ninguna capa seleccionada muestra solo la nota original.
+Las capas no visuales conservan sus metadatos, pero no aportan nodos ni filtros.
+
 1. Agregar filtros de capas a lecturas del grafo y búsquedas aplicables.
 2. Adaptar API, eventos, snapshots y PWA a resultados/estados por extractor.
 3. Resolver las dependencias de reflexión y Constelación; retirar selección

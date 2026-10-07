@@ -5,6 +5,7 @@ from contextlib import AbstractAsyncContextManager
 from typing import Any, Protocol
 
 from src.domain.documents import Document
+from src.extractors.presentation import layer_presentation
 from src.graph.arcadedb import queries
 from src.graph.arcadedb.client import AsyncArcadeDBHTTPClient
 from src.graph.contracts import (
@@ -170,15 +171,18 @@ class ArcadeDBGraphStore(GraphBackend):
             raise GraphPersistenceError("ArcadeDB link neighborhood retrieval failed") from error
 
     async def get_extraction_graph(
-        self, document_id: str, *, layer: str | None = None
+        self, document_id: str, *, layer: str | None = None, layers: list[str] | None = None
     ) -> ExtractionGraph:
+        selected_layers = None if layers is None and layer is None else set(layers or [])
+        if layer is not None:
+            selected_layers.add(layer)
         root = f"Document:{document_id}"
         nodes = {root: GraphNode(id=root, type="Document", label="Nota", document_id=document_id)}
         edges = {}
         params = {"document_id": document_id}
         try:
             async with self._client.transaction() as transaction:
-                layers = sorted(
+                available_layers = sorted(
                     {
                         row["layer"]
                         for row in self._rows(
@@ -187,6 +191,8 @@ class ArcadeDBGraphStore(GraphBackend):
                         if row.get("layer")
                     }
                 )
+                options = [layer_presentation(name) for name in available_layers]
+                visual_layers = {option.id for option in options if option.visualizable}
                 for query, incoming in (
                     (queries.GRAPH_OUTGOING, False),
                     (queries.GRAPH_INCOMING, True),
@@ -195,7 +201,9 @@ class ArcadeDBGraphStore(GraphBackend):
                     rows = self._rows(await transaction.query(query, params, language="cypher"))
                     for row in rows:
                         extraction = row.get("layer")
-                        if not extraction or (layer is not None and extraction != layer):
+                        if extraction not in visual_layers or (
+                            selected_layers is not None and extraction not in selected_layers
+                        ):
                             continue
                         if (
                             not row.get("node_id")
@@ -234,7 +242,8 @@ class ArcadeDBGraphStore(GraphBackend):
             return ExtractionGraph(
                 document_id=document_id,
                 root_id=root,
-                layers=layers,
+                layers=available_layers,
+                layer_options=options,
                 nodes=sorted(nodes.values(), key=lambda node: node.id),
                 edges=sorted(edges.values(), key=lambda edge: edge.id),
             )

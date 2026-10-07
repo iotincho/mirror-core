@@ -2,7 +2,7 @@
 
 from enum import Enum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class EvidenceReference(BaseModel):
@@ -59,9 +59,16 @@ class GraphEdge(BaseModel):
     layer: str
 
 
+class GraphLayer(BaseModel):
+    id: str
+    label: str
+    visualizable: bool = True
+
+
 class ExtractionGraph(BaseModel):
     document_id: str
     root_id: str
     layers: list[str]
+    layer_options: list[GraphLayer] = Field(default_factory=list)
     nodes: list[GraphNode]
     edges: list[GraphEdge]

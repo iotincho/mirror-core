@@ -10,7 +10,7 @@ import pytest
 from src.auth.session import require_authenticated
 from src.dependencies import get_document_store, get_graph_store
 from src.domain.documents import NewDocument, build_document
-from src.graph.contracts import ExtractionGraph, GraphNode
+from src.graph.contracts import ExtractionGraph, GraphLayer, GraphNode
 from src.main import app
 from src.services.document_store import DocumentNotFoundError
 from src.services.graph_store import GraphPersistenceError
@@ -31,7 +31,8 @@ async def api():
             return_value=ExtractionGraph(
                 document_id=str(document.id),
                 root_id=root,
-                layers=[],
+                layers=["emotions"],
+                layer_options=[GraphLayer(id="emotions", label="Emociones")],
                 nodes=[
                     GraphNode(id=root, type="Document", label="Nota", document_id=str(document.id))
                 ],
@@ -62,6 +63,9 @@ async def test_graph_route_returns_source_label_and_forwards_layer(api):
     assert response.status_code == 200
     assert response.json()["nodes"][0]["label"] == document.content
     assert response.json()["root_id"] == f"Document:{document.id}"
+    assert response.json()["layer_options"] == [
+        {"id": "emotions", "label": "Emociones", "visualizable": True}
+    ]
     documents.get.assert_awaited_once_with(document.id)
     graph.get_extraction_graph.assert_awaited_once_with(str(document.id), layer="emotions")
 
@@ -85,4 +89,30 @@ async def test_graph_failure_is_not_a_successful_empty_graph(api):
 async def test_invalid_document_id_is_rejected(api):
     client, _, _, graph = api
     assert (await client.get(f"/documents/{uuid4()}bad/graph")).status_code == 422
+    graph.get_extraction_graph.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_graph_route_forwards_multiple_layers_and_preserves_legacy_filter(api):
+    client, document, _, graph = api
+    response = await client.get(
+        f"/documents/{document.id}/graph",
+        params=[
+            ("layer", "decisions"),
+            ("layers", "emotions"),
+            ("layers", "events"),
+            ("layers", "events"),
+        ],
+    )
+    assert response.status_code == 200
+    graph.get_extraction_graph.assert_awaited_once_with(
+        str(document.id), layer="decisions", layers=["emotions", "events"]
+    )
+
+
+@pytest.mark.anyio
+async def test_graph_route_rejects_empty_layer_selection_names(api):
+    client, document, _, graph = api
+    response = await client.get(f"/documents/{document.id}/graph", params={"layers": ""})
+    assert response.status_code == 422
     graph.get_extraction_graph.assert_not_awaited()

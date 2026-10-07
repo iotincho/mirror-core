@@ -4,6 +4,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import StringConstraints
 
 from src.dependencies import get_document_store, get_graph_store
 from src.graph.contracts import ExtractionGraph, LinkNeighborhood, LinkType
@@ -43,13 +44,22 @@ async def extraction_graph(
     documents: Annotated[DocumentStore, Depends(get_document_store)],
     graph: Annotated[GraphBackend, Depends(get_graph_store)],
     layer: str | None = Query(default=None, min_length=1, max_length=80),
+    layers: Annotated[
+        list[Annotated[str, StringConstraints(min_length=1, max_length=80)]] | None,
+        Query(max_length=50),
+    ] = None,
 ):
     try:
         document = await documents.get(document_id)
     except DocumentNotFoundError as error:
         raise HTTPException(404, "Document not found") from error
     try:
-        result = await graph.get_extraction_graph(str(document_id), layer=layer)
+        if layers is None:
+            result = await graph.get_extraction_graph(str(document_id), layer=layer)
+        else:
+            result = await graph.get_extraction_graph(
+                str(document_id), layer=layer, layers=list(dict.fromkeys(layers))
+            )
     except GraphPersistenceError as error:
         raise HTTPException(502, "Graph navigation is unavailable") from error
     label = document.title or document.metadata.get("title") or document.metadata.get("filename")

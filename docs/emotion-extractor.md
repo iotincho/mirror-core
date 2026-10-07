@@ -8,10 +8,11 @@ para dry run y persistencia diferida.
 ## Procesamiento al subir una nota
 
 El request de subida guarda el original y agenda el trabajo; no llama al modelo.
-El workflow de documento v3 ejecuta:
+Las notas nuevas usan el coordinador de documento v4 y un hijo por extractor:
 
 ```text
-document_persistence → layer_extraction → layer_persistence → done
+documento: document_persistence → extractor_processing → done
+hijo emociones: extraction → persistence → done
 ```
 
 La configuración aceptada conserva extractor, snapshot del profile, proveedor y
@@ -28,11 +29,13 @@ configuración aceptada al documento hijo.
 
 Trabajos anteriores sin capas mantienen el workflow v2 y no invocan modelos.
 La limpieza masiva sigue convirtiendo trabajos exploratorios v1 a v2. Un nuevo
-reprocesamiento explícito usa v3 con la configuración actual; no se ejecuta un
+reprocesamiento explícito usa v4 con la configuración actual; no se ejecuta un
 backfill automático de emociones para notas existentes.
 
-Esta primera integración mantiene el lock por documento y ejecuta las capas en
-etapas separadas. Los jobs independientes por capa y su paralelismo siguen pendientes.
+Cada capa tiene un trabajo independiente con sus etapas, artefactos y retry.
+El coordinador espera a todas sin cancelar las exitosas cuando otra falla. Los
+locks por rama permiten paralelismo y un guard compartido impide borrar el
+documento mientras ejecutan. Ver [trabajos por extractor](extractor-jobs.md).
 El visor de Constelaciones muestra la nota conectada con las emociones y sus
 citas. Permite filtrar por tipo de extracción; el nodo administrativo de ejecución
 no aparece en la vista.
@@ -147,8 +150,8 @@ El comando conserva el lock actual por documento y rechaza procesamientos activo
 coordina con borrado y workers sin quitar protecciones. El núcleo permite ejecutar
 extractores independientes concurrentemente, probado con otra implementación de
 algoritmo y payload diferentes. El comando de prueba serializa por documento:
-los locks y estados independientes para ramas durables paralelas siguen pendientes
-para la etapa 4. El proceso llamador debe gestionar ese contexto de concurrencia.
+el pipeline durable ahora dispone de locks y estados por rama para ejecutar capas
+en paralelo. El proceso llamador de la CLI debe gestionar su contexto de concurrencia.
 
 ## Validación
 

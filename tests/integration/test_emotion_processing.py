@@ -51,6 +51,7 @@ async def pipeline(store, layer_database, monkeypatch):
         audio_note_store=FileAudioNoteStore(root / "audio-notes"),
     )
     config = workflow_config()
+    config.pop("document_workflow_version", None)
     config["extractors"] = [
         {
             "name": "emotions",

@@ -84,7 +84,7 @@ class FakeGraph:
 async def ingestion(store, tmp_path, monkeypatch):  # noqa: F811
     repo, owner = store
     providers, graph = FakeProviders(), FakeGraph()
-    config = {**workflow_config(), "extractors": []}
+    config = {**workflow_config(), "extractors": [], "document_workflow_version": 2}
     config.update(
         llm_provider="fake",
         llm_model="fake-model",

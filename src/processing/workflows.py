@@ -14,7 +14,9 @@ from src.processing.execution import WorkflowFailure
 from src.services.openai_transcription_provider import OpenAITranscriptionProvider
 from src.use_cases.process_audio_note import ProcessAudioNote
 from src.use_cases.process_document import ProcessDocument
+from src.use_cases.process_document_extractors import ProcessDocumentExtractors
 from src.use_cases.process_document_layers import ProcessDocumentLayers
+from src.use_cases.process_extractor import ProcessExtractor
 from src.user_management.database import get_session_maker
 from src.workspaces.context import UserWorkspaceContext
 from src.workspaces.dependencies import WorkspaceBinding, build_workspace_runtime
@@ -80,15 +82,8 @@ def emotion_provider_configured(provider_name, model):
     return provider
 
 
-_extractor_registry = ExtractorRegistry()
-_extractor_registry.register("emotions", EmotionExtractor)
-
-
-def workflow_extractor(runtime, specification, *, extracting):
-    if specification["name"] != "emotions":
-        raise WorkflowFailure("extractor_configuration")
-    return _extractor_registry.create(
-        specification["name"],
+def build_emotion_extractor(runtime, specification, *, extracting):
+    return EmotionExtractor(
         documents=runtime.document_store,
         artifacts=LayerArtifacts(runtime.context.filesystem_root / "layers"),
         graph=runtime.graph_store.database_client,
@@ -97,6 +92,22 @@ def workflow_extractor(runtime, specification, *, extracting):
         if extracting
         else None,
     )
+
+
+_extractor_registry = ExtractorRegistry()
+_extractor_registry.register("emotions", build_emotion_extractor)
+
+
+def workflow_extractor(runtime, specification, *, extracting):
+    try:
+        return _extractor_registry.create(
+            specification["name"],
+            runtime=runtime,
+            specification=specification,
+            extracting=extracting,
+        )
+    except ValueError as error:
+        raise WorkflowFailure("extractor_configuration") from error
 
 
 async def close_workflow_providers():
@@ -121,6 +132,10 @@ def register_workflows(registry):
     registry.register("document", 2, ProcessDocument(worker_runtime).definition)
     registry.register(
         "document", 3, ProcessDocumentLayers(worker_runtime, workflow_extractor).definition
+    )
+    registry.register("document", 4, ProcessDocumentExtractors(worker_runtime).definition)
+    registry.register(
+        "extractor", 1, ProcessExtractor(worker_runtime, workflow_extractor).definition
     )
     # Audio reuses its transcript and passes the accepted layer configuration to its child.
     registry.register("audio", 1, ProcessAudioNote(worker_runtime, workflow_providers).definition)

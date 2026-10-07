@@ -6,7 +6,8 @@ de emociones de prueba implementados; ver [alcance y uso](emotion-extractor.md).
 usuario queda para el despliegue, según la decisión posterior del usuario.
 El detalle del código y procedimiento está en [Retiro de la extracción](extraction-retirement.md).
 La integración de emociones al pipeline está implementada mediante etapas
-recuperables del workflow de documento v3. El paralelismo entre ramas sigue pendiente. Las consultas por capas disponen
+recuperables y trabajos independientes por extractor en el workflow de documento v4,
+con paralelismo, fallos parciales y retry de ramas. Las consultas por capas disponen
 de una primera vista de conexiones inmediatas en Constelaciones.
 Quedan la selección de varias capas simultáneas y otras consultas. Se completó la eliminación del runtime exploratorio, conservando
 la API de lectura y el visor del grafo.
@@ -274,12 +275,25 @@ contrato genérico antiguo, sobre la base limpia de la etapa 1.
 
 ### Etapa 4 — Pipeline durable por capas
 
-Implementada la primera integración para emociones: workflow v3 con persistencia
-original, extracción y persistencia de capa separadas; configuración aceptada,
-artefactos con identidad estable, retries y handoff desde audio. Se mantiene el
-workflow v2 de los trabajos anteriores. Pendientes jobs por capa, paralelismo,
-estados agregados y API de selección de extractores.
+Implementados el coordinador de documento v4 y los hijos `extractor` v1. Cada hijo
+conserva configuración, ejecución, artefactos, intentos y etapa propios. El fork,
+sus eventos y outbox se guardan en una sola transacción. Capas diferentes avanzan
+en paralelo; duplicados de una misma rama se excluyen. El coordinador espera a
+todas, expone fallos parciales y el retry conserva las ramas completadas.
 
+El lock compartido por documento protege el borrado mientras los locks por rama
+permiten concurrencia. Audio transmite la configuración a su documento coordinador;
+su retry puede recuperar una rama fallida sin retranscribir. Los workflows v2/v3
+anteriores conservan su comportamiento. Los snapshots muestran el coordinador,
+no el último hijo creado.
+
+`GET /processing/{id}/extractors` permite consultar estados por capa y
+`POST /processing/{hijo}/retry` reintenta una rama. Los eventos incluyen
+`extractor_name` y `parent_processing_id`. Sigue pendiente la API para elegir
+extractores y solicitar dry run/persistencia diferida, y la pantalla con controles
+por capa. La selección automática actual sigue siendo emociones.
+
+Ver [trabajos independientes](extractor-jobs.md).
 1. Adaptar submissions y workflow de documento para cero o varios extractores.
 2. Integrar ramas concurrentes, artefactos y checkpoints por extractor.
 3. Adaptar coordinación/locks para permitir capas paralelas y proteger borrados.

@@ -7,7 +7,10 @@ from uuid import UUID
 from src.config import get_settings
 from src.extractors.artifacts import LayerArtifacts
 from src.extractors.contracts import ExtractorProfile
+from src.extractors.document_embedding_store import ArcadeDBDocumentEmbeddingStore
+from src.extractors.document_embeddings import DocumentEmbeddingExtractor, EmbeddingConfiguration
 from src.extractors.emotions import EmotionExtractor
+from src.extractors.openai_document_embeddings import OpenAIDocumentEmbeddingProvider
 from src.extractors.openai_emotions import OpenAIEmotionProvider
 from src.extractors.registry import ExtractorRegistry
 from src.processing.execution import WorkflowFailure
@@ -94,8 +97,32 @@ def build_emotion_extractor(runtime, specification, *, extracting):
     )
 
 
+@lru_cache(maxsize=32)
+def embedding_provider_configured(segmentation_model):
+    settings = get_settings()
+    provider = OpenAIDocumentEmbeddingProvider(settings.openai_api_key, segmentation_model)
+    _provider_instances.append(provider)
+    return provider
+
+
+def build_document_embedding_extractor(runtime, specification, *, extracting):
+    configuration = EmbeddingConfiguration.model_validate(specification["configuration"])
+    return DocumentEmbeddingExtractor(
+        documents=runtime.document_store,
+        artifacts=LayerArtifacts(runtime.context.filesystem_root / "layers"),
+        store=ArcadeDBDocumentEmbeddingStore(runtime.graph_store.database_client),
+        configuration=configuration,
+        profile=ExtractorProfile.model_validate(specification["profile"]),
+        force=specification.get("force", False),
+        provider=embedding_provider_configured(configuration.segmentation_model)
+        if extracting
+        else None,
+    )
+
+
 _extractor_registry = ExtractorRegistry()
 _extractor_registry.register("emotions", build_emotion_extractor)
+_extractor_registry.register("document_embeddings", build_document_embedding_extractor)
 
 
 def workflow_extractor(runtime, specification, *, extracting):
@@ -118,6 +145,7 @@ async def close_workflow_providers():
         _provider_instances.clear()
         workflow_providers_configured.cache_clear()
         emotion_provider_configured.cache_clear()
+        embedding_provider_configured.cache_clear()
 
 
 async def retired_extraction(context):

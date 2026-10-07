@@ -1,6 +1,7 @@
 """Idempotent retry/re-extraction requests, separate from worker execution."""
 
 from contextlib import asynccontextmanager
+from copy import deepcopy
 from datetime import timedelta
 from uuid import UUID, uuid4
 
@@ -94,7 +95,10 @@ class RequestProcessing:
 
     async def reprocess_document(self, document_id: UUID, key: UUID):
         await self.runtime.document_store.get(document_id)
-        config = workflow_config()
+        config = deepcopy(workflow_config())
+        for specification in config.get("extractors", []):
+            if "force" in specification:
+                specification["force"] = True
 
         async def action(session, now):
             await self.repository.assert_inactive(self.runtime.context.user_id, document_id)

@@ -65,6 +65,21 @@ class Settings(BaseSettings):
     llm_provider: str = Field(default="openai", validation_alias="LLM_PROVIDER")
     openai_api_key: str | None = Field(default=None, validation_alias="OPENAI_API_KEY", repr=False)
     openai_model: str | None = Field(default=None, validation_alias="OPENAI_MODEL")
+    openai_embedding_model: str = Field(
+        default="text-embedding-3-small", validation_alias="OPENAI_EMBEDDING_MODEL"
+    )
+    openai_embedding_dimensions: int = Field(
+        default=1536, gt=0, le=1536, validation_alias="OPENAI_EMBEDDING_DIMENSIONS"
+    )
+    embedding_segmentation_threshold: int = Field(
+        default=2000, gt=0, le=8192, validation_alias="EMBEDDING_SEGMENTATION_THRESHOLD"
+    )
+    embedding_section_max_tokens: int = Field(
+        default=2000, ge=32, le=8192, validation_alias="EMBEDDING_SECTION_MAX_TOKENS"
+    )
+    embedding_section_target_tokens: int = Field(
+        default=1000, ge=32, le=8192, validation_alias="EMBEDDING_SECTION_TARGET_TOKENS"
+    )
     openai_transcription_model: str = Field(
         default="gpt-transcribe", validation_alias="OPENAI_TRANSCRIPTION_MODEL"
     )

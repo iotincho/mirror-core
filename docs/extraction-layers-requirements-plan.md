@@ -347,3 +347,13 @@ validación desplegada; ninguna sustituye a las otras.
 Gestor de versiones, elección automática de ejecución vigente, fusión de
 entidades entre capas, relaciones inferidas entre capas, análisis conjunto
 automático, nuevos proveedores obligatorios y rediseño del runtime durable.
+
+## Embeddings de documentos
+
+Implementada la capa independiente `document_embeddings`, automática para nuevas
+notas y transcripciones: segmentación temática de notas extensas, conteo local de
+tokens, persistencia diferida, omisión de resultados compatibles y reemplazo
+transaccional con `force`. El puerto de búsqueda usa índices vectoriales nativos
+y devuelve documentos únicos con fragmentos. Ver [contrato y operación](document-embeddings.md).
+La búsqueda HTTP, el motor reflexivo, el reprocesamiento masivo y la evaluación
+con proveedor real quedan pendientes.

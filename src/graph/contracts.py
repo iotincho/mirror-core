@@ -39,3 +39,29 @@ class LinkNeighborhood(BaseModel):
     next_offset: int | None
     links: list[SavedLink]
     links_truncated: bool = False
+
+
+class GraphNode(BaseModel):
+    id: str
+    type: str
+    label: str
+    layer: str | None = None
+    document_id: str | None = None
+    quote: str | None = None
+    profile_id: str | None = None
+
+
+class GraphEdge(BaseModel):
+    id: str
+    source: str
+    target: str
+    type: str
+    layer: str
+
+
+class ExtractionGraph(BaseModel):
+    document_id: str
+    root_id: str
+    layers: list[str]
+    nodes: list[GraphNode]
+    edges: list[GraphEdge]

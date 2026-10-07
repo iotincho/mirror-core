@@ -46,3 +46,43 @@ RETURN DISTINCT link.link_id AS link_id, source.id AS source_claim_id,
        link.profile AS profile, link.evidence_json AS evidence_json
 ORDER BY link_id LIMIT $link_limit
 """
+
+# Layer presentation is independent of each extractor's schema. An artifact-backed
+# run is an administrative container; its children are projected onto the document.
+GRAPH_LAYERS = """
+MATCH (document:Document {id:$document_id})-[edge]-(node)
+RETURN DISTINCT coalesce(edge.layer, node.layer) AS layer
+"""
+
+GRAPH_FIELDS = """
+RETURN node.id AS node_id, labels(node) AS node_types,
+       node.label AS node_label, node.title AS node_title,
+       node.name AS node_name, node.text AS node_text,
+       node.document_id AS node_document_id, node.quote AS quote,
+       node.profile_id AS profile_id, edge.id AS edge_id, type(edge) AS edge_type,
+       coalesce(edge.layer, node.layer) AS layer
+"""
+
+GRAPH_OUTGOING = (
+    """
+MATCH (document:Document {id:$document_id})-[edge]->(node)
+WHERE node.artifact_hash IS NULL
+"""
+    + GRAPH_FIELDS
+)
+
+GRAPH_INCOMING = (
+    """
+MATCH (document:Document {id:$document_id})<-[edge]-(node)
+WHERE node.artifact_hash IS NULL
+"""
+    + GRAPH_FIELDS
+)
+
+GRAPH_RUN_CHILDREN = (
+    """
+MATCH (document:Document {id:$document_id})-[]->(run)-[edge]->(node)
+WHERE run.artifact_hash IS NOT NULL AND node.artifact_hash IS NULL
+"""
+    + GRAPH_FIELDS
+)

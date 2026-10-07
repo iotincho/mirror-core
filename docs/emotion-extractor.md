@@ -33,8 +33,9 @@ backfill automático de emociones para notas existentes.
 
 Esta primera integración mantiene el lock por documento y ejecuta las capas en
 etapas separadas. Los jobs independientes por capa y su paralelismo siguen pendientes.
-El visor conserva notas y conexiones entre notas; no proyecta todavía los nodos
-de emociones como una capa visual.
+El visor de Constelaciones muestra la nota conectada con las emociones y sus
+citas. Permite filtrar por tipo de extracción; el nodo administrativo de ejecución
+no aparece en la vista.
 
 ## Propósito y resultado
 

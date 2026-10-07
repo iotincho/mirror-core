@@ -3,7 +3,7 @@
 from typing import Protocol
 
 from src.domain.documents import Document
-from src.graph.contracts import LinkNeighborhood, LinkType
+from src.graph.contracts import ExtractionGraph, LinkNeighborhood, LinkType
 
 
 class GraphPersistenceError(RuntimeError):
@@ -17,6 +17,10 @@ class GraphStore(Protocol):
 
 
 class GraphBackend(GraphStore, Protocol):
+    async def get_extraction_graph(
+        self, document_id: str, *, layer: str | None = None
+    ) -> ExtractionGraph: ...
+
     async def get_link_neighborhood(
         self,
         document_id: str,

@@ -6,8 +6,9 @@ de emociones de prueba implementados; ver [alcance y uso](emotion-extractor.md).
 usuario queda para el despliegue, según la decisión posterior del usuario.
 El detalle del código y procedimiento está en [Retiro de la extracción](extraction-retirement.md).
 La integración de emociones al pipeline está implementada mediante etapas
-recuperables del workflow de documento v3. El paralelismo entre ramas y las consultas
-por capas siguen pendientes. Se completó la eliminación del runtime exploratorio, conservando
+recuperables del workflow de documento v3. El paralelismo entre ramas sigue pendiente. Las consultas por capas disponen
+de una primera vista de conexiones inmediatas en Constelaciones.
+Quedan la selección de varias capas simultáneas y otras consultas. Se completó la eliminación del runtime exploratorio, conservando
 la API de lectura y el visor del grafo.
 
 ## Objetivo
@@ -289,6 +290,11 @@ Salida: procesamiento recuperable con paralelismo acotado y sin repetir etapas
 ya confirmadas. Reutilizar broker, outbox y runner actuales.
 
 ### Etapa 5 — Consultas y clientes
+
+Implementada la lectura de conexiones inmediatas de una nota con filtro por capa,
+y la visualización de entidades y evidencia en Constelaciones. `/graph` proyecta
+los contenedores administrativos sin modificar la persistencia. El visor ya no
+usa filtros por relaciones exploratorias ni un límite de 40 nodos.
 
 1. Agregar filtros de capas a lecturas del grafo y búsquedas aplicables.
 2. Adaptar API, eventos, snapshots y PWA a resultados/estados por extractor.

@@ -26,8 +26,28 @@ simétricas se leen una vez; las dirigidas mantienen su orientación. La hidrata
 se limita a 500 relaciones por página y señala resultados incompletos mediante
 `links_truncated`.
 
-El visor sigue mostrando notas y relaciones entre notas. La selección de capas
-para visualizar entidades de los nuevos extractores queda para una etapa posterior.
+## Grafo de extracciones
+
+El visor usa `GET /documents/{document_id}/graph`, con `layer` opcional. Devuelve
+`ExtractionGraph`: nodo raíz, nodos conectados, aristas con dirección y capas
+disponibles para esa nota. Todos los accesos se hacen en la base del workspace
+autenticado y se comprueba primero la existencia del original.
+
+La vista muestra conexiones inmediatas entrantes y salientes etiquetadas con capa.
+Los contenedores de ejecución identificados por `artifact_hash` se ocultan; sus
+entidades hijas se proyectan directamente sobre la nota. Así `Document →
+EmotionExtraction → Emotion` se presenta como `Document → Emotion`, manteniendo
+la identidad de las entidades, aristas, profile y citas guardadas. No se crean ni
+modifican relaciones para visualizar. Los IDs se califican por tipo para evitar
+colisiones entre modelos de extractores distintos.
+
+Los filtros salen de las capas conectadas, incluyendo una extracción vacía válida.
+`Todas` muestra el conjunto completo; un filtro conserva la nota y las conexiones
+de esa capa. No se elige una ejecución vigente ni se agrega un gestor de versiones.
+La vista no tiene el límite anterior de 40 nodos ni expande otras notas de forma
+recursiva. Una respuesta truncada de la base falla explícitamente, evitando mostrar
+un resultado parcial como completo. La ruta `/links` se conserva por compatibilidad.
+
 
 ## Validación
 

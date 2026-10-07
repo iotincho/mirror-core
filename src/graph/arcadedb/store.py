@@ -7,7 +7,14 @@ from typing import Any, Protocol
 from src.domain.documents import Document
 from src.graph.arcadedb import queries
 from src.graph.arcadedb.client import AsyncArcadeDBHTTPClient
-from src.graph.contracts import LinkNeighborhood, LinkType, SavedLink
+from src.graph.contracts import (
+    ExtractionGraph,
+    GraphEdge,
+    GraphNode,
+    LinkNeighborhood,
+    LinkType,
+    SavedLink,
+)
 from src.services.graph_store import GraphBackend, GraphPersistenceError
 
 
@@ -161,6 +168,78 @@ class ArcadeDBGraphStore(GraphBackend):
             )
         except Exception as error:
             raise GraphPersistenceError("ArcadeDB link neighborhood retrieval failed") from error
+
+    async def get_extraction_graph(
+        self, document_id: str, *, layer: str | None = None
+    ) -> ExtractionGraph:
+        root = f"Document:{document_id}"
+        nodes = {root: GraphNode(id=root, type="Document", label="Nota", document_id=document_id)}
+        edges = {}
+        params = {"document_id": document_id}
+        try:
+            async with self._client.transaction() as transaction:
+                layers = sorted(
+                    {
+                        row["layer"]
+                        for row in self._rows(
+                            await transaction.query(queries.GRAPH_LAYERS, params, language="cypher")
+                        )
+                        if row.get("layer")
+                    }
+                )
+                for query, incoming in (
+                    (queries.GRAPH_OUTGOING, False),
+                    (queries.GRAPH_INCOMING, True),
+                    (queries.GRAPH_RUN_CHILDREN, False),
+                ):
+                    rows = self._rows(await transaction.query(query, params, language="cypher"))
+                    for row in rows:
+                        extraction = row.get("layer")
+                        if not extraction or (layer is not None and extraction != layer):
+                            continue
+                        if (
+                            not row.get("node_id")
+                            or not row.get("edge_id")
+                            or not row.get("node_types")
+                        ):
+                            raise GraphPersistenceError("Graph connection has no stable identity")
+                        node_type = row["node_types"][0]
+                        identifier = f"{node_type}:{row['node_id']}"
+                        label = next(
+                            (
+                                str(row[key])
+                                for key in ("node_label", "node_title", "node_name", "node_text")
+                                if row.get(key)
+                            ),
+                            node_type,
+                        )
+                        nodes[identifier] = GraphNode(
+                            id=identifier,
+                            type=node_type,
+                            label=label,
+                            layer=extraction,
+                            document_id=row.get("node_document_id")
+                            or (str(row["node_id"]) if node_type == "Document" else None),
+                            quote=row.get("quote"),
+                            profile_id=row.get("profile_id"),
+                        )
+                        edge_id = f"{row['edge_type']}:{row['edge_id']}"
+                        edges[edge_id] = GraphEdge(
+                            id=edge_id,
+                            source=identifier if incoming else root,
+                            target=root if incoming else identifier,
+                            type=row["edge_type"],
+                            layer=extraction,
+                        )
+            return ExtractionGraph(
+                document_id=document_id,
+                root_id=root,
+                layers=layers,
+                nodes=sorted(nodes.values(), key=lambda node: node.id),
+                edges=sorted(edges.values(), key=lambda edge: edge.id),
+            )
+        except Exception as error:
+            raise GraphPersistenceError("ArcadeDB extraction graph retrieval failed") from error
 
     async def close(self) -> None:
         await self._client.close()

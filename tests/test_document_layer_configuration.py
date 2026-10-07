@@ -13,11 +13,16 @@ def test_new_upload_pins_emotion_profile_provider_and_model(monkeypatch):
         openai_transcription_model="transcriber",
         llm_provider="openai",
         openai_model="accepted-model",
+        openai_embedding_model="text-embedding-3-small",
+        openai_embedding_dimensions=1536,
+        embedding_segmentation_threshold=2000,
+        embedding_section_max_tokens=2000,
+        embedding_section_target_tokens=1000,
     )
     monkeypatch.setattr("src.use_cases.submit_processing.get_settings", lambda: settings)
     config = workflow_config()
     settings.openai_model = "changed-after-acceptance"
-    assert config["extractors"] == [
+    assert config["extractors"][:1] == [
         {
             "name": "emotions",
             "provider": "openai",
@@ -25,6 +30,8 @@ def test_new_upload_pins_emotion_profile_provider_and_model(monkeypatch):
             "profile": EMOTIONS_PROFILE.model_dump(mode="json"),
         }
     ]
+    assert config["extractors"][1]["name"] == "document_embeddings"
+    assert config["extractors"][1]["configuration"]["segmentation_model"] == "accepted-model"
     assert document_workflow_version(config) == 4
     assert document_workflow_version({"transcription_model": "old"}) == 2
     assert document_workflow_version({"extractors": []}) == 2

@@ -2,7 +2,8 @@ FROM python:3.14-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    TIKTOKEN_CACHE_DIR=/opt/tiktoken-cache
 
 WORKDIR /app
 
@@ -13,7 +14,8 @@ COPY pyproject.toml README.md alembic.ini ./
 COPY src ./src
 COPY migrations ./migrations
 RUN pip install --upgrade pip \
-    && pip install .
+    && pip install . \
+    && python -c 'import tiktoken; tiktoken.get_encoding("cl100k_base")'
 #RUN mkdir -p /app/data/documents /app/data/extractions 
 
 #RUN chown -R el_espejo:el_espejo /app

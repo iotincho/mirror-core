@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 
+from src.processing.configuration import document_workflow_version
 from src.processing.models import ProcessingReceipt, ProcessingRecord
 from src.processing.submissions import SubmissionConflict, fingerprint
 from src.services.document_store import DocumentNotFoundError
@@ -99,7 +100,7 @@ class RequestProcessing:
                 resource_kind="document",
                 resource_id=document_id,
                 document_id=document_id,
-                workflow_version=2,
+                workflow_version=document_workflow_version(config),
                 stage="document_persistence",
                 config=config,
             )

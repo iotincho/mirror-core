@@ -17,16 +17,12 @@ from test_processing_postgres import anyio_backend, store  # noqa: F401, F811
 from src.api.routes import processing as routes
 from src.auth.session import require_authenticated
 from src.domain.documents import NewDocument
-from src.embeddings.contracts import EmbeddingSpec, EmbeddingVector
-from src.extraction.contracts import Claim, ClaimType, Evidence, ExtractionResult
 from src.main import app
 from src.processing.execution import ExecuteProcessing, WorkflowRegistry
 from src.processing.models import ProcessingReceipt, ProcessingRecord
 from src.processing.submissions import SubmissionConflict, SubmissionRepository
 from src.services.audio_note_store import FileAudioNoteStore
 from src.services.document_store import FileDocumentStore
-from src.services.extraction_store import FileExtractionStore
-from src.services.structured_extractor import ProviderExtraction
 from src.use_cases.delete_document import DeleteDocument
 from src.use_cases.process_audio_note import ProcessAudioNote
 from src.use_cases.process_document import ProcessDocument
@@ -50,43 +46,20 @@ pytestmark = [
 
 class FakeProviders:
     provider_name, model_name = "fake", "fake-model"
-    spec = EmbeddingSpec(provider="fake", model="fake-vector", dimensions=3)
 
     def __init__(self):
         self.extractions = self.transcriptions = self.embeddings = 0
-        self.invalid_evidence = False
         self.delay = 0
 
-    async def extract(self, document, profile):
-        self.extractions += 1
-        await asyncio.sleep(self.delay)
-        quote = "Inventado" if self.invalid_evidence else document.content
-        return ProviderExtraction(
-            result=ExtractionResult(
-                title="Nota de prueba",
-                concepts=[],
-                entities=[],
-                claims=[
-                    Claim(
-                        id="claim_1",
-                        text=document.content,
-                        type=ClaimType.DESIRE,
-                        evidence=[Evidence(quote=quote)],
-                    )
-                ],
-                relationships=[],
-            ),
-            provider=self.provider_name,
-            model=self.model_name,
-        )
+    async def extract(self, *args):
+        raise AssertionError("document workflow must not extract")
 
     async def transcribe(self, path):
         self.transcriptions += 1
         return "Quiero más autonomía."
 
-    async def embed(self, texts):
-        self.embeddings += 1
-        return [EmbeddingVector(vector=[0.1, 0.2, 0.3], spec=self.spec) for _ in texts]
+    async def embed(self, *args):
+        raise AssertionError("document workflow must not embed")
 
 
 class FakeGraph:
@@ -111,13 +84,10 @@ class FakeGraph:
 async def ingestion(store, tmp_path, monkeypatch):  # noqa: F811
     repo, owner = store
     providers, graph = FakeProviders(), FakeGraph()
-    config = workflow_config()
+    config = {**workflow_config(), "extractors": []}
     config.update(
         llm_provider="fake",
         llm_model="fake-model",
-        embedding_provider="fake",
-        embedding_model="fake-vector",
-        embedding_dimensions=3,
     )
     monkeypatch.setattr(
         "src.use_cases.submit_processing.workflow_config",
@@ -126,11 +96,11 @@ async def ingestion(store, tmp_path, monkeypatch):  # noqa: F811
             **({"profile": profile} if profile != "v4" else {}),
         },
     )
+    monkeypatch.setattr("src.use_cases.request_processing.workflow_config", lambda: dict(config))
     runtime = SimpleNamespace(
         context=SimpleNamespace(user_id=owner, filesystem_root=tmp_path),
         document_store=FileDocumentStore(tmp_path / "documents"),
         audio_note_store=FileAudioNoteStore(tmp_path / "audio-notes"),
-        extraction_store=FileExtractionStore(tmp_path / "extractions"),
         graph_store=graph,
     )
 
@@ -320,9 +290,7 @@ async def test_concurrent_upload_has_one_receipt_owner(ingestion, monkeypatch):
 async def test_delete_and_reextract_reject_active_job_then_allow_completed(ingestion):
     env = ingestion
     original, record = await submit(env)
-    delete = DeleteDocument(
-        env.runtime.document_store, env.runtime.extraction_store, env.graph, env.repo, env.owner
-    )
+    delete = DeleteDocument(env.runtime.document_store, env.graph, env.repo, env.owner)
     with pytest.raises(SubmissionConflict, match="processing_active"):
         await delete.execute(original.id)
     with pytest.raises(ValueError, match="processing_active"):

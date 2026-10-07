@@ -11,7 +11,6 @@ from src.graph.arcadedb.store import ArcadeDBGraphStore
 from src.processing.runtime import registry
 from src.services.audio_note_store import FileAudioNoteStore
 from src.services.document_store import FileDocumentStore
-from src.services.extraction_store import FileExtractionStore
 from src.use_cases.process_audio_note import ProcessAudioNote
 from src.use_cases.process_document import ProcessDocument
 
@@ -32,7 +31,6 @@ async def runtime(user_id):
             context=SimpleNamespace(user_id=user_id, filesystem_root=root),
             document_store=FileDocumentStore(root / "documents"),
             audio_note_store=FileAudioNoteStore(root / "audio-notes"),
-            extraction_store=FileExtractionStore(root / "extractions"),
             graph_store=graph,
         )
     finally:

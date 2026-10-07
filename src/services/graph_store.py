@@ -1,39 +1,33 @@
-"""Port for persisting validated extractions in a knowledge graph."""
+"""Original document persistence and read-only graph presentation ports."""
 
 from typing import Protocol
 
 from src.domain.documents import Document
-from src.services.claim_embedding_store import ClaimEmbeddingStore
-from src.services.document_embedding_store import DocumentEmbeddingStore
-from src.services.extraction_store import ExtractionRun
-from src.services.reflection_context_store import ReflectionContextStore
+from src.graph.contracts import ExtractionGraph, LinkNeighborhood, LinkType
 
 
 class GraphPersistenceError(RuntimeError):
-    """Raised when a completed extraction cannot be stored in the graph."""
+    """Raised when document storage or graph navigation fails."""
 
 
 class GraphStore(Protocol):
-    """Infrastructure boundary shared by application use cases and delivery adapters."""
+    async def persist_document(self, document: Document) -> None: ...
 
-    async def persist_document(self, document: Document) -> None:
-        """Persist and verify an original without creating extraction records."""
-
-    async def persist(self, document: Document, extraction: ExtractionRun) -> None:
-        """Write one completed, evidence-backed extraction atomically."""
-
-    async def delete_document(self, document_id: str) -> None:
-        """Delete a document and all graph records owned by it."""
+    async def delete_document(self, document_id: str) -> None: ...
 
 
-class GraphBackend(
-    GraphStore,
-    ClaimEmbeddingStore,
-    DocumentEmbeddingStore,
-    ReflectionContextStore,
-    Protocol,
-):
-    """Complete graph capability set supplied by the configured database adapter."""
+class GraphBackend(GraphStore, Protocol):
+    async def get_extraction_graph(
+        self, document_id: str, *, layer: str | None = None
+    ) -> ExtractionGraph: ...
 
-    async def close(self) -> None:
-        """Release connections held by the adapter."""
+    async def get_link_neighborhood(
+        self,
+        document_id: str,
+        *,
+        offset: int = 0,
+        limit: int = 10,
+        relation_type: LinkType | None = None,
+    ) -> LinkNeighborhood: ...
+
+    async def close(self) -> None: ...

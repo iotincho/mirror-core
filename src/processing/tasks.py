@@ -40,10 +40,8 @@ async def execute_processing(
 
 @broker.on_event(TaskiqEvents.WORKER_SHUTDOWN)
 async def shutdown_worker(state):
-    from src.dependencies import close_provider_clients
     from src.processing.workflows import close_workflow_providers
     from src.user_management.database import close_database
 
     await close_workflow_providers()
-    await close_provider_clients()
     await close_database()

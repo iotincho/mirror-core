@@ -5,7 +5,7 @@ Implementación y pruebas locales preparadas; el corte sobre bases de usuario
 queda para el despliegue, según lo acordado. No se ejecutó limpieza de datos de
 usuario ni se desplegaron imágenes.
 
-## Comportamiento implementado
+## Comportamiento de la etapa de retiro
 
 La ingestión durable `/v2` conserva originales e idempotencia. El workflow de
 documento versión 2 ejecuta `document_persistence → done`, sin LLM de extracción
@@ -22,8 +22,8 @@ La inicialización de workspaces nuevos crea únicamente el tipo de vértice
 como registro administrativo. Las bases existentes reciben la propiedad de
 contenido cuando se aplica el esquema nuevo; no se borra nada al inicializarlo.
 
-Se eliminaron las rutas/composición HTTP de extracción, búsqueda semántica,
-reflexión y Constelación. Sus URLs históricas devuelven `410` autenticado y no
+Se eliminaron las operaciones HTTP de extracción, búsqueda semántica,
+reflexión y análisis de Constelación. Sus URLs históricas devuelven `410` autenticado y no
 construyen proveedores ni dependencias de workspace. También se retiran las
 mutaciones antiguas síncronas/background: los uploads y la recuperación usan
 `/v2` con `Idempotency-Key`. Los GET históricos de originales y el DELETE de
@@ -34,8 +34,10 @@ sin reupload, extracción ni cambio de título. Reemplaza la solicitud de
 reextracción en la PWA y en `scripts/reprocess_document.py`.
 
 La PWA ofrece captura, listado, lectura, borrado y recuperación de notas/audio.
-Se retiraron los accesos a Exploración y Constelación. Conserva Blob y transcripción
-locales. La recuperación de trabajos de documento v1 convierte explícitamente
+Se retiró Exploración y se conservó el visor del grafo, accesible desde captura.
+`GET /documents/{id}/links` conserva su contrato de respuesta, filtros y paginación;
+no ejecuta análisis ni persistencia de relaciones. Un grafo sin relaciones devuelve
+un vecindario vacío. Conserva Blob y transcripción locales. La recuperación de trabajos de documento v1 convierte explícitamente
 el retry a documento v2, descartando checkpoints de extracción. También admite
 recuperar el padre de audio cuyo hijo v1 fue retirado, sin retranscribir.
 
@@ -43,11 +45,20 @@ Los mensajes de documento v1 terminan como `extraction_retired`; no pueden volve
 a generar resultados exploratorios con los workers nuevos. Esto no detiene un
 worker ejecutando el código viejo: el corte exige retirar esas instancias.
 
-Los contratos, adaptadores y pruebas históricas de resultados derivados que
-siguen en el árbol son utilitarios fuera del pipeline y de las rutas públicas.
-No se reutilizan como interfaz de los futuros extractores. Algunos scripts de
-experimentos aún describen los contratos históricos y sus requests viejos
-reciben `410`; no son un mecanismo de reactivación del flujo automático.
+Los módulos históricos `extraction`, `embeddings`, `reflection` y `constellation`,
+sus adaptadores, casos de uso y scripts de experimentos se eliminaron del runtime.
+El contrato de presentación del visor queda en `src/graph/contracts.py`, separado
+de cualquier extractor. Los campos de respuesta `source_claim_id` y
+`target_claim_id` se conservan por compatibilidad del cliente; no requieren tipos
+`Claim` en la base. El análisis futuro de Constelación deberá implementarse nuevamente.
+
+El extractor de emociones permanece en `src/extractors`, con modelos y persistencia
+propios.
+Las notas nuevas usan ahora el workflow v3 con extracción de emociones automática;
+los trabajos históricos v2 y los convertidos por la migración mantienen el flujo
+de persistencia del original. Ver [procesamiento de emociones](emotion-extractor.md).
+La migración conserva su inventario histórico; los esquemas antiguos necesarios
+para probarla se encuentran únicamente en fixtures de integración.
 
 ## Migración masiva al desplegar
 
@@ -171,3 +182,17 @@ configuraciones sin imprimir secretos antes de cambiar usuarios o permisos.
 
 Estas verificaciones usan datos de prueba. No acreditan limpieza ni operación en
 producción. No se hizo validación visual en navegador durante esta etapa.
+
+## Limpieza del código y conservación del visor — 2026-10-07
+
+Se eliminó la implementación exploratoria y sus consumidores. La API de navegación
+y el visor permanecen en modo de lectura. Las configuraciones de embeddings y
+reflexión se quitaron también de Compose local y de producción. Los documentos,
+audio, exportación/importación y el nuevo extractor de emociones se conservan.
+
+Validación adicional: 100 pruebas locales del backend, 31 integraciones aisladas
+con PostgreSQL/ArcadeDB (dos pruebas de broker omitidas), y build, lint y seis
+suites de la PWA. Las integraciones incluyen limpieza masiva, procesamiento de
+documentos/audio, escritura de emociones y navegación con extremos `Document`
+sin tipos históricos `Claim`. Estas pruebas no ejecutan migraciones sobre datos
+de usuario ni acreditan un despliegue de producción.

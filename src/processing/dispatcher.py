@@ -4,7 +4,6 @@ import asyncio
 import logging
 import signal
 
-from src.dependencies import close_provider_clients
 from src.processing.broker import broker
 from src.processing.repository import ProcessingRepository
 from src.processing.runtime import get_repository
@@ -63,7 +62,6 @@ async def main():
     finally:
         if connected:
             await broker.shutdown()
-        await close_provider_clients()
         await close_database()
 
 

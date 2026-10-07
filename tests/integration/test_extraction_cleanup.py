@@ -5,12 +5,12 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from legacy_graph_fixture import EmbeddingSpec, legacy_schema_statements
 from test_processing_postgres import store  # noqa: F401
 
 from src.domain.documents import NewDocument, build_document
-from src.embeddings.contracts import EmbeddingSpec
 from src.graph.arcadedb.client import AsyncArcadeDBHTTPClient
-from src.graph.arcadedb.schema import legacy_schema_statements, schema_statements
+from src.graph.arcadedb.schema import schema_statements
 from src.graph.arcadedb.store import ArcadeDBGraphStore
 from src.maintenance.extraction_cleanup import LegacyExtractionCleanup
 
@@ -51,7 +51,7 @@ async def test_cleanup_backs_up_and_preserves_sources_and_all_vector_variants(
     spec = EmbeddingSpec(provider="fake", model="one", dimensions=3)
     for statement in legacy_schema_statements(spec):
         await client.command(statement)
-    for statement in schema_statements(spec):
+    for statement in schema_statements():
         await client.command(statement)
     root = tmp_path / "workspace"
     for relative, text in {
@@ -98,8 +98,7 @@ async def test_cleanup_backs_up_and_preserves_sources_and_all_vector_variants(
 
 async def test_changed_inventory_refuses_cleanup(cleanup_database, tmp_path):
     client, _ = cleanup_database
-    spec = EmbeddingSpec(provider="fake", model="one", dimensions=3)
-    for statement in schema_statements(spec):
+    for statement in schema_statements():
         await client.command(statement)
     root = tmp_path / "workspace"
     (root / "documents").mkdir(parents=True)
@@ -131,7 +130,7 @@ async def test_cutover_cli_retires_jobs_and_backfills_originals(
     client, connection = cleanup_database
     repo, owner = store
     spec = EmbeddingSpec(provider="fake", model="one", dimensions=3)
-    for statement in legacy_schema_statements(spec) + schema_statements(spec):
+    for statement in legacy_schema_statements(spec) + schema_statements():
         await client.command(statement)
     root = tmp_path / "workspace"
     documents = FileDocumentStore(root / "documents")

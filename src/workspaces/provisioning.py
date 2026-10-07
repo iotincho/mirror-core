@@ -11,7 +11,6 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.config import Settings, get_settings
-from src.embeddings.contracts import EmbeddingSpec
 from src.graph.arcadedb.schema import apply_schema, migration_version
 from src.user_management.database import get_session_maker
 from src.workspaces.arcade_admin import ArcadeDBAdminClient, ArcadeDBAdminError
@@ -100,11 +99,6 @@ class WorkspaceProvisioner:
         )
         admin.ensure_database(target.database_name)
 
-        spec = EmbeddingSpec(
-            provider=self._settings.embedding_provider,
-            model=self._settings.openai_embedding_model,
-            dimensions=self._settings.openai_embedding_dimensions,
-        )
         from src.graph.arcadedb.client import ArcadeDBHTTPClient
 
         schema_client = ArcadeDBHTTPClient(
@@ -113,7 +107,7 @@ class WorkspaceProvisioner:
             self._settings.arcadedb_username,
             self._settings.arcadedb_password,
         )
-        apply_schema(schema_client, spec)
+        apply_schema(schema_client)
         admin.ensure_runtime_principal(
             database_name=target.database_name,
             username=target.graph_username,
@@ -126,15 +120,10 @@ class WorkspaceProvisioner:
         )
 
     async def _activate(self, user_id: UUID) -> UserWorkspace:
-        spec = EmbeddingSpec(
-            provider=self._settings.embedding_provider,
-            model=self._settings.openai_embedding_model,
-            dimensions=self._settings.openai_embedding_dimensions,
-        )
         async with self._session_maker() as session, session.begin():
             repository = WorkspaceRepository(session)
             workspace = await self._required_workspace(repository, user_id, for_update=True)
-            repository.mark_active(workspace, schema_version=migration_version(spec))
+            repository.mark_active(workspace, schema_version=migration_version())
             return workspace
 
     async def _fail(self, user_id: UUID, *, code: str, detail: str) -> UserWorkspace:

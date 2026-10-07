@@ -10,6 +10,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import aliased
 
+from src.processing.configuration import document_workflow_version
 from src.processing.models import ProcessingEvent, ProcessingOutbox, ProcessingRecord
 from src.processing.projections import processing_projection
 from src.workspaces.models import UserWorkspace
@@ -348,7 +349,7 @@ class ProcessingRepository:
                     id=uuid5(current.id, "document"),
                     user_id=current.user_id,
                     workflow="document",
-                    workflow_version=2,
+                    workflow_version=document_workflow_version(current.config),
                     stage="document_persistence",
                     resource_kind="document",
                     resource_id=document_id,

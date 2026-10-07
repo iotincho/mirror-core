@@ -1,1 +1,0 @@
-"""Future vector-embedding boundary."""

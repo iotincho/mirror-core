@@ -1,5 +1,9 @@
 # Pipeline async — etapa 2
 
+> Documento histórico: el extractor exploratorio y el análisis anterior de
+> Constelación se retiraron. El estado actual está en
+> [Retiro de la extracción](extraction-retirement.md).
+
 La etapa 2 del [plan de procesamiento diferido](deferred-processing.md) convierte
 los contratos de I/O y sus consumidores a async. Las notas siguen esperando el
 pipeline en su request, con las mismas respuestas HTTP; el audio sigue usando

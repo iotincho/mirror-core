@@ -18,15 +18,21 @@ El archivo tiene un contrato `format: "el-espejo-documents"`, `version: 1`,
 `exported_at` y `documents`. Límite: 25 MiB y 10.000 documentos por archivo.
 El JSON descargado puede abrirse para comprobar el número de documentos y el
 contenido antes del corte. El importador valida todo el archivo antes de escribir,
-conserva las fechas originales y sincroniza cada documento con el grafo sin LLM.
+conserva las fechas originales y encola para cada documento el workflow durable
+vigente: persistencia en el grafo y extracción de emociones y embeddings en paralelo.
+La respuesta confirma la restauración de originales y la programación del pipeline;
+los workers completan la extracción de forma asíncrona.
 
 UUID idéntico con contenido/campos idénticos: se conserva, sin duplicar.
 UUID idéntico con datos distintos: rechaza el archivo sin sobrescribir.
 Se detectan conflictos previamente y nuevamente al adquirir el lock del documento;
-no se importan documentos con procesamiento activo. No hay una transacción global
-entre archivos y grafo: una interrupción puede dejar parte de los documentos ya
-restaurados. Se puede reintentar el mismo archivo; repara escrituras pendientes
-en el grafo y sólo informa éxito al terminar ambos almacenes.
+se rechazan procesos activos ajenos a esta importación. No hay una transacción global
+entre archivos y PostgreSQL: una interrupción puede dejar parte de los documentos ya
+restaurados. Se puede reintentar el mismo archivo, incluso mientras sus trabajos
+siguen activos: reutiliza la misma recepción por usuario/documento y no duplica
+extracciones. Los documentos idénticos existentes también se encolan la primera vez
+que se importan. El dispatcher recupera recepciones pendientes si el original ya
+se guardó. Los trabajos fallidos se reintentan mediante la API de procesamiento.
 
 API autenticada:
 

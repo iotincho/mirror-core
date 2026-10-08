@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import httpx
@@ -12,8 +13,8 @@ from src.auth.session import require_authenticated
 from src.domain.documents import Document
 from src.main import app
 from src.processing.runtime import get_repository
+from src.processing.submissions import SubmissionConflict, fingerprint
 from src.services.document_store import FileDocumentStore
-from src.services.graph_store import GraphPersistenceError
 from src.use_cases.document_archive import ArchiveConflict, DocumentArchive, DocumentArchiveTransfer
 from src.workspaces.dependencies import get_workspace_runtime
 
@@ -32,15 +33,34 @@ class Processing:
         pass
 
 
-class Graph:
+class Submissions:
     def __init__(self):
-        self.documents = {}
+        self.receipts = {}
+        self.jobs = []
         self.fail = False
 
-    async def persist_document(self, document):
+    async def accepted(self, user_id, operation, key, request_hash):
+        receipt = self.receipts.get((user_id, key))
+        return receipt if receipt and receipt.accepted_at else None
+
+    async def reserve(self, **values):
+        key = values["user_id"], values["key"]
+        if key not in self.receipts:
+            self.receipts[key] = SimpleNamespace(**values, accepted_at=None)
+        receipt = self.receipts[key]
+        if receipt.request_hash != values["request_hash"]:
+            raise SubmissionConflict("idempotency_conflict")
+        return receipt
+
+    async def accept(self, receipt):
         if self.fail:
-            raise GraphPersistenceError("test failure")
-        self.documents[document.id] = document
+            raise RuntimeError("SQL unavailable")
+        if receipt.accepted_at is None:
+            self.jobs.append(receipt)
+            receipt.accepted_at = datetime.now(UTC)
+
+    async def release(self, receipt):
+        pass
 
 
 def document():
@@ -56,28 +76,40 @@ def document():
 
 
 @pytest.mark.anyio
-async def test_roundtrip_all_fields_and_retry_repairs_partial_graph_write(tmp_path):
+async def test_roundtrip_all_fields_and_retry_enqueues_once_after_partial_write(tmp_path):
     original = FileDocumentStore(tmp_path / "old")
     doc = document()
     await original.save(doc)
     archive = DocumentArchive.model_validate_json(
         (await DocumentArchiveTransfer(original).export()).model_dump_json()
     )
-    restored, graph = FileDocumentStore(tmp_path / "new"), Graph()
-    transfer = DocumentArchiveTransfer(restored, graph, Processing(), uuid4())
-    graph.fail = True
-    with pytest.raises(GraphPersistenceError):
+    restored, submissions = FileDocumentStore(tmp_path / "new"), Submissions()
+    transfer = DocumentArchiveTransfer(
+        restored, processing=Processing(), user_id=uuid4(), submissions=submissions
+    )
+    submissions.fail = True
+    with pytest.raises(RuntimeError, match="SQL unavailable"):
         await transfer.import_archive(archive)
     assert await restored.get(doc.id) == doc
-    graph.fail = False
+    submissions.fail = False
     assert await transfer.import_archive(archive) == {"imported": 0, "existing": 1, "total": 1}
-    assert graph.documents[doc.id].model_dump() == doc.model_dump()
+    assert await transfer.import_archive(archive) == {"imported": 0, "existing": 1, "total": 1}
+    assert len(submissions.jobs) == 1
+    receipt = submissions.jobs[0]
+    assert receipt.resource_id == doc.id
+    assert receipt.operation == "import_document"
+    assert receipt.request_hash == fingerprint(doc.model_dump(mode="json"))
+    assert receipt.config["document_workflow_version"] == 4
+    assert {item["name"] for item in receipt.config["extractors"]} == {
+        "emotions",
+        "document_embeddings",
+    }
     assert len(await restored.list()) == 1
 
 
 @pytest.mark.anyio
 async def test_conflict_preflight_writes_nothing(tmp_path):
-    store, graph = FileDocumentStore(tmp_path), Graph()
+    store, submissions = FileDocumentStore(tmp_path), Submissions()
     old, new = document(), document()
     await store.save(old)
     changed = old.model_copy(update={"content": "distinto"})
@@ -85,9 +117,11 @@ async def test_conflict_preflight_writes_nothing(tmp_path):
         exported_at=datetime.now(UTC), documents=[new.model_dump(), changed.model_dump()]
     )
     with pytest.raises(ArchiveConflict):
-        await DocumentArchiveTransfer(store, graph, Processing(), uuid4()).import_archive(archive)
+        await DocumentArchiveTransfer(
+            store, processing=Processing(), user_id=uuid4(), submissions=submissions
+        ).import_archive(archive)
     assert await store.list() == [old]
-    assert not graph.documents
+    assert not submissions.receipts
 
 
 def test_rejects_duplicate_unknown_fields_version_and_naive_dates():
@@ -110,14 +144,17 @@ def test_rejects_duplicate_unknown_fields_version_and_naive_dates():
 
 
 @pytest.mark.anyio
-async def test_authenticated_download_upload_and_invalid_file(tmp_path):
-    store, graph = FileDocumentStore(tmp_path), Graph()
+async def test_authenticated_download_upload_and_invalid_file(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "src.use_cases.document_archive.SubmissionRepository", lambda processing: Submissions()
+    )
+    store = FileDocumentStore(tmp_path)
     doc = document()
     await store.save(doc)
     app.dependency_overrides[require_authenticated] = lambda: "owner"
     app.dependency_overrides[get_archive_store] = lambda: store
     app.dependency_overrides[get_workspace_runtime] = lambda: SimpleNamespace(
-        document_store=store, graph_store=graph, context=SimpleNamespace(user_id=uuid4())
+        document_store=store, graph_store=None, context=SimpleNamespace(user_id=uuid4())
     )
     app.dependency_overrides[get_repository] = Processing
     try:
@@ -211,3 +248,38 @@ async def test_archive_routes_require_authentication():
             ).status_code == 401
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.mark.anyio
+async def test_each_document_enqueued_and_replay_ignores_own_active_job(tmp_path):
+    store, submissions, processing = FileDocumentStore(tmp_path), Submissions(), Processing()
+    docs = [document(), document()]
+    archive = DocumentArchive(
+        exported_at=datetime.now(UTC), documents=[d.model_dump() for d in docs]
+    )
+    transfer = DocumentArchiveTransfer(
+        store, processing=processing, user_id=uuid4(), submissions=submissions
+    )
+    assert await transfer.import_archive(archive) == {"imported": 2, "existing": 0, "total": 2}
+    processing.assert_inactive = AsyncMock(side_effect=ValueError("processing_active"))
+    assert await transfer.import_archive(archive) == {"imported": 0, "existing": 2, "total": 2}
+    assert len(submissions.jobs) == 2
+    processing.assert_inactive.assert_not_called()
+    assert {job.resource_id for job in submissions.jobs} == {d.id for d in docs}
+    for doc in docs:
+        assert await store.get(doc.id) == doc
+
+
+@pytest.mark.anyio
+async def test_import_rejects_unrelated_active_processing(tmp_path):
+    store, submissions, processing = FileDocumentStore(tmp_path), Submissions(), Processing()
+    processing.assert_inactive = AsyncMock(side_effect=ValueError("processing_active"))
+    doc = document()
+    archive = DocumentArchive(exported_at=datetime.now(UTC), documents=[doc.model_dump()])
+    transfer = DocumentArchiveTransfer(
+        store, processing=processing, user_id=uuid4(), submissions=submissions
+    )
+    with pytest.raises(ArchiveConflict, match="procesamiento"):
+        await transfer.import_archive(archive)
+    assert not await store.list()
+    assert not submissions.jobs

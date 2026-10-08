@@ -4,11 +4,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from pydantic import ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 
 from src.config import get_settings
 from src.processing.runtime import get_repository
+from src.processing.submissions import SubmissionConflict
 from src.services.document_store import FileDocumentStore
-from src.services.graph_store import GraphPersistenceError
 from src.use_cases.document_archive import ArchiveConflict, DocumentArchive, DocumentArchiveTransfer
 from src.user_management.database import get_async_session
 from src.user_management.dependencies import get_authenticated_user
@@ -77,13 +78,12 @@ async def import_documents(
     try:
         return await DocumentArchiveTransfer(
             runtime.document_store,
-            runtime.graph_store,
             processing,
             runtime.context.user_id,
         ).import_archive(archive)
-    except ArchiveConflict as error:
+    except (ArchiveConflict, SubmissionConflict) as error:
         raise HTTPException(409, str(error)) from error
-    except GraphPersistenceError as error:
+    except SQLAlchemyError as error:
         raise HTTPException(
-            503, "No se pudo completar la escritura en el grafo. Reintentá el mismo archivo."
+            503, "No se pudo encolar la extracción. Reintentá el mismo archivo."
         ) from error

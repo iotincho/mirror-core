@@ -1,12 +1,15 @@
 """Portable originals, independent of graph identities and extraction results."""
 
+import asyncio
 from datetime import UTC, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.domain.documents import Document
+from src.processing.submissions import SubmissionRepository, fingerprint
 from src.services.document_store import DocumentAlreadyExistsError, DocumentNotFoundError
+from src.use_cases.submit_processing import workflow_config
 
 
 class ArchivedDocument(Document):
@@ -48,9 +51,10 @@ class ArchiveConflict(ValueError):
 
 
 class DocumentArchiveTransfer:
-    def __init__(self, documents, graph=None, processing=None, user_id=None):
-        self.documents, self.graph = documents, graph
+    def __init__(self, documents, processing=None, user_id=None, submissions=None):
+        self.documents = documents
         self.processing, self.user_id = processing, user_id
+        self.submissions = submissions
 
     async def export(self):
         return DocumentArchive(
@@ -77,21 +81,51 @@ class DocumentArchiveTransfer:
             async with self.processing.lock_resource(self.user_id, document.id) as acquired:
                 if not acquired:
                     raise ArchiveConflict("Hay un documento en procesamiento; reintentá luego.")
+                present = await self.existing(document)
+                submissions = self.submissions or SubmissionRepository(self.processing)
+                request_hash = fingerprint(document.model_dump(mode="json"))
+                receipt = await submissions.accepted(
+                    self.user_id, "import_document", document.id, request_hash
+                )
+                if receipt is not None:
+                    if not present:
+                        raise ArchiveConflict(
+                            "El original de un documento importado no está disponible."
+                        )
+                    existing += 1
+                    continue
                 try:
                     await self.processing.assert_inactive(self.user_id, document.id)
                 except ValueError as error:
                     raise ArchiveConflict(
                         "Hay un documento en procesamiento; reintentá luego."
                     ) from error
-                present = await self.existing(document)
-                if not present:
+                receipt = await submissions.reserve(
+                    user_id=self.user_id,
+                    operation="import_document",
+                    key=document.id,
+                    request_hash=request_hash,
+                    resource_kind="document",
+                    resource_id=document.id,
+                    config=workflow_config(),
+                    manifest={},
+                )
+                if receipt.accepted_at is None:
                     try:
-                        await self.documents.save(Document(**document.model_dump()))
-                    except DocumentAlreadyExistsError:
-                        present = await self.existing(document)
-                # Even when already saved, repair a graph write interrupted on a
-                # previous attempt. Report success only once both stores agree.
-                await self.graph.persist_document(document)
+                        if not present:
+                            try:
+                                await self.documents.save(Document(**document.model_dump()))
+                            except DocumentAlreadyExistsError:
+                                present = await self.existing(document)
+                        # The receipt, processing record and outbox make extraction
+                        # recoverable even if the HTTP request or broker fails.
+                        await submissions.accept(receipt)
+                    except BaseException:
+                        try:
+                            await asyncio.shield(submissions.release(receipt))
+                        except Exception:
+                            pass
+                        raise
                 existing += int(present)
                 created += int(not present)
         return {"imported": created, "existing": existing, "total": len(archive.documents)}

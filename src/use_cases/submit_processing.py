@@ -192,12 +192,28 @@ async def recover_submissions(submissions, runtime_factory):
             async with runtime_factory(receipt.user_id) as runtime:
                 if receipt.resource_kind == "document":
                     original = await runtime.document_store.get(receipt.resource_id)
-                    if document_identity(original) != receipt.request_hash:
+                    identity = (
+                        fingerprint(original.model_dump(mode="json"))
+                        if receipt.operation == "import_document"
+                        else document_identity(original)
+                    )
+                    if identity != receipt.request_hash:
                         raise SubmissionConflict("document_artifact_mismatch")
                 else:
                     await verify_audio_original(runtime, receipt)
                     await runtime.audio_note_store.restore_metadata(audio_metadata(receipt))
-                await submissions.accept(receipt)
+                if receipt.operation == "import_document":
+                    async with submissions.processing.lock_resource(
+                        receipt.user_id, receipt.resource_id
+                    ) as acquired:
+                        if not acquired:
+                            continue
+                        await submissions.processing.assert_inactive(
+                            receipt.user_id, receipt.resource_id
+                        )
+                        await submissions.accept(receipt)
+                else:
+                    await submissions.accept(receipt)
         except (OSError, DocumentNotFoundError, ValueError, WorkflowFailure, WorkspaceSecretError):
             # Incomplete uploads remain reserved and retryable with the same key.
             continue

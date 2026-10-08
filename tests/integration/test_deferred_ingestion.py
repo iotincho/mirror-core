@@ -660,3 +660,80 @@ async def test_legacy_audio_parent_recovers_retired_child_without_retranscribing
     assert (await run_current(env, parent)).status == "completed"
     assert env.providers.transcriptions == 1 and env.providers.extractions == 0
     assert (await env.runtime.audio_note_store.get(note.id)).document_error is None
+
+
+async def test_archive_import_queues_v4_children_and_replays_without_duplicates(ingestion):
+    from datetime import UTC, datetime
+
+    from src.domain.documents import Document
+    from src.use_cases.document_archive import DocumentArchive, DocumentArchiveTransfer
+    from src.use_cases.process_document_extractors import ProcessDocumentExtractors
+
+    env = ingestion
+    originals = [
+        Document(
+            id=uuid4(),
+            content="Documento archivado",
+            source="archive",
+            metadata={},
+            created_at=datetime(2024, 1, 1, tzinfo=UTC),
+        )
+        for _ in range(2)
+    ]
+    archive = DocumentArchive(
+        exported_at=datetime.now(UTC), documents=[doc.model_dump() for doc in originals]
+    )
+    transfer = DocumentArchiveTransfer(env.runtime.document_store, env.repo, env.owner)
+    assert await transfer.import_archive(archive) == {"imported": 2, "existing": 0, "total": 2}
+    records = await env.repo.list_for_owner(env.owner)
+    assert len(records) == 2
+    registry = WorkflowRegistry()
+    registry.register("document", 4, ProcessDocumentExtractors(env.factory).definition)
+    executor = ExecuteProcessing(env.repo, registry)
+    for record in records:
+        assert record.workflow_version == 4 and record.status == "queued"
+        await executor(record.id, record.generation)
+        current = await env.repo.get(record.id, env.owner)
+        assert current.status == "waiting"
+        children = await env.repo.extractor_children(record.id, env.owner)
+        assert {child.extractor_name for child in children} == {"emotions", "document_embeddings"}
+    assert await transfer.import_archive(archive) == {"imported": 0, "existing": 2, "total": 2}
+    assert len(await env.repo.list_for_owner(env.owner)) == 6
+    for original in originals:
+        assert await env.runtime.document_store.get(original.id) == original
+
+
+async def test_archive_pending_receipt_recovers_after_accept_failure(ingestion, monkeypatch):
+    from datetime import UTC, datetime
+
+    from sqlalchemy.exc import OperationalError
+
+    from src.domain.documents import Document
+    from src.use_cases.document_archive import DocumentArchive, DocumentArchiveTransfer
+
+    env = ingestion
+    original = Document(
+        id=uuid4(),
+        content="No perder",
+        source="archive",
+        metadata={},
+        created_at=datetime(2024, 1, 1, tzinfo=UTC),
+    )
+    archive = DocumentArchive(exported_at=datetime.now(UTC), documents=[original.model_dump()])
+    transfer = DocumentArchiveTransfer(env.runtime.document_store, env.repo, env.owner)
+    accept = SubmissionRepository.accept
+
+    async def failed(*args):
+        raise OperationalError("commit", {}, RuntimeError("SQL unavailable"))
+
+    monkeypatch.setattr(SubmissionRepository, "accept", failed)
+    with pytest.raises(OperationalError):
+        await transfer.import_archive(archive)
+    assert await env.runtime.document_store.get(original.id) == original
+    monkeypatch.setattr(SubmissionRepository, "accept", accept)
+    await recover_submissions(env.submissions, env.factory)
+    records = await env.repo.list_for_owner(env.owner)
+    assert len(records) == 1 and records[0].workflow_version == 4
+    assert records[0].resource_id == original.id
+    assert await transfer.import_archive(archive) == {"imported": 0, "existing": 1, "total": 1}
+    assert len(await env.repo.list_for_owner(env.owner)) == 1

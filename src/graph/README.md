@@ -39,7 +39,10 @@ entidades hijas se proyectan directamente sobre la nota. Así `Document →
 EmotionExtraction → Emotion` se presenta como `Document → Emotion`, manteniendo
 la identidad de las entidades, aristas, profile y citas guardadas. No se crean ni
 modifican relaciones para visualizar. Los IDs se califican por tipo para evitar
-colisiones entre modelos de extractores distintos.
+colisiones entre modelos de extractores distintos. `GraphEdge` expone `quote`,
+`start_char` y `end_char` opcionales. La capa de emociones guarda su evidencia en
+estas aristas: varias citas conservan varias conexiones hacia un único nodo por
+emoción y ejecución, y el visor permite leerlas juntas o individualmente.
 
 Los filtros salen de las capas conectadas, incluyendo una extracción vacía válida.
 `Todas` muestra el conjunto completo; un filtro conserva la nota y las conexiones

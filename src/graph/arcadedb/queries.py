@@ -61,6 +61,7 @@ RETURN node.id AS node_id, labels(node) AS node_types,
        node.name AS node_name, node.text AS node_text,
        node.document_id AS node_document_id, node.quote AS quote,
        node.profile_id AS profile_id, edge.id AS edge_id, type(edge) AS edge_type,
+       edge.quote AS edge_quote, edge.start_char AS start_char, edge.end_char AS end_char,
        coalesce(edge.layer, node.layer) AS layer,
        coalesce(edge.visualizable, node.visualizable, true) AS visualizable
 """

@@ -42,34 +42,78 @@ no aparece en la vista.
 
 ## Propósito y resultado
 
-`EmotionExtractor` extrae ocurrencias de emociones expresadas explícitamente
-por quien escribe. Cada una tiene `label` y una `quote` literal del documento
-completo. Las etiquetas son breves y en el idioma de la nota; no hay taxonomía
-cerrada, intensidad calculada, diagnóstico ni inferencia de estados ocultos.
-El prompt excluye emociones atribuidas sólo a terceros, ejemplos y negaciones.
+`EmotionExtractor` (`emotions/v2`) extrae emociones expresadas explícitamente por
+quien escribe y las agrupa dentro del documento. El modelo devuelve una sola
+entrada por significado emocional con todas sus citas; el código valida el
+contrato sin reagrupar ni fusionar sinónimos. El prompt distingue emociones
+relacionadas de emociones equivalentes y excluye terceros, ejemplos y negaciones.
+Las etiquetas son breves y en el idioma de la nota; no hay taxonomía cerrada,
+intensidad calculada, diagnóstico ni inferencia de estados ocultos.
 
 ```json
 {
-  "occurrences": [
-    {"label": "alegría", "quote": "Hoy siento alegría."},
-    {"label": "miedo", "quote": "Después sentí miedo."}
-  ]
+  "emotions": [
+    {
+      "label": "miedo",
+      "quotes": ["Me dio miedo salir.", "Al volver seguía sintiendo miedo."]
+    }
+  ],
+  "warnings": []
 }
 ```
 
-La validación local exige citas exactas, no vacías y con una sola aparición
-(incluidas coincidencias superpuestas). Rechaza pares etiqueta/cita duplicados.
-Dos emociones diferentes pueden compartir una oración que expresa ambas.
-Un array vacío es un resultado válido. La validación de citas demuestra su
-procedencia; la fidelidad semántica de las etiquetas todavía debe evaluarse con
-notas representativas. No se realizó una evaluación de precisión con modelos reales.
+El schema recibido del proveedor es `EmotionResponse`: permite citas y listas de
+citas vacías. Antes de validar, el extractor descarta citas vacías o con solo
+espacios; si una emoción queda sin citas, también la descarta. El payload válido
+`Emotions` exige al menos una cita por emoción. El array `emotions` vacío es válido.
+El proveedor no genera las advertencias: el extractor las agrega a `warnings`
+con código, fase (`extraction` o `correction`), etiqueta e índices originales.
+Esto distingue una nota sin emociones de un resultado con evidencia descartada.
+
+Las citas restantes deben ser literales y aparecer exactamente una vez en el
+texto completo (incluidas coincidencias superpuestas). Se rechazan citas repetidas
+dentro de una emoción y etiquetas duplicadas tras normalizar Unicode NFC,
+mayúsculas y espacios. Dos emociones diferentes pueden compartir una cita.
+La validación demuestra procedencia; la agrupación semántica y su precisión con
+modelos reales requieren evaluación.
+
+### Corrección y diagnóstico de evidencia
+
+`emotion_quote_not_found` y `emotion_quote_ambiguous` disparan un único intento de
+corrección con el documento completo, la respuesta inicial y todos los errores.
+El prompt pide copiar literalmente, ampliar el contexto ambiguo, mantener la
+agrupación y evidencia válida, y retirar evidencia que no se pueda respaldar.
+Se descartan también los vacíos de la corrección, acumulando las advertencias de
+ambas fases en el artefacto válido. La respuesta completa vuelve a validarse;
+si sigue siendo inválida, no se publica `result.json` ni se escribe el grafo.
+Persistir nunca invoca al modelo ni corrige un artefacto guardado.
+
+Dentro de `layers/<document UUID>/<run UUID>/` se conservan checkpoints propios:
+
+- `emotion-extraction.json`: respuesta inicial, proveedor, errores y advertencias.
+- `emotion-correction-requested.json`: marca durable previa a la llamada correctiva.
+- `emotion-correction.json`: respuesta corregida, proveedor, errores y advertencias.
+
+Usan almacenamiento inmutable con checksum/fsync y verifican documento, huella de
+contenido, profile, configuración y política de corrección. Un replay reutiliza
+las respuestas existentes, incluso si la publicación de `result.json` falló.
+Si se interrumpe la corrección después de publicar la marca y antes de guardar su
+respuesta, no se vuelve a invocar para ese run: falla con
+`emotion_correction_interrupted` y requiere una nueva ejecución. Esta restricción
+incluye fallos de transporte; los reintentos HTTP del SDK son los ya configurados
+por el llamador (el worker usa cero).
+
+Los errores de evidencia incluyen código, etiqueta, índices, longitud de cita y
+cantidad exacta de coincidencias; no imprimen citas ni el documento en el traceback.
+Las respuestas completas se inspeccionan en el workspace, separadas del resultado
+válido. El error público de workflow sigue siendo `extraction_invalid_response`.
 
 ## Contrato y encapsulamiento
 
 `src/extractors/base.py` define `Extractor` como clase abstracta. La implementación
 define `produce`, `validate_payload` y `write_layer`: algoritmo, modelo y lógica
 de guardado pertenecen a la capa. `EmotionProvider` es su puerto de generación;
-`OpenAIEmotionProvider` usa el schema propio `Emotions`. Otro extractor puede
+`OpenAIEmotionProvider` usa el schema de respuesta propio `EmotionResponse`. Otro extractor puede
 usar un proceso distinto sin heredar esa dependencia de LLM.
 
 El ciclo común ofrece:
@@ -101,22 +145,45 @@ prompt actual haya cambiado. Esto es trazabilidad, sin gestor de versiones.
 Document → HAS_EMOTION_EXTRACTION → EmotionExtraction → HAS_EMOTION → Emotion
 ```
 
-`Emotion` representa una ocurrencia, no una entidad global fusionada. Sus IDs
-se derivan de UUID de ejecución y posición del resultado. La ejecución también
-queda registrada cuando el array está vacío. Todos los nodos derivados y relaciones
-incluyen `layer=emotions`, documento, ejecución y etiquetas del profile.
-Las ocurrencias guardan etiqueta, cita y offsets Unicode del texto original;
-el run conserva la huella del texto y el artefacto serializado.
+`Emotion` representa una emoción agrupada dentro de una ejecución del documento,
+sin compartir identidad con otras notas o ejecuciones. Su ID se deriva del UUID
+de ejecución y de la etiqueta normalizada. El nodo guarda etiqueta y procedencia,
+sin cita ni offsets. Cada cita genera una relación `HAS_EMOTION` distinta hacia
+el mismo nodo, con `quote`, `start_char` y `end_char` (fin exclusivo, índices Unicode
+del texto original). El ID de relación deriva de ejecución, etiqueta y posiciones.
+Los reintentos no duplican nodos ni relaciones.
+
+La ejecución queda registrada incluso con un array vacío. Los nodos derivados y
+relaciones incluyen `layer=emotions`, documento, ejecución y etiquetas del profile.
+El run conserva la huella del texto y el artefacto serializado. El visor proyecta
+las relaciones desde la nota: seleccionar la emoción muestra todas sus citas en
+orden del texto; seleccionar una relación muestra esa cita particular.
 
 El extractor crea únicamente su esquema, al persistir. Usa el puerto de comandos
 de ArcadeDB del workspace, sin acceso administrativo ni cambios al documento.
-Una transacción verifica el documento, el run, las ocurrencias y los endpoints de
-las relaciones. Reintentos idénticos no duplican; un run con otra huella falla.
+Una transacción verifica el documento, el run, los nodos, las citas y posiciones
+de las relaciones y sus extremos. Reintentos idénticos no duplican; un run con otra huella falla.
 Una escritura incompleta revierte en vez de reportar éxito. La inicialización DDL
 puede dejar tipos vacíos si la persistencia falla.
 
 El borrado existente elimina nodos con `document_id` y sus relaciones; ahora
 elimina también los artefactos locales de capas para ese documento.
+
+## Corte desde emociones v1
+
+El contrato `occurrences` anterior se retira sin conversión ni compatibilidad de
+persistencia. Antes de habilitar el nuevo worker, drenar trabajos anteriores y
+retirar los resultados de emociones v1 del grafo y sus artefactos de capas. No
+borrar documentos originales, audios, transcripciones ni metadatos, ni capas de
+otros extractores. La limpieza histórica `cleanup_extractions` no es una limpieza
+de emociones v1 y no debe usarse para ese propósito.
+
+En una restauración en una instancia limpia, importar el archivo de documentos
+agenda extracción con la configuración actual. Reimportar en la misma instancia
+con un recibo de importación ya aceptado no garantiza reprocesamiento: en ese caso
+usar el reprocesamiento explícito de documentos. Los artefactos v1 pendientes no
+se pueden persistir con el nuevo contrato. Este cambio no ejecuta limpieza ni
+reprocesamiento automático al iniciar.
 
 ## Ejecutar la prueba
 
@@ -155,8 +222,8 @@ en paralelo. El proceso llamador de la CLI debe gestionar su contexto de concurr
 
 ## Validación
 
-La suite general del backend pasó localmente. Cuatro pruebas con ArcadeDB
-aisladamente validaron la persistencia de la capa.
+La suite general del backend pasó localmente. Las integraciones con ArcadeDB
+aislado validan la persistencia de la capa.
 
 Pruebas locales cubren evidencia, vacío válido, artefactos dañados, aislamiento
 por workspace, cambios de fuente/profile/modelo, reintentos sin proveedor,
@@ -166,9 +233,10 @@ salida estructurada; sigue el contrato de
 [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses).
 
 Integraciones opt-in crean y eliminan bases desechables en ArcadeDB 26.9.1.
-Comprueban esquema propio, dry run sin DDL, metadatos/citas, persistencia diferida,
-repetición idempotente, resultado vacío, ejecuciones independientes, rechazo de
-original ausente, rollback de escritura parcial y borrado de documentos.
+Comprueban esquema propio, dry run sin DDL, metadatos/citas en relaciones,
+agrupación de tres citas en un nodo, persistencia diferida, repetición idempotente,
+resultado vacío, ejecuciones independientes, rechazo de original ausente, rollback
+de nodos/aristas ausentes o evidencia incorrecta y borrado de documentos.
 No se ejecutó la prueba contra notas de usuario, proveedores reales ni producción.
 
 Cuatro integraciones adicionales con PostgreSQL y ArcadeDB verifican subida sin

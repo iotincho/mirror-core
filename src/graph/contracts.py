@@ -57,6 +57,9 @@ class GraphEdge(BaseModel):
     target: str
     type: str
     layer: str
+    quote: str | None = None
+    start_char: int | None = None
+    end_char: int | None = None
 
 
 class ExtractionGraph(BaseModel):

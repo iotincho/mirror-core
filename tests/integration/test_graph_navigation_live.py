@@ -101,10 +101,9 @@ async def test_emotions_are_projected_with_evidence_without_execution_nodes(laye
     assert len(result.nodes) == 3 and len(result.edges) == 2
     emotions = [node for node in result.nodes if node.type == "Emotion"]
     assert {node.label for node in emotions} == {"alegría", "miedo"}
-    assert all(
-        node.quote in document.content and node.profile_id == "emotions/v1" for node in emotions
-    )
+    assert all(node.quote is None and node.profile_id == "emotions/v2" for node in emotions)
     assert all(edge.source == result.root_id and edge.layer == "emotions" for edge in result.edges)
+    assert all(edge.quote in document.content for edge in result.edges)
     assert all(node.type != "EmotionExtraction" for node in result.nodes)
     absent = await graph.get_extraction_graph(str(document.id), layer="events")
     assert absent.layers == ["emotions"] and len(absent.nodes) == 1 and absent.edges == []
@@ -114,7 +113,7 @@ async def test_empty_extraction_is_a_selectable_layer(layer_database):
     extractor, document, _, provider, graph = layer_database
     from src.extractors.emotions import Emotions
 
-    provider.payload = Emotions(occurrences=[])
+    provider.payload = Emotions(emotions=[])
     await extractor.extract(document, dry_run=False)
     result = await graph.get_extraction_graph(str(document.id))
     assert result.layers == ["emotions"] and len(result.nodes) == 1 and result.edges == []

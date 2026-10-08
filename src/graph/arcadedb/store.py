@@ -234,6 +234,9 @@ class ArcadeDBGraphStore(GraphBackend):
                             target=root if incoming else identifier,
                             type=row["edge_type"],
                             layer=extraction,
+                            quote=row.get("edge_quote"),
+                            start_char=row.get("start_char"),
+                            end_char=row.get("end_char"),
                         )
             return ExtractionGraph(
                 document_id=document_id,

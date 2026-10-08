@@ -30,6 +30,25 @@ class SubmissionRepository:
         self.processing = processing
         self.sessions = processing.sessions
 
+    async def accepted(self, user_id, operation, key, request_hash):
+        """Replay an accepted request before checking for active processing."""
+        async with self.sessions() as session:
+            receipt = await session.scalar(
+                select(ProcessingReceipt).where(
+                    ProcessingReceipt.user_id == user_id,
+                    ProcessingReceipt.operation == operation,
+                    ProcessingReceipt.key == key,
+                    ProcessingReceipt.accepted_at.is_not(None),
+                )
+            )
+            if receipt is not None:
+                if receipt.request_hash != request_hash:
+                    raise SubmissionConflict("idempotency_conflict")
+                record = await session.get(ProcessingRecord, receipt.processing_id)
+                if record.resource_deleted:
+                    raise SubmissionConflict("resource_deleted")
+            return receipt
+
     async def reserve(
         self,
         *,
@@ -179,7 +198,9 @@ class SubmissionRepository:
                         select(ProcessingReceipt)
                         .where(
                             ProcessingReceipt.accepted_at.is_(None),
-                            ProcessingReceipt.operation.in_(["upload_document", "upload_audio"]),
+                            ProcessingReceipt.operation.in_(
+                                ["upload_document", "upload_audio", "import_document"]
+                            ),
                             ProcessingReceipt.lease_expires_at <= now,
                         )
                         .limit(20)

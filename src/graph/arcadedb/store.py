@@ -248,6 +248,25 @@ class ArcadeDBGraphStore(GraphBackend):
         except Exception as error:
             raise GraphPersistenceError("ArcadeDB extraction graph retrieval failed") from error
 
+    async def list_emotions(self, *, offset=0, limit=100):
+        from src.graph.emotion_exploration import EmotionProjection
+
+        try:
+            return await EmotionProjection(self._client, self._rows).catalog(offset, limit)
+        except Exception as error:
+            raise GraphPersistenceError("ArcadeDB emotion catalog retrieval failed") from error
+
+    async def explore_emotion(self, emotion, *, depth=1, limit=100):
+        from src.graph.emotion_exploration import EmotionProjection
+        from src.services.graph_store import EmotionNotFoundError
+
+        try:
+            return await EmotionProjection(self._client, self._rows).explore(emotion, depth, limit)
+        except EmotionNotFoundError:
+            raise
+        except Exception as error:
+            raise GraphPersistenceError("ArcadeDB emotion exploration failed") from error
+
     async def close(self) -> None:
         await self._client.close()
 

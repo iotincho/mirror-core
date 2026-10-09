@@ -52,6 +52,36 @@ recursiva. Una respuesta truncada de la base falla explícitamente, evitando mos
 un resultado parcial como completo. La ruta `/links` se conserva por compatibilidad.
 
 
+## Exploración por emoción
+
+`GET /graph/emotions` lista etiquetas agrupadas por Unicode NFC, casefold y espacios
+normalizados, con cantidad de documentos distintos. Acepta `offset` y `limit`
+(1–200, por defecto 100) y devuelve `next_offset`. No fusiona sinónimos.
+
+`GET /graph/emotions/explore?emotion=miedo&depth=1` devuelve `EmotionExploration`:
+
+- L1: emoción elegida y documentos que la reportan.
+- L2: incorpora las otras emociones de esos documentos.
+- L3: incorpora otros documentos que reportan las emociones descubiertas.
+
+Los niveles cuentan saltos en la proyección documento/emoción. Los nodos
+`EmotionGroup` son virtuales: sus IDs estables derivan de la etiqueta normalizada.
+Una arista `REPORTS_EMOTION` por documento y grupo reúne `evidence`, con citas,
+posiciones y referencias `sources` a las ejecuciones, nodos y aristas originales.
+Las citas repetidas en distintas ejecuciones se muestran una vez y conservan
+todas las referencias. La relación indica aparición, sin atribuir causalidad.
+
+`limit` controla el máximo de nodos (2–500, por defecto 100), incluyendo la raíz.
+`truncated` y `next_limit` permiten ampliar el recorrido; al llegar a 500 puede
+seguir recortado. El catálogo cuenta todas las notas del grupo, aunque el recorrido
+visible esté limitado. La lectura pagina internamente membresías y evidencias,
+con un máximo de 50.000 filas por consulta lógica; si se excede o la base devuelve
+una página truncada, responde 502 en vez de presentar un resultado como completo.
+
+Las dos rutas requieren sesión y usan sólo la base del workspace autenticado.
+No crean esquema, nodos globales ni relaciones de equivalencia persistidas.
+Funcionan con las extracciones existentes. Una emoción inexistente devuelve 404.
+
 ## Validación
 
 Las pruebas de navegación cubren el contrato HTTP y el adaptador. Las integraciones

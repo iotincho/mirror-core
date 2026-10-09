@@ -267,6 +267,16 @@ class ArcadeDBGraphStore(GraphBackend):
         except Exception as error:
             raise GraphPersistenceError("ArcadeDB emotion exploration failed") from error
 
+    async def explore_document_emotions(self, document_id, *, limit=100):
+        from src.graph.emotion_exploration import EmotionProjection
+
+        try:
+            return await EmotionProjection(self._client, self._rows).document_neighborhood(
+                document_id, limit
+            )
+        except Exception as error:
+            raise GraphPersistenceError("ArcadeDB document emotions retrieval failed") from error
+
     async def close(self) -> None:
         await self._client.close()
 

@@ -7,9 +7,11 @@ import httpx
 import pytest
 
 from src.auth.session import require_authenticated
-from src.dependencies import get_graph_store
+from src.dependencies import get_document_store, get_graph_store
+from src.domain.documents import NewDocument, build_document
 from src.graph.contracts import EmotionCatalog, EmotionExploration
 from src.main import app
+from src.services.document_store import DocumentNotFoundError
 from src.services.graph_store import EmotionNotFoundError, GraphPersistenceError
 from src.user_management.authentication import get_database_strategy
 from src.user_management.manager import get_user_manager
@@ -38,6 +40,21 @@ async def api():
             )
         ),
     )
+    graph.document = build_document(NewDocument(content="Miedo"))
+    graph.documents = SimpleNamespace(get=AsyncMock(return_value=graph.document))
+    graph.explore_document_emotions = AsyncMock(
+        return_value=EmotionExploration(
+            document_id=str(graph.document.id),
+            root_id=f"Document:{graph.document.id}",
+            depth=1,
+            limit=100,
+            nodes=[],
+            edges=[],
+            truncated=False,
+            next_limit=None,
+        )
+    )
+    app.dependency_overrides[get_document_store] = lambda: graph.documents
     app.dependency_overrides[get_graph_store] = lambda: graph
     app.dependency_overrides[require_authenticated] = lambda: "owner"
     try:
@@ -109,7 +126,37 @@ async def test_emotion_routes_require_authentication():
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app), base_url="http://test"
         ) as client:
+            assert (
+                await client.get("/documents/00000000-0000-0000-0000-000000000001/emotions/graph")
+            ).status_code == 401
             assert (await client.get("/graph/emotions")).status_code == 401
             assert (await client.get("/graph/emotions/explore?emotion=miedo")).status_code == 401
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.mark.anyio
+async def test_document_neighborhood_checks_original_and_forwards_limit(api):
+    client, graph = api
+    response = await client.get(f"/documents/{graph.document.id}/emotions/graph?limit=20")
+    assert response.status_code == 200
+    assert response.json()["root_id"] == f"Document:{graph.document.id}"
+    graph.documents.get.assert_awaited_once_with(graph.document.id)
+    graph.explore_document_emotions.assert_awaited_once_with(str(graph.document.id), limit=20)
+
+
+@pytest.mark.anyio
+async def test_document_neighborhood_rejects_missing_original_before_reading_graph(api):
+    client, graph = api
+    graph.documents.get.side_effect = DocumentNotFoundError("missing")
+    response = await client.get(f"/documents/{graph.document.id}/emotions/graph")
+    assert response.status_code == 404
+    graph.explore_document_emotions.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_document_neighborhood_storage_failure_is_explicit(api):
+    client, graph = api
+    graph.explore_document_emotions.side_effect = GraphPersistenceError("truncated")
+    response = await client.get(f"/documents/{graph.document.id}/emotions/graph")
+    assert response.status_code == 502

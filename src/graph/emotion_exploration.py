@@ -109,23 +109,28 @@ class EmotionProjection:
         )
 
     async def explore(self, emotion, depth, limit):
-        key = label_key(emotion)
+        return await self.neighborhood("emotion", label_key(emotion), depth, limit)
+
+    async def document_neighborhood(self, document_id, limit):
+        return await self.neighborhood("document", document_id, 1, limit)
+
+    async def neighborhood(self, kind, key, depth, limit):
         async with self.client.transaction() as tx:
             groups = await self.memberships(tx)
-            if key not in groups:
+            if kind == "emotion" and key not in groups:
                 raise EmotionNotFoundError("Emotion not found")
             by_document = defaultdict(set)
             for label, documents in groups.items():
                 for document_id in documents:
                     by_document[document_id].add(label)
             # A level is one hop in the projected bipartite graph, not the storage graph.
-            included = {("emotion", key)}
+            included = {(kind, key)}
             frontier = set(included)
             truncated = False
             for _ in range(depth):
                 neighbors = set()
-                for kind, identifier in frontier:
-                    if kind == "emotion":
+                for entity_kind, identifier in frontier:
+                    if entity_kind == "emotion":
                         neighbors.update(("document", doc) for doc in groups[identifier])
                     else:
                         neighbors.update(("emotion", label) for label in by_document[identifier])
@@ -240,7 +245,8 @@ class EmotionProjection:
                         )
                     )
         return EmotionExploration(
-            root_id=group_id(key),
+            document_id=key if kind == "document" else None,
+            root_id=f"Document:{key}" if kind == "document" else group_id(key),
             depth=depth,
             limit=limit,
             nodes=sorted(nodes, key=lambda node: node.id),

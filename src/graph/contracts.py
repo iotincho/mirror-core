@@ -100,7 +100,7 @@ class EmotionCatalog(BaseModel):
 
 
 class EmotionExploration(BaseModel):
-    document_id: None = None
+    document_id: str | None = None
     root_id: str
     depth: int
     limit: int

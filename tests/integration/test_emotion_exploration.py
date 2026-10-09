@@ -26,12 +26,15 @@ def anyio_backend():
 
 
 async def test_empty_catalog_never_creates_extractor_schema(layer_database):
-    _, _, client, _, graph = layer_database
+    _, document, client, _, graph = layer_database
     before = (await client.query("SELECT name FROM schema:types"))["result"]
     catalog = await graph.list_emotions()
     assert catalog.model_dump() == {"emotions": [], "total": 0, "next_offset": None}
     with pytest.raises(EmotionNotFoundError):
         await graph.explore_emotion("miedo")
+    neighborhood = await graph.explore_document_emotions(str(document.id))
+    assert neighborhood.root_id == f"Document:{document.id}"
+    assert len(neighborhood.nodes) == 1 and not neighborhood.edges
     assert (await client.query("SELECT name FROM schema:types"))["result"] == before
 
 
@@ -110,6 +113,26 @@ async def test_levels_group_labels_deduplicate_runs_and_preserve_evidence(layer_
     assert [item.quote for item in a_edge.evidence] == ["Me dio miedo.", "Después sentí miedo."]
     assert all(len(item.sources) == 2 for item in a_edge.evidence)
     assert all(a.content[item.start_char : item.end_char] == item.quote for item in a_edge.evidence)
+    # Follow a single thread past the old L3 boundary without loading unrelated edges.
+    centered_a = await graph.explore_document_emotions(str(a.id))
+    assert centered_a.root_id == f"Document:{a.id}" and centered_a.document_id == str(a.id)
+    assert {n.label for n in centered_a.nodes if n.type == "EmotionGroup"} == {"miedo", "alegría"}
+    assert len(centered_a.nodes) == 3 and len(centered_a.edges) == 2
+    assert all(e.source == centered_a.root_id for e in centered_a.edges)
+    assert next(e for e in centered_a.edges if e.target == group_id("miedo")) == a_edge
+    centered_joy = await graph.explore_emotion("alegría")
+    assert {n.document_id for n in centered_joy.nodes if n.type == "Document"} == {
+        str(a.id),
+        str(c.id),
+    }
+    centered_c = await graph.explore_document_emotions(str(c.id))
+    assert {n.label for n in centered_c.nodes if n.type == "EmotionGroup"} == {"alegría", "calma"}
+    assert len(centered_c.edges) == 2 and all(
+        e.source == centered_c.root_id for e in centered_c.edges
+    )
+    limited_note = await graph.explore_document_emotions(str(a.id), limit=2)
+    assert len(limited_note.nodes) == 2 and limited_note.truncated
+    assert len(limited_note.edges) == 1
     l2 = await graph.explore_emotion("miedo", depth=2)
     assert len(l2.nodes) == 4 and len(l2.edges) == 3
     assert {node.label for node in l2.nodes if node.type == "EmotionGroup"} == {"miedo", "alegría"}

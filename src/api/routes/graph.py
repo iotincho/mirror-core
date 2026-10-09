@@ -102,3 +102,20 @@ async def emotion_exploration(
         raise HTTPException(404, "Emotion not found") from error
     except GraphPersistenceError as error:
         raise HTTPException(502, "Emotion exploration is unavailable") from error
+
+
+@router.get("/documents/{document_id}/emotions/graph", response_model=EmotionExploration)
+async def document_emotion_neighborhood(
+    document_id: UUID,
+    documents: Annotated[DocumentStore, Depends(get_document_store)],
+    graph: Annotated[GraphBackend, Depends(get_graph_store)],
+    limit: int = Query(default=100, ge=2, le=500),
+):
+    try:
+        await documents.get(document_id)
+    except DocumentNotFoundError as error:
+        raise HTTPException(404, "Document not found") from error
+    try:
+        return await graph.explore_document_emotions(str(document_id), limit=limit)
+    except GraphPersistenceError as error:
+        raise HTTPException(502, "Document emotions are unavailable") from error

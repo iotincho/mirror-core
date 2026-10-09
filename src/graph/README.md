@@ -64,7 +64,14 @@ normalizados, con cantidad de documentos distintos. Acepta `offset` y `limit`
 - L2: incorpora las otras emociones de esos documentos.
 - L3: incorpora otros documentos que reportan las emociones descubiertas.
 
-Los niveles cuentan saltos en la proyección documento/emoción. Los nodos
+La PWA recorre un salto por vez: usa la consulta por emoción con `depth=1` y
+`GET /documents/{document_id}/emotions/graph?limit=100` para centrar una nota.
+Esta última comprueba la existencia del original y devuelve sólo esa nota y sus
+emociones normalizadas, incluso si no hay emociones (un nodo, sin aristas).
+Ambas vistas comparten IDs y evidencia; permiten continuar un hilo sin limitarlo
+a los tres niveles, mostrando únicamente las conexiones inmediatas en cada paso.
+
+Los niveles de la API cuentan saltos en la proyección documento/emoción. Los nodos
 `EmotionGroup` son virtuales: sus IDs estables derivan de la etiqueta normalizada.
 Una arista `REPORTS_EMOTION` por documento y grupo reúne `evidence`, con citas,
 posiciones y referencias `sources` a las ejecuciones, nodos y aristas originales.

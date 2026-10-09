@@ -33,6 +33,10 @@ class GraphBackend(GraphStore, Protocol):
         self, emotion: str, *, depth: int = 1, limit: int = 100
     ) -> EmotionExploration: ...
 
+    async def explore_document_emotions(
+        self, document_id: str, *, limit: int = 100
+    ) -> EmotionExploration: ...
+
     async def get_extraction_graph(
         self, document_id: str, *, layer: str | None = None
     ) -> ExtractionGraph: ...

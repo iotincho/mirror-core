@@ -3,11 +3,21 @@
 from typing import Protocol
 
 from src.domain.documents import Document
-from src.graph.contracts import ExtractionGraph, LinkNeighborhood, LinkType
+from src.graph.contracts import (
+    EmotionCatalog,
+    EmotionExploration,
+    ExtractionGraph,
+    LinkNeighborhood,
+    LinkType,
+)
 
 
 class GraphPersistenceError(RuntimeError):
     """Raised when document storage or graph navigation fails."""
+
+
+class EmotionNotFoundError(LookupError):
+    """The requested emotion label has no reported occurrences in this workspace."""
 
 
 class GraphStore(Protocol):
@@ -17,6 +27,16 @@ class GraphStore(Protocol):
 
 
 class GraphBackend(GraphStore, Protocol):
+    async def list_emotions(self, *, offset: int = 0, limit: int = 100) -> EmotionCatalog: ...
+
+    async def explore_emotion(
+        self, emotion: str, *, depth: int = 1, limit: int = 100
+    ) -> EmotionExploration: ...
+
+    async def explore_document_emotions(
+        self, document_id: str, *, limit: int = 100
+    ) -> EmotionExploration: ...
+
     async def get_extraction_graph(
         self, document_id: str, *, layer: str | None = None
     ) -> ExtractionGraph: ...

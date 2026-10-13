@@ -138,7 +138,7 @@ async def test_note_upload_extracts_persists_and_replay_does_not_repeat_provider
     output = await LayerArtifacts(env.runtime.context.filesystem_root / "layers").get(
         document.id, uuid5(record.id, "emotions")
     )
-    assert output is not None and output.profile.id == "emotions/v1"
+    assert output is not None and output.profile.id == "emotions/v2"
     nodes = (
         await env.client.query(
             "SELECT FROM Emotion WHERE document_id=:id", {"id": str(document.id)}

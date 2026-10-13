@@ -32,6 +32,10 @@ class Extractor(ABC):
     @abstractmethod
     async def produce(self, document: Document) -> tuple[BaseModel, ProviderMetadata | None]: ...
 
+    async def produce_for_run(self, document: Document, run_id: UUID):
+        """Allow a layer to checkpoint its own generation steps without changing other layers."""
+        return await self.produce(document)
+
     @abstractmethod
     def validate_payload(self, payload: dict, document: Document) -> BaseModel: ...
 
@@ -57,7 +61,7 @@ class Extractor(ABC):
         output = await self.artifacts.get(document.id, run_id)
         if output is None:
             profile, configuration = self.profile, dict(self.request_config)
-            payload, provider = await self.produce(document)
+            payload, provider = await self.produce_for_run(document, run_id)
             if self.profile != profile or self.request_config != configuration:
                 raise ValueError("run_configuration_changed")
             current = await self.documents.get(document.id)

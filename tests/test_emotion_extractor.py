@@ -6,11 +6,13 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from pydantic import ValidationError
 
 from src.domain.documents import NewDocument, build_document
 from src.extractors.artifacts import LayerArtifacts
 from src.extractors.base import Extractor
 from src.extractors.contracts import ExtractorProfile, FrozenModel, ProviderMetadata, content_hash
+from src.extractors.emotion_evidence import EmotionEvidenceError, EmotionResponse
 from src.extractors.emotions import EMOTIONS_PROFILE, EmotionExtractor, Emotions
 from src.extractors.openai_emotions import EmotionProviderError, OpenAIEmotionProvider
 from src.extractors.registry import ExtractorRegistry
@@ -28,9 +30,9 @@ def anyio_backend():
 class FakeEmotions:
     provider_name, model_name = "fake", "test"
 
-    def __init__(self, occurrences=None):
+    def __init__(self, emotions=None):
         self.calls = 0
-        self.payload = Emotions(occurrences=occurrences or [])
+        self.payload = EmotionResponse(emotions=emotions or [])
 
     async def extract(self, document, profile):
         self.calls += 1
@@ -43,7 +45,7 @@ async def layer(tmp_path):
     documents = FileDocumentStore(tmp_path / "documents")
     await documents.save(document)
     artifacts = LayerArtifacts(tmp_path / "layers")
-    provider = FakeEmotions([{"label": "alegría", "quote": "Hoy siento alegría."}])
+    provider = FakeEmotions([{"label": "alegría", "quotes": ["Hoy siento alegría."]}])
     # None is intentional: dry-run must not even initialize the graph schema.
     extractor = EmotionExtractor(documents, artifacts, graph=None, provider=provider)
     return SimpleNamespace(
@@ -102,24 +104,26 @@ async def test_retry_refuses_changed_profile_or_model(layer):
 )
 async def test_rejects_invented_or_ambiguous_literal_evidence(layer, content, quote):
     document = layer.document.model_copy(update={"content": content})
-    with pytest.raises(ValueError, match="evidence_not_literal_or_ambiguous"):
+    with pytest.raises(
+        EmotionEvidenceError, match="emotion_quote_not_found|emotion_quote_ambiguous"
+    ):
         layer.extractor.validate_payload(
-            {"occurrences": [{"label": "miedo", "quote": quote}]}, document
+            {"emotions": [{"label": "miedo", "quotes": [quote]}]}, document
         )
 
 
 async def test_rejects_duplicate_evidence_and_blank_labels(layer):
-    occurrence = {"label": "alegría", "quote": "Hoy siento alegría."}
+    occurrence = {"label": "alegría", "quotes": ["Hoy siento alegría."]}
     with pytest.raises(ValueError, match="duplicate_emotion"):
-        layer.extractor.validate_payload({"occurrences": [occurrence, occurrence]}, layer.document)
+        layer.extractor.validate_payload({"emotions": [occurrence, occurrence]}, layer.document)
     with pytest.raises(ValueError, match="invalid_emotion_label"):
         layer.extractor.validate_payload(
-            {"occurrences": [{**occurrence, "label": " "}]}, layer.document
+            {"emotions": [{**occurrence, "label": " "}]}, layer.document
         )
 
 
 async def test_empty_is_valid_and_optional_immediate_persistence(layer):
-    layer.provider.payload = Emotions(occurrences=[])
+    layer.provider.payload = Emotions(emotions=[])
     writes = []
 
     async def write_layer(saved, payload):
@@ -128,7 +132,7 @@ async def test_empty_is_valid_and_optional_immediate_persistence(layer):
 
     layer.extractor.write_layer = write_layer
     result = await layer.extractor.extract(layer.document, dry_run=False)
-    assert result.payload == {"occurrences": []} and writes == [Emotions(occurrences=[])]
+    assert result.payload == {"emotions": [], "warnings": []} and writes == [Emotions(emotions=[])]
 
 
 async def test_rejects_source_changed_since_extraction(layer):
@@ -142,7 +146,7 @@ async def test_rejects_source_changed_since_extraction(layer):
 
 async def test_rejects_unsaved_modified_foreign_and_corrupted_artifacts(layer, tmp_path):
     output = await layer.extractor.extract(layer.document)
-    modified = output.model_copy(update={"payload": {"occurrences": []}})
+    modified = output.model_copy(update={"payload": {"emotions": []}})
     with pytest.raises(ValueError, match="not_saved_or_changed"):
         await layer.extractor.persist(modified)
     foreign = EmotionExtractor(layer.documents, LayerArtifacts(tmp_path / "other-workspace"), None)
@@ -151,7 +155,7 @@ async def test_rejects_unsaved_modified_foreign_and_corrupted_artifacts(layer, t
     storage = layer.artifacts.storage(output.document_id, output.run_id)
     path = storage.directory / "result.json"
     saved = json.loads(path.read_text())
-    saved["payload"]["payload"] = {"occurrences": []}
+    saved["payload"]["payload"] = {"emotions": []}
     path.write_text(json.dumps(saved))
     with pytest.raises(ArtifactCorrupted):
         await layer.artifacts.get(output.document_id, output.run_id)
@@ -166,7 +170,7 @@ async def test_deleting_artifacts_preserves_other_documents(layer):
             "run_id": uuid4(),
             "document_id": other.id,
             "content_hash": content_hash(other.content),
-            "payload": {"occurrences": []},
+            "payload": {"emotions": []},
         }
     )
     await layer.artifacts.save(second)
@@ -222,7 +226,7 @@ async def test_two_different_algorithms_and_schemas_can_run_concurrently(layer):
         asyncio.gather(length.extract(layer.document), emotion.extract(layer.document)), timeout=2
     )
     assert outputs[0].payload == {"characters": len(layer.document.content)}
-    assert outputs[1].payload["occurrences"][0]["label"] == "alegría"
+    assert outputs[1].payload["emotions"][0]["label"] == "alegría"
     with pytest.raises(ValueError, match="already_registered"):
         registry.register("emotions", EmotionExtractor)
 
@@ -241,7 +245,7 @@ async def test_openai_receives_full_note_own_schema_and_reports_refusal(layer):
     provider = OpenAIEmotionProvider("fake-key", "configured-model", client)
     payload, metadata = await provider.extract(layer.document, EMOTIONS_PROFILE)
     assert requests[0]["input"][1]["content"] == layer.document.content
-    assert requests[0]["text_format"] is Emotions and requests[0]["store"] is False
+    assert requests[0]["text_format"] is EmotionResponse and requests[0]["store"] is False
     assert payload == layer.provider.payload and metadata.model == "resolved-model"
     response.output_parsed = None
     with pytest.raises(EmotionProviderError, match="structured emotion result"):
@@ -252,12 +256,12 @@ async def test_openai_receives_full_note_own_schema_and_reports_refusal(layer):
 async def test_two_named_emotions_can_share_the_same_supporting_sentence(layer):
     document = layer.document.model_copy(update={"content": "Estoy feliz y triste."})
     payload = {
-        "occurrences": [
-            {"label": "felicidad", "quote": document.content},
-            {"label": "tristeza", "quote": document.content},
+        "emotions": [
+            {"label": "felicidad", "quotes": [document.content]},
+            {"label": "tristeza", "quotes": [document.content]},
         ]
     }
-    assert len(layer.extractor.validate_payload(payload, document).occurrences) == 2
+    assert len(layer.extractor.validate_payload(payload, document).emotions) == 2
 
 
 async def test_profile_change_during_provider_call_is_not_mistagged(layer):
@@ -274,3 +278,55 @@ async def test_profile_change_during_provider_call_is_not_mistagged(layer):
     with pytest.raises(ValueError, match="configuration_changed"):
         await layer.extractor.extract(layer.document, run_id=run)
     assert await layer.artifacts.get(layer.document.id, run) is None
+
+
+@pytest.mark.parametrize("label", ["ALEGRÍA", "alegri\u0301a"])
+async def test_rejects_normalized_duplicate_labels_even_with_different_evidence(layer, label):
+    with pytest.raises(ValueError, match="duplicate_emotion_label"):
+        layer.extractor.validate_payload(
+            {
+                "emotions": [
+                    {"label": "alegría", "quotes": ["Hoy siento alegría."]},
+                    {"label": label, "quotes": ["Después sentí miedo."]},
+                ]
+            },
+            layer.document,
+        )
+
+
+async def test_rejects_repeated_quote_within_group(layer):
+    with pytest.raises(ValueError, match="duplicate_emotion_quote"):
+        layer.extractor.validate_payload(
+            {
+                "emotions": [
+                    {"label": "alegría", "quotes": ["Hoy siento alegría.", "Hoy siento alegría."]}
+                ]
+            },
+            layer.document,
+        )
+
+
+@pytest.mark.parametrize("quotes", [[], [""], ["   "]])
+async def test_emotion_requires_nonempty_literal_evidence(layer, quotes):
+    with pytest.raises((ValidationError, ValueError)):
+        layer.extractor.validate_payload(
+            {"emotions": [{"label": "miedo", "quotes": quotes}]}, layer.document
+        )
+
+
+async def test_grouped_payload_retains_all_quotes_and_rejects_old_contract(layer):
+    document = layer.document.model_copy(
+        update={"content": "Hoy siento alegría. Volví a sentir alegría."}
+    )
+    payload = {
+        "emotions": [
+            {"label": "alegría", "quotes": ["Hoy siento alegría.", "Volví a sentir alegría."]}
+        ]
+    }
+    # Local validation checks provenance; semantic grouping is the provider's responsibility.
+    assert layer.extractor.validate_payload(payload, document).model_dump() == {
+        **payload,
+        "warnings": [],
+    }
+    with pytest.raises(ValidationError):
+        layer.extractor.validate_payload({"occurrences": []}, layer.document)

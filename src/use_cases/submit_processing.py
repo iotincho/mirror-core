@@ -90,7 +90,29 @@ class SubmitDocument:
     def __init__(self, submissions: SubmissionRepository, runtime):
         self.submissions, self.runtime = submissions, runtime
 
-    async def execute(self, document: NewDocument, key: UUID):
+    async def execute(
+        self,
+        document: NewDocument,
+        key: UUID,
+        *,
+        invitation_id: UUID | None = None,
+    ):
+        if "invitation_id" in document.metadata:
+            supplied = UUID(document.metadata["invitation_id"])
+            if invitation_id is not None and invitation_id != supplied:
+                raise SubmissionConflict("invitation_metadata_conflict")
+            invitation_id = supplied
+        if invitation_id is not None:
+            from src.exteriorization.repository import InvitationRepository
+
+            invitations = InvitationRepository(self.submissions.sessions)
+            async with invitations.sessions() as session:
+                await invitations.invitation(session, self.runtime.context.user_id, invitation_id)
+            document = document.model_copy(
+                update={
+                    "metadata": {**document.metadata, "invitation_id": str(invitation_id)},
+                }
+            )
         receipt = await self.submissions.reserve(
             user_id=self.runtime.context.user_id,
             operation="upload_document",
@@ -99,7 +121,7 @@ class SubmitDocument:
             resource_kind="document",
             resource_id=document.id,
             config=workflow_config(),
-            manifest={},
+            manifest={"invitation_id": str(invitation_id)} if invitation_id else {},
         )
         if receipt.accepted_at:
             return (

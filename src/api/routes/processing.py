@@ -30,6 +30,7 @@ from src.api.schemas.processing import (
 )
 from src.config import get_settings
 from src.domain.documents import NewDocument
+from src.exteriorization.repository import InvitationError
 from src.processing.runtime import get_repository
 from src.processing.submissions import SubmissionConflict, SubmissionRepository
 from src.services.audio_note_store import AudioNoteNotFoundError
@@ -50,6 +51,8 @@ Key = Annotated[UUID, Header(alias="Idempotency-Key")]
 
 
 def http_error(error):
+    if isinstance(error, InvitationError):
+        return HTTPException(error.status_code, error.code)
     if isinstance(error, (DocumentNotFoundError, AudioNoteNotFoundError)):
         return HTTPException(404, "Resource not found")
     if isinstance(error, SubmissionConflict):
@@ -95,7 +98,11 @@ async def submit_document(
     try:
         document, record = await SubmitDocument(
             SubmissionRepository(get_repository()), runtime
-        ).execute(NewDocument(**payload.model_dump()), key)
+        ).execute(
+            NewDocument(**payload.model_dump(exclude={"invitation_id"})),
+            key,
+            invitation_id=payload.invitation_id,
+        )
     except Exception as error:
         raise http_error(error) from error
     accepted_headers(request, response, record)
@@ -178,7 +185,7 @@ async def list_processing(
 @router.get("/processing/{processing_id}", response_model=ProcessingResponse)
 async def get_processing(processing_id: UUID, runtime: Runtime):
     record = await get_repository().get(processing_id, runtime.context.user_id)
-    if record is None:
+    if record is None or record.workflow == "invitation_push":
         raise HTTPException(404, "Processing not found")
     return ProcessingResponse.from_record(record)
 
@@ -187,7 +194,7 @@ async def get_processing(processing_id: UUID, runtime: Runtime):
 async def extractor_states(processing_id: UUID, runtime: Runtime):
     repository = get_repository()
     record = await repository.get(processing_id, runtime.context.user_id)
-    if record is None:
+    if record is None or record.workflow == "invitation_push":
         raise HTTPException(404, "Processing not found")
     return [
         ProcessingResponse.from_record(child)

@@ -397,3 +397,11 @@ respaldo. La ingestión no llama modelos para crear ni modificar títulos. Los
 documentos sin título siguen siendo válidos; la PWA muestra un nombre a partir
 del contenido. Reprocesar con `/v2/documents/{id}/processing` vuelve a persistir
 el original y crea una nueva ejecución de emociones con la configuración actual.
+
+## Invitaciones voluntarias para escribir
+
+El backend ofrece preguntas generales diarias y pruebas manuales mediante Web
+Push, con programación durable en el dispatcher/worker existentes. La activación
+es voluntaria y requiere una suscripción vigente y configuración VAPID.
+Ver [configuración, arquitectura y contrato API](docs/exteriorization-notifications.md).
+La integración del service worker y editor de la PWA corresponde a la siguiente etapa.

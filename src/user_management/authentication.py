@@ -22,10 +22,19 @@ cookie_transport = CookieTransport(
 )
 
 
+class InvitationDatabaseStrategy(DatabaseStrategy[User, UUID, AccessToken]):
+    async def destroy_token(self, token: str, user: User) -> None:
+        from src.exteriorization.dependencies import get_invitation_repository
+        from src.exteriorization.repository import session_fingerprint
+
+        await get_invitation_repository().deactivate_session(user.id, session_fingerprint(token))
+        await super().destroy_token(token, user)
+
+
 def get_database_strategy(
     access_token_db: AccessTokenDatabase[AccessToken] = Depends(get_access_token_db),
 ) -> DatabaseStrategy[User, UUID, AccessToken]:
-    return DatabaseStrategy(
+    return InvitationDatabaseStrategy(
         access_token_db,
         lifetime_seconds=get_settings().auth_session_ttl_seconds,
     )

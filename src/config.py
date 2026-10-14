@@ -33,6 +33,26 @@ class Settings(BaseSettings):
         validation_alias="PROCESSING_LEASE_SECONDS",
         ge=15,
     )
+    web_push_public_key: str | None = Field(default=None, validation_alias="WEB_PUSH_PUBLIC_KEY")
+    web_push_private_key: str | None = Field(
+        default=None,
+        validation_alias="WEB_PUSH_PRIVATE_KEY",
+        repr=False,
+    )
+    web_push_subject: str | None = Field(default=None, validation_alias="WEB_PUSH_SUBJECT")
+    web_push_allowed_hosts: list[str] = Field(
+        default=[
+            "fcm.googleapis.com",
+            "push.services.mozilla.com",
+            "push.apple.com",
+            "notify.windows.com",
+        ],
+        validation_alias="WEB_PUSH_ALLOWED_HOSTS",
+    )
+    web_push_allowed_origins: list[str] = Field(
+        default=[],
+        validation_alias="WEB_PUSH_ALLOWED_ORIGINS",
+    )
     log_level: str = Field(default="INFO", validation_alias="LOG_LEVEL")
     database_url: str = Field(
         default="postgresql+asyncpg://el_espejo:el-espejo-local-password@localhost:5432/el_espejo",

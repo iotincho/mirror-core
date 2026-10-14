@@ -4,12 +4,14 @@ import asyncio
 import logging
 import signal
 
+from src.exteriorization.dependencies import get_invitation_repository
 from src.processing.broker import broker
 from src.processing.repository import ProcessingRepository
 from src.processing.runtime import get_repository
 from src.processing.submissions import SubmissionRepository
 from src.processing.tasks import execute_processing
 from src.processing.workflows import worker_runtime
+from src.use_cases.schedule_invitations import ScheduleInvitations
 from src.use_cases.submit_processing import recover_submissions
 from src.user_management.database import close_database
 
@@ -42,6 +44,7 @@ async def main():
         while not stop.is_set():
             try:
                 repository = get_repository()
+                await ScheduleInvitations(get_invitation_repository()).execute()
                 await repository.recover()
                 await repository.recover_parents()
                 await recover_submissions(SubmissionRepository(repository), worker_runtime)

@@ -1,10 +1,10 @@
 # El Espejo: plan de rediseño y mejoras de usabilidad
 
 Fecha de acuerdo: 2026-10-14.
-Estado general: **etapas 1–5 implementadas localmente, pendientes de aceptación visual y pruebas en teléfonos; etapa 6 pendiente**.
+Estado general: **etapas 1–5 implementadas localmente, pendientes de aceptación visual y pruebas en teléfonos; etapa 6 con validación automática y runtime local completados; aceptación visual/dispositivos y publicación pendientes**.
 Referencia visual: [prototipo navegable](../prototypes/app-refresh/README.md).
 
-Este documento es el registro de alcance y avance del rediseño aprobado. El usuario aprobó el estilo general, la navegación, el botón único de captura, continuar grabando, la protección frente al bloqueo de pantalla y la posibilidad de fechar cualquier nota. El plan y el prototipo quedaron comiteados. El 2026-10-14 el usuario autorizó implementar sucesivamente las etapas 1, 2, 3, 4 y 5, reutilizando la misma rama para acumular los cambios. Las etapas restantes y la publicación son pasos posteriores.
+Este documento es el registro de alcance y avance del rediseño aprobado. El usuario aprobó el estilo general, la navegación, el botón único de captura, continuar grabando, la protección frente al bloqueo de pantalla y la posibilidad de fechar cualquier nota. El plan y el prototipo quedaron comiteados. El 2026-10-14 el usuario autorizó implementar sucesivamente las etapas 1, 2, 3, 4, 5 y la validación de la etapa 6, reutilizando la misma rama para acumular los cambios. La aceptación visual/en dispositivos y la publicación continúan como pasos pendientes.
 
 ## Cómo mantener este plan
 
@@ -25,7 +25,7 @@ Actualizar este archivo al completar trabajo, en el mismo cambio o PR que lo imp
 | 3. Material, lectura y ajustes | Implementada localmente; aceptación visual pendiente | `mirror-pwa` · misma rama `feat/app-refresh-stage1` · `58129b0`; build, lint y 15 archivos de pruebas |
 | 4. Grabación protegida y recuperable | Implementada localmente; aceptación visual, codecs y teléfonos pendientes | `mirror-pwa` · misma rama `feat/app-refresh-stage1` · 4674067; build, lint y 16 archivos de pruebas |
 | 5. Constelaciones | Implementada localmente; aceptación visual/mobile y servidor real pendientes | `mirror-pwa` · misma rama `feat/app-refresh-stage1` · `975bdfd`; build, lint y 17 archivos de pruebas |
-| 6. Validación integral y publicación | Pendiente | — |
+| 6. Validación integral y publicación | Validación automática/runtime local completados; aceptación visual/dispositivos y publicación pendientes | `mirror-pwa` · misma rama · `4c6d1bc`; 17 archivos PWA, 175 pruebas backend, integración HTTP/SQL/RabbitMQ e imagen local |
 
 El prototipo es una referencia de diseño con datos ficticios. No acredita la implementación funcional de estas etapas.
 
@@ -283,18 +283,33 @@ Pendiente: Browser no disponible (`iab` ausente; lista de navegadores vacía), p
 
 Repositorios: `mirror-pwa`, `mirror-core` si cambian contratos/audio, `mirror-deploy` sólo si se requieren ajustes de despliegue.
 
-- [ ] Ejecutar build, lint y suites existentes relevantes.
-- [ ] Agregar pruebas de fecha generalizada, conservación de borradores, unificación de material, migración de almacenamiento y persistencia/recuperación del audio.
-- [ ] Probar contratos e idempotencia de composición de segmentos si hay cambios backend.
+- [x] Ejecutar build, lint y suites existentes relevantes.
+- [x] Agregar pruebas de fecha generalizada, conservación de borradores, unificación de material, migración de almacenamiento y persistencia/recuperación del audio.
+- [x] Probar contratos e idempotencia de composición de segmentos si hay cambios backend.
 - [ ] Revisar visualmente 320, 375, 390, 768, 1024 y 1440 px; textos largos, listas extensas, teclado, foco, contraste, áreas seguras, carga, vacíos y errores.
 - [ ] Probar Safari/iOS y Chrome/Android reales, tanto navegador como PWA instalada cuando esté disponible.
 - [ ] Audio real: bloqueo automático/manual, cambio de aplicación, llamada, permisos revocados, cierre/reapertura, falta de espacio y desconexión.
-- [ ] Verificar que la migración conserva notas, audios, transcripciones, borradores y aislamiento por usuario.
-- [ ] Impedir que una actualización de la PWA fuerce recarga durante grabación o finalización.
-- [ ] Validar en entorno de prueba con evidencia de versión y resultados.
+- [x] Verificar que la migración conserva notas, audios, transcripciones, borradores y aislamiento por usuario.
+- [x] Impedir que una actualización de la PWA fuerce recarga durante grabación o finalización.
+- [ ] Completar aceptación en entorno de prueba HTTPS con evidencia de versión y resultados. Ya hay validación de imagen/HTTP en contenedores locales aislados.
 - [ ] Publicar sólo como paso posterior autorizado y verificar recorridos reales tras el despliegue.
 
 Aceptación: evidencia separada de implementación, controles automáticos, revisión visual, pruebas de teléfono y publicación. Los criterios que no se puedan comprobar quedan pendientes, identificando la limitación.
+
+### Avance registrado: 2026-10-14
+
+Implementación y evidencia: `mirror-pwa`, misma rama `feat/app-refresh-stage1`, commit `4c6d1bc`. Informe respaldado y archivos JSON en `mirror-pwa/docs/validation/app-refresh-2026-10-14/README.md`. Esta etapa **permanece abierta** por aceptación visual, teléfonos, entorno HTTPS y publicación.
+
+- Suite PWA: 17 archivos aprobados, incluidos 17 casos de audio y los recorridos de material/Constelaciones. Build y verificación de artefactos en producción y desarrollo, lint y diff sin errores.
+- Suite backend: 175 aprobados y 107 omitidos por sus propios prerrequisitos. La ejecución ASGI quedó esperando el event loop bajo sandbox; el test aislado y luego la suite completa pasaron fuera del sandbox, con proveedores deshabilitados y endpoints/paths de prueba. No se alteró código funcional del core.
+- Integración entre repositorios sin omitir: PostgreSQL 17 y RabbitMQ 4.3.6 nuevos en loopback, migraciones hasta `20261013_09`, API/auth y workers Taskiq reales. Push/DOM/APIs del navegador/SSE controlados. Se verificaron invitaciones, reintento, borrador, respuesta, horario, logout y aislamiento. El codificador WAV y adaptador de subida de producción enviaron audio a la API real: fecha/tamaño/MIME, replay idempotente y bytes originales conservados por usuario; también archivo de texto histórico. Los trabajos de documentos/audio quedaron aceptados/en cola, sin ejecutar modelos externos.
+- Imagen Docker de producción construida y probada sólo localmente: Nginx y health, HTML/assets, rutas, iconos productivos y caché `no-store`. El manifest ahora tiene `application/manifest+json`. Evidencia del digest y respuestas en el informe; no se generó un release ni tag remoto.
+- Verificación reproducible nueva: `npm run verify:build` (requiere build previo), más `python3 scripts/validate-integration.py` para levantar y limpiar sus servicios temporales. No usa el stack productivo ni descarga imágenes automáticamente. Todos los contenedores de QA quedaron eliminados.
+- Se corrigió y agregó regresión para continuar un audio, seleccionar otro y volver al primero: los snapshots conservan todos los segmentos y no reutilizan índices. Al adquirir Web Locks una pestaña desactualizada relee los segmentos actuales; si otra ya guardó/eliminó la sesión, no la sobrescribe. Una lectura fallida de recuperación impide iniciar otra grabación sin revisar lo pendiente. Los fallos de escritura se conservan por sesión para que guardar otro audio no confirme material que sigue sólo en memoria; se mantiene su reserva de Web Locks hasta persistir o descartar esas partes.
+- Migración v6→v7 ampliada: conserva nota, Blob de audio, transcripción, fecha, identidad remota, estado/clave de envío, versión de procesamiento y borrador reservado con adjunto. Estas son pruebas con IndexedDB simulado; sigue pendiente el dispositivo real.
+- La protección contra actualización quedó verificada en los artefactos: worker sin activación/claim inmediatos y registro sin recarga forzada. No acredita todavía la transición desde el service worker instalado ni la navegación offline real.
+
+Pendiente: Browser continúa no disponible (`iab` ausente; catálogo vacío), sin capturas/layout/gestos acreditados. Safari/iOS y Chrome/Android físicos; audio/formatos/decodificación real, bloqueo, llamadas, muerte/reapertura, cuota; flujo con proveedores; update/offline; revisión responsive y ruta pública Gateway/Cloudflare. Se solicitó la URL/mecanismo de publicación de un entorno de prueba HTTPS; mientras no se identifique, se conserva el límite de validación local. No se publicaron ramas, imágenes, tags o PRs ni se mergeó/desplegó. Publicación preparada en el informe, para el paso posterior autorizado tras la aceptación; no requiere migraciones SQL ni cambios de contratos backend por este rediseño.
 
 ## Secuencia y dependencias
 
@@ -310,10 +325,9 @@ La persistencia del audio debe definirse después de validar los formatos; la re
 | 2026-10-14 | Etapa 1 implementada localmente | `mirror-pwa` · `feat/app-refresh-stage1` · `eedbbde`; build/lint; 12 archivos de pruebas y UI 14/14 | Aceptación visual/mobile e integración configurada; etapas 2–6; publicación |
 | 2026-10-14 | Etapa 2 implementada sobre la misma rama | `mirror-pwa` · `feat/app-refresh-stage1` · `9fa20ef`; build/lint; 13 archivos de pruebas, captura 9/9 | Aceptación visual/mobile y extremo a extremo; etapas 3–6; publicación |
 | 2026-10-14 | Etapa 3 implementada sobre la misma rama | `mirror-pwa` · `feat/app-refresh-stage1` · `58129b0`; build/lint; 15 archivos de pruebas, modelo 8/8 y UI 13/13 | Aceptación visual/mobile y extremo a extremo; etapas 4–6; publicación |
-
 | 2026-10-14 | Etapa 4 implementada sobre la misma rama | `mirror-pwa` · `feat/app-refresh-stage1` · `4674067`; build/lint; 16 archivos, grabación 13/13 y captura 10/10 | Aceptación visual, codecs/teléfonos y extremo a extremo; etapas 5–6; publicación |
-
 | 2026-10-14 | Etapa 5 implementada sobre la misma rama | `mirror-pwa` · `feat/app-refresh-stage1` · `975bdfd`; build/lint; 17 archivos, UI Constelaciones 6/6 y modelo 17/17 | Aceptación visual/mobile, gestos y servidor real; etapa 6; publicación |
+| 2026-10-14 | Etapa 6: validación automática y runtime local; correcciones de recuperación y manifest | `mirror-pwa` · misma rama · `4c6d1bc`; 17 archivos PWA; backend 175/107 omitidos; integración real aislada; imagen y HTTP local | Aceptación visual/dispositivos/HTTPS, proveedores, PWA instalada/offline y publicación; etapa 6 abierta |
 
 ### Plantilla para próximas actualizaciones
 

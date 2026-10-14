@@ -2,7 +2,7 @@
 
 from enum import Enum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class EvidenceReference(BaseModel):
@@ -49,6 +49,21 @@ class GraphNode(BaseModel):
     document_id: str | None = None
     quote: str | None = None
     profile_id: str | None = None
+    document_count: int | None = None
+
+
+class GraphEvidenceSource(BaseModel):
+    run_id: str
+    emotion_id: str
+    edge_id: str
+
+
+class GraphEvidence(BaseModel):
+    document_id: str
+    quote: str
+    start_char: int
+    end_char: int
+    sources: list[GraphEvidenceSource]
 
 
 class GraphEdge(BaseModel):
@@ -60,6 +75,7 @@ class GraphEdge(BaseModel):
     quote: str | None = None
     start_char: int | None = None
     end_char: int | None = None
+    evidence: list[GraphEvidence] = Field(default_factory=list)
 
 
 class ExtractionGraph(BaseModel):
@@ -68,3 +84,28 @@ class ExtractionGraph(BaseModel):
     layers: list[str]
     nodes: list[GraphNode]
     edges: list[GraphEdge]
+
+
+class EmotionCatalogItem(BaseModel):
+    id: str
+    key: str
+    label: str
+    document_count: int
+
+
+class EmotionCatalog(BaseModel):
+    emotions: list[EmotionCatalogItem]
+    total: int
+    next_offset: int | None
+
+
+class EmotionExploration(BaseModel):
+    document_id: str | None = None
+    root_id: str
+    depth: int
+    limit: int
+    layers: list[str] = Field(default_factory=lambda: ["emotions"])
+    nodes: list[GraphNode]
+    edges: list[GraphEdge]
+    truncated: bool
+    next_limit: int | None

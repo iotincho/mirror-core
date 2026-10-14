@@ -208,7 +208,7 @@ Prueba real pendiente de la PWA y un dispositivo compatible: configurar VAPID/or
 registrar una suscripción real, solicitar prueba, verificar notificación, tocarla,
 consultar pregunta persistida y guardar respuesta vinculada. Después comprobar horario,
 cambio de hora, desactivación y logout/cambio de cuenta. Aceptación del proveedor no
-sustituye observar el dispositivo. Esta etapa no implementa el service worker/editor.
+sustituye observar el dispositivo. El service worker/editor está implementado en la rama correspondiente de `mirror-pwa`.
 
 ## Evidencia local — 2026-10-13
 
@@ -242,3 +242,8 @@ el binding persistido localmente antes de mostrar el push. Así puede notificar
 sin una cookie vigente o sin conexión HTTP, y descartar un push demorado de otra
 sesión/cuenta. No habilita acceso a APIs: consultar o responder sigue requiriendo
 autenticación y propiedad. Aplicar `20261013_09` antes de usar esta PWA.
+
+## Cierre de integración — etapa 3
+
+Ver [informe de integración y entrega](notifications-integration-report.md) para
+los comandos reproducibles, resultados y límites de la validación entre repositorios.

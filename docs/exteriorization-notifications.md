@@ -63,6 +63,16 @@ para que el service worker reduzca duplicados. TTL se limita al tiempo restante.
 
 ## Configuración
 
+VAPID identifica a esta aplicación ante el servicio push del navegador. Son dos
+claves del mismo par: la pública se usa al suscribir el dispositivo y la privada
+firma los envíos desde el backend. No son claves de Google/OpenAI ni hace falta
+crear una cuenta en un proveedor para generarlas.
+
+**No se autogeneran al iniciar API o Compose.** El comando siguiente genera archivos
+una sola vez, cuando se lo ejecuta explícitamente. Después hay que configurar las
+variables de entorno con esos valores. Las claves efímeras autogeneradas por el
+runner de integración son exclusivamente para pruebas simuladas.
+
 Instalar dependencias y migrar antes de iniciar el runtime:
 
 ```sh
@@ -96,6 +106,45 @@ openssl pkey -in /private/path/vapid/private.pem -outform DER \
   | openssl base64 -A > /private/path/vapid/private-der-base64.txt
 chmod 600 /private/path/vapid/private-der-base64.txt
 ```
+
+Para Compose local, el archivo que cargan API/worker/dispatcher es `.env.local`.
+Se puede usar una carpeta ignorada como `.env.vapid` para conservar los archivos:
+
+```sh
+.venv/bin/python -m src.exteriorization.vapid .env.vapid
+openssl pkey -in .env.vapid/private.pem -outform DER \
+  | openssl base64 -A > .env.vapid/private-der-base64.txt
+chmod 600 .env.vapid/private-der-base64.txt
+```
+
+Configurar en `.env.local` (los textos entre `<...>` se reemplazan por el contenido,
+no por el nombre de archivo):
+
+```dotenv
+WEB_PUSH_PUBLIC_KEY=<contenido de .env.vapid/public.txt>
+WEB_PUSH_PRIVATE_KEY=<contenido de .env.vapid/private-der-base64.txt>
+WEB_PUSH_SUBJECT=https://mind.elespejo.app
+WEB_PUSH_ALLOWED_ORIGINS=["https://mind.elespejo.app"]
+```
+
+`SUBJECT` es una URL de contacto o `mailto:tu-correo`; no es una clave ni una
+credencial. `ALLOWED_ORIGINS` debe contener el origen exacto desde donde abrís la
+PWA (protocolo, host y puerto si corresponde), sin rutas. Adaptar ambos ejemplos al
+entorno real. Usar DER base64 evita tener que montar el archivo PEM en contenedores:
+una ruta del host no existe automáticamente dentro del worker.
+
+El par se conserva entre reinicios. Cambiar `.env.local` requiere recrear los
+contenedores que consumen esas variables; el reload de Uvicorn no recarga el
+entorno del contenedor. Desde `mirror-core`:
+
+```sh
+docker compose up -d --build
+```
+
+Compose usa `../mirror-pwa` como contexto y volumen: las dos ramas deben estar
+activas en esos directorios habituales. Aplica Alembic antes de API/worker/dispatcher.
+Luego abrir la PWA → menú → Invitaciones para escribir → **Enviar prueba** y
+conceder permiso. No hace falta habilitar el horario diario para una prueba.
 
 No copiar archivos de claves al repositorio. Rotar el par exige renovar las
 suscripciones del navegador; la v1 no implementa rotación automática.

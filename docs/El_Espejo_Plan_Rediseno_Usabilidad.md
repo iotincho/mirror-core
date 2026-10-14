@@ -1,10 +1,10 @@
 # El Espejo: plan de rediseño y mejoras de usabilidad
 
 Fecha de acuerdo: 2026-10-14.
-Estado general: **diseño aprobado; implementación pendiente**.
+Estado general: **etapa 1 implementada localmente, pendiente de aceptación visual; etapas 2–6 pendientes**.
 Referencia visual: [prototipo navegable](../prototypes/app-refresh/README.md).
 
-Este documento es el registro de alcance y avance del rediseño aprobado. El usuario aprobó el estilo general, la navegación, el botón único de captura, continuar grabando, la protección frente al bloqueo de pantalla y la posibilidad de fechar cualquier nota. La autorización actual comprende documentar y comitear el plan junto con el prototipo; implementar y publicar son pasos posteriores.
+Este documento es el registro de alcance y avance del rediseño aprobado. El usuario aprobó el estilo general, la navegación, el botón único de captura, continuar grabando, la protección frente al bloqueo de pantalla y la posibilidad de fechar cualquier nota. El plan y el prototipo quedaron comiteados. El 2026-10-14 el usuario autorizó implementar la primera etapa. Las etapas restantes y la publicación son pasos posteriores.
 
 ## Cómo mantener este plan
 
@@ -20,7 +20,7 @@ Actualizar este archivo al completar trabajo, en el mismo cambio o PR que lo imp
 
 | Etapa | Estado | Evidencia de cierre |
 | --- | --- | --- |
-| 1. Base visual y navegación | Pendiente | — |
+| 1. Base visual y navegación | Implementada localmente; aceptación visual pendiente | `mirror-pwa` · `feat/app-refresh-stage1` · `eedbbde`; build, lint y pruebas automáticas |
 | 2. Captura y fecha original | Pendiente | — |
 | 3. Material, lectura y ajustes | Pendiente | — |
 | 4. Grabación protegida y recuperable | Pendiente | — |
@@ -43,16 +43,48 @@ Ya existen almacenamiento Dexie separado por usuario, borradores, sincronizació
 
 Repositorio principal: `mirror-pwa`.
 
-- [ ] Extraer la paleta, tipografía, espaciado, bordes y tamaños del prototipo a estilos compartidos.
-- [ ] Unificar botones, campos, etiquetas, estados, diálogos, mensajes e iconos SVG.
-- [ ] Usar fondo petróleo, superficies suaves, texto marfil, acento salvia y ámbar en encabezados; errores y acciones destructivas con tratamiento propio.
-- [ ] Mantener controles cómodos al tacto, con botones principales de 44 px y jerarquía visual contenida.
-- [ ] Incorporar navegación compartida: Capturar, Tu material y Constelaciones.
-- [ ] Desktop: sidebar simple, ajustes y cierre de sesión al pie; contenido con ancho máximo.
-- [ ] Mobile: navegación inferior, ajustes desde avatar y espacio para áreas seguras.
-- [ ] Adaptar también acceso, carga inicial, errores y pantallas vacías.
+- [x] Extraer la paleta, tipografía, espaciado, bordes y tamaños del prototipo a estilos compartidos.
+- [x] Unificar botones, campos, etiquetas, estados, diálogos, mensajes e iconos SVG.
+- [x] Usar fondo petróleo, superficies suaves, texto marfil, acento salvia y ámbar en encabezados; errores y acciones destructivas con tratamiento propio.
+- [x] Mantener controles cómodos al tacto, con botones principales de 44 px y jerarquía visual contenida.
+- [x] Incorporar navegación compartida: Capturar, Tu material y Constelaciones.
+- [x] Desktop: sidebar simple, ajustes y cierre de sesión al pie; contenido con ancho máximo.
+- [x] Mobile: navegación inferior, ajustes desde avatar y espacio para áreas seguras.
+- [x] Adaptar también acceso, carga inicial, errores y pantallas vacías.
 
 Aceptación: no hay scroll horizontal a 320 px ni en desktop; textos largos envuelven; teclado móvil y áreas seguras no tapan acciones; foco visible y navegación por teclado; los estados no dependen únicamente del color. Corregir el origen del overflow sin ocultarlo globalmente.
+
+### Avance registrado: 2026-10-14
+
+Implementación: `mirror-pwa`, rama `feat/app-refresh-stage1`, commit `eedbbde` (`feat: add shared mobile-first navigation and design foundations`), basado en `origin/develop`.
+
+- `src/index.css`: variables compartidas de color, tipografía, tamaños y superficies; estilos accesibles de controles y movimiento reducido.
+- `src/components/AppShell.tsx` y `app-shell.css`: sidebar desktop, navegación inferior mobile, acceso a ajustes y contenido con ancho flexible.
+- `src/components/Icon.tsx` y `ReadingDialog.tsx`: vocabulario SVG y lector compartido con Escape, contención y restauración de foco.
+- `src/App.css`: sustituye capas históricas de overrides por estilos agrupados de captura, material, lectura, ajustes, acceso y carga.
+- Captura permanece montada al navegar a material/constelaciones, conservando el editor. Hasta la etapa 4, la navegación sigue deshabilitada durante la grabación actual; todavía no se implementaron pausa, continuación ni Wake Lock.
+- La entrada Tu material ya presenta las listas existentes en una pantalla dentro de la estructura compartida. La búsqueda, filtros, unificación local/remota y acciones concentradas en el detalle siguen pendientes de etapa 3.
+- Constelaciones adopta las variables y la estructura compartida; el rediseño específico de nodos/aristas y su validación permanecen en etapa 5.
+- Acceso, carga de sesión, errores, vacíos y ajustes usan las nuevas bases. Ajustes permite cerrar sesión desde mobile y presenta ahí cualquier error de salida.
+- Se actualizó el color de tema de HTML/manifest para acompañar la nueva base, conservando las variantes de iconos por entorno.
+
+Validación realizada:
+
+- `npm run build`: pasó, incluyendo TypeScript y generación de la PWA.
+- `npm run lint`: pasó.
+- `npm test`: pasaron los 12 archivos de pruebas.
+- `node tests/invitation-ui.test.mjs`: 14 pruebas pasaron tras el último ajuste. Cubren también navegación sin perder borrador, foco en material, apertura/cierre de ajustes, lector con teclado, bloqueo de navegación durante la grabación actual y error de logout visible en ajustes.
+- `git diff --check`: pasó.
+- `npm run test:integration`: la prueba HTTP/SQL/RabbitMQ quedó omitida por faltar su configuración de entorno; no cuenta como validación integral ejecutada.
+
+Aceptación aún pendiente:
+
+- [ ] Revisar layout real y ausencia de overflow a 320, 375, 390, 768, 1024 y 1440 px.
+- [ ] Verificar teclado móvil, áreas seguras, zoom/texto aumentado y gestos táctiles.
+- [ ] Comprobar contraste y estados con render real.
+- [ ] Ejecutar integración HTTP/SQL/RabbitMQ en un entorno configurado.
+
+El navegador integrado no está disponible (`Browser is not available: iab`; lista de navegadores vacía). Las pruebas DOM no acreditan layout, scroll ni comportamiento táctil. No hubo despliegue ni validación de producción. Por eso la implementación no se marca como etapa completamente aceptada.
 
 ## 2. Captura y fecha original
 
@@ -176,7 +208,8 @@ La persistencia del audio debe definirse después de validar los formatos; la re
 
 | Fecha | Trabajo | Evidencia | Pendientes |
 | --- | --- | --- | --- |
-| 2026-10-14 | Diseño y ajustes del prototipo aprobados; plan registrado en rama desde origin/develop | `prototypes/app-refresh/`; verificaciones de sintaxis y recorridos JSDOM | Implementación real de etapas 1–6; revisión visual del prototipo y pruebas en dispositivos |
+| 2026-10-14 | Diseño y ajustes del prototipo aprobados; plan registrado en rama desde origin/develop | `mirror-core` · `9142f91`; `prototypes/app-refresh/`; sintaxis y recorridos JSDOM | Implementación real de etapas 1–6; revisión visual y pruebas en dispositivos |
+| 2026-10-14 | Etapa 1 implementada localmente | `mirror-pwa` · `feat/app-refresh-stage1` · `eedbbde`; build/lint; 12 archivos de pruebas y UI 14/14 | Aceptación visual/mobile e integración configurada; etapas 2–6; publicación |
 
 ### Plantilla para próximas actualizaciones
 

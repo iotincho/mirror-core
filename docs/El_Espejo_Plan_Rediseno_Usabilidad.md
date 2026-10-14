@@ -1,10 +1,10 @@
 # El Espejo: plan de rediseño y mejoras de usabilidad
 
 Fecha de acuerdo: 2026-10-14.
-Estado general: **etapas 1–3 implementadas localmente, pendientes de aceptación visual; etapas 4–6 pendientes**.
+Estado general: **etapas 1–4 implementadas localmente, pendientes de aceptación visual y pruebas de audio en teléfonos; etapas 5–6 pendientes**.
 Referencia visual: [prototipo navegable](../prototypes/app-refresh/README.md).
 
-Este documento es el registro de alcance y avance del rediseño aprobado. El usuario aprobó el estilo general, la navegación, el botón único de captura, continuar grabando, la protección frente al bloqueo de pantalla y la posibilidad de fechar cualquier nota. El plan y el prototipo quedaron comiteados. El 2026-10-14 el usuario autorizó implementar sucesivamente las etapas 1, 2 y 3, reutilizando la misma rama para acumular los cambios. Las etapas restantes y la publicación son pasos posteriores.
+Este documento es el registro de alcance y avance del rediseño aprobado. El usuario aprobó el estilo general, la navegación, el botón único de captura, continuar grabando, la protección frente al bloqueo de pantalla y la posibilidad de fechar cualquier nota. El plan y el prototipo quedaron comiteados. El 2026-10-14 el usuario autorizó implementar sucesivamente las etapas 1, 2, 3 y 4, reutilizando la misma rama para acumular los cambios. Las etapas restantes y la publicación son pasos posteriores.
 
 ## Cómo mantener este plan
 
@@ -23,7 +23,7 @@ Actualizar este archivo al completar trabajo, en el mismo cambio o PR que lo imp
 | 1. Base visual y navegación | Implementada localmente; aceptación visual pendiente | `mirror-pwa` · `feat/app-refresh-stage1` · `eedbbde`; build, lint y pruebas automáticas |
 | 2. Captura y fecha original | Implementada localmente; aceptación visual pendiente | `mirror-pwa` · misma rama `feat/app-refresh-stage1` · `9fa20ef`; build, lint y 13 archivos de pruebas |
 | 3. Material, lectura y ajustes | Implementada localmente; aceptación visual pendiente | `mirror-pwa` · misma rama `feat/app-refresh-stage1` · `58129b0`; build, lint y 15 archivos de pruebas |
-| 4. Grabación protegida y recuperable | Pendiente | — |
+| 4. Grabación protegida y recuperable | Implementada localmente; aceptación visual, codecs y teléfonos pendientes | `mirror-pwa` · misma rama `feat/app-refresh-stage1` · 4674067; build, lint y 16 archivos de pruebas |
 | 5. Constelaciones | Pendiente | — |
 | 6. Validación integral y publicación | Pendiente | — |
 
@@ -194,34 +194,34 @@ Repositorio principal: `mirror-pwa`; cambios puntuales en `mirror-core` si la co
 ### 4.0. Validación temprana de formatos
 
 - [ ] Validar al comienzo del trabajo los formatos producidos en Safari/iOS y Chrome/Android: entrega de fragmentos, finalización, reconstrucción y reproducción.
-- [ ] Distinguir fragmentos de una misma sesión de MediaRecorder de segmentos independientes después de una interrupción.
-- [ ] Resolver y documentar la composición de segmentos antes de cerrar el diseño de persistencia/subida. No asumir que concatenar Blobs independientes genera un archivo válido.
-- [ ] Si se requiere ensamblado en servidor, definir su contrato, idempotencia, límites y pruebas; conservar originales y producir una única nota lógica con trazabilidad.
+- [x] Distinguir fragmentos de una misma sesión de MediaRecorder de segmentos independientes después de una interrupción.
+- [x] Resolver y documentar la composición de segmentos antes de cerrar el diseño de persistencia/subida. No asumir que concatenar Blobs independientes genera un archivo válido.
+- [x] Resolver si se requiere ensamblado en servidor: se compone PCM/WAV en el cliente, conservando originales. No cambia el contrato backend, que ya admite WAV; la validación física de codecs sigue pendiente.
 
 ### 4.1. Controlador de grabación independiente de la pantalla
 
-- [ ] Mover el dueño de grabación a un controlador compartido que sobreviva a la navegación interna.
-- [ ] Incorporar estados explícitos: solicitando micrófono, grabando, pausado, finalizando, interrumpido, recuperable y error.
-- [ ] Mantener una barra visible con tiempo efectivo, pausa/continuar y finalizar; el tiempo no depende del número de fragmentos ni de ticks de un intervalo.
-- [ ] Mantener separación por usuario y sesión; impedir que cambios de sesión o logout mezclen o abandonen una grabación activa sin resolución.
+- [x] Mover el dueño de grabación a un controlador compartido que sobreviva a la navegación interna.
+- [x] Incorporar estados explícitos: solicitando micrófono, grabando, pausado, finalizando, interrumpido, recuperable y error.
+- [x] Mantener una barra visible con tiempo efectivo, pausa/continuar y finalizar; el tiempo no depende del número de fragmentos ni de ticks de un intervalo.
+- [x] Mantener separación por usuario y sesión; impedir que cambios de sesión o logout mezclen o abandonen una grabación activa sin resolución.
 
 ### 4.2. Protección de pantalla
 
-- [ ] Solicitar Screen Wake Lock durante grabación activa cuando esté disponible.
-- [ ] Mostrar el estado confirmado: activo, no disponible, rechazado o liberado.
-- [ ] Liberar al pausar o terminar; solicitar de nuevo al continuar o volver a primer plano si aún corresponde.
-- [ ] Mantener operativa la recuperación cuando el sistema no permita o retire la protección.
+- [x] Solicitar Screen Wake Lock durante grabación activa cuando esté disponible.
+- [x] Mostrar el estado confirmado: activo, no disponible, rechazado o liberado.
+- [x] Liberar al pausar o terminar; solicitar de nuevo al continuar o volver a primer plano si aún corresponde.
+- [x] Mantener operativa la recuperación cuando el sistema no permita o retire la protección.
 
 ### 4.3. Persistencia y recuperación
 
-- [ ] Añadir almacenamiento de sesiones/fragmentos en IndexedDB con orden, formato, identidad y estado, mediante migración que conserve datos existentes.
-- [ ] Persistir progresivamente los datos que entregue el grabador; indicar guardado sólo tras confirmar escritura.
-- [ ] Esperar la entrega final y las escrituras pendientes antes de confirmar la finalización.
-- [ ] Crear el documento local final de forma recuperable e idempotente; limpiar fragmentos temporales sólo cuando el resultado esté confirmado.
-- [ ] Detectar sesiones incompletas al reabrir y verificar qué material puede reconstruirse realmente.
-- [ ] Ofrecer escuchar, descargar, guardar o continuar en un nuevo segmento, conservando lo anterior como parte de la misma nota lógica.
-- [ ] Ante falta de espacio o error de escritura, conservar el material disponible en memoria, informar la situación y ofrecer respaldo cuando sea posible.
-- [ ] Conservar original y transcripción durante fallos de subida/procesamiento; reutilizar reintentos existentes.
+- [x] Añadir almacenamiento de sesiones/fragmentos en IndexedDB con orden, formato, identidad y estado, mediante migración que conserve datos existentes.
+- [x] Persistir progresivamente los datos que entregue el grabador; indicar guardado sólo tras confirmar escritura.
+- [x] Esperar la entrega final y las escrituras pendientes antes de confirmar la finalización.
+- [x] Crear el documento local final de forma recuperable e idempotente; limpiar fragmentos temporales sólo cuando el resultado esté confirmado.
+- [x] Detectar sesiones incompletas al reabrir y verificar qué material puede reconstruirse realmente.
+- [x] Ofrecer escuchar, descargar, guardar o continuar en un nuevo segmento, conservando lo anterior como parte de la misma nota lógica.
+- [x] Ante falta de espacio o error de escritura, conservar el material disponible en memoria, informar la situación y ofrecer respaldo cuando sea posible.
+- [x] Conservar original y transcripción durante fallos de subida/procesamiento; reutilizar reintentos existentes.
 
 Aceptación: navegar no detiene la grabación; pausar/continuar conserva el contenido; una interrupción permite recuperar lo efectivamente persistido; terminar o reintentar no duplica notas; los mensajes no prometen duración o material no verificados.
 
@@ -231,6 +231,23 @@ Referencias técnicas:
 
 - [MDN: Screen Wake Lock API](https://developer.mozilla.org/en-US/docs/Web/API/Screen_Wake_Lock_API)
 - [MDN: MediaRecorder dataavailable](https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder/dataavailable_event)
+
+### Avance registrado: 2026-10-14
+
+Implementación: `mirror-pwa`, misma rama `feat/app-refresh-stage1`, commit `4674067`. Decisiones y recorridos de aceptación: `mirror-pwa/docs/voice-recording.md`.
+
+- Controlador compartido por almacenamiento activo, fuera del árbol de captura. Material, Constelaciones y desmontar/remontar el editor conservan el grabador. Barra persistente con pausa/continuación, tiempo monotónico, guardado, reproducción y descarga.
+- Al ocultar la aplicación, abandonar la página o recibir mute/ended/error del micrófono, se intenta cerrar el segmento. Volver ofrece continuar, sin prometer grabación en segundo plano. Logout explícito bloqueado hasta resolver el audio; pérdida forzada de sesión detiene tracks y conserva lo ya escrito. Web Locks excluye grabaciones simultáneas entre pestañas cuando está disponible.
+- Wake Lock confirmado/rechazado/no disponible/liberado, con liberación de concesiones tardías y protección frente a carreras al pausar/continuar.
+- Migración Dexie v7: sesiones y fragmentos ordenados por identidad/segmento/secuencia; cola de escrituras y mensajes confirmados al completar la cola. Cuota/error conserva memoria, ofrece respaldo y reintenta todos los datos antes de finalizar.
+- Finalización espera el último dato y las escrituras. Documento con ID estable y limpieza de recuperación en una transacción; no reemplaza notas existentes ni pierde claves/estados de sincronización. Recuperación por cuenta, varias sesiones seleccionables y eliminación sólo mediante confirmación.
+- Composición definida antes de persistir: concatenación únicamente dentro del mismo MediaRecorder; continuaciones independientes se decodifican por separado y generan WAV mono/16 kHz/16 bits. Los originales permanecen descargables en Material. No requiere cambios de backend. Un segmento truncado necesita decodificación exitosa antes de aceptar su guardado; si falla se conservan las partes.
+- Límite local de salida: 25 MiB, aproximadamente 13 min 39 s para WAV compuesto. Una sola grabación comprimida puede durar más. Componer requiere memoria adicional; errores de formato/memoria/tamaño conservan los originales y permiten respaldo. Esta limitación debe aceptarse junto con las pruebas físicas.
+- Se anticipó la protección de actualización de etapa 6: `registerType: prompt`, sin activar una versión nueva ni recargar automáticamente clientes abiertos. Falta comprobar la transición desde la PWA actualmente instalada.
+
+Validación local: `npm run build`, `npm run lint`, `npm test` (16 archivos; grabación 13/13, captura 10/10) y `git diff --check`. Pruebas específicas de persistencia, entrega final, idempotencia, pausa/tiempo, interrupción/reapertura, aislamiento/permiso tardío, cuota, Wake Lock, contenedores incompletos, composición PCM/orden/límite, migración v6→v7, descarte confirmado, exclusión entre pestañas y continuidad como una única nota. UI: navegación material/grafo, remontaje y guardia de logout. Grabador y decodificador de audio controlados: estos resultados no acreditan codecs de teléfonos ni reproducción real.
+
+Pendiente: la validación temprana física de 4.0 no pudo realizarse; el navegador integrado no está disponible. Se definió la composición con el contrato W3C de MediaRecorder y soporte WAV verificado en el backend actual, pero se mantiene abierta la aceptación de formatos. Probar Safari/iOS y Chrome/Android reales, navegador/PWA, WebM/MP4/WAV, bloqueo, llamada, cambio de app, cierre abrupto, reproducción de partes, composición/subida/transcripción, cuota real, actualización y revisión visual. No hubo despliegue, publicación ni verificación contra servidor real. La siguiente implementación es etapa 5; la aceptación física de etapa 4 sigue pendiente hasta contar con esos dispositivos.
 
 ## 5. Constelaciones con el estilo aprobado
 
@@ -278,6 +295,8 @@ La persistencia del audio debe definirse después de validar los formatos; la re
 | 2026-10-14 | Etapa 1 implementada localmente | `mirror-pwa` · `feat/app-refresh-stage1` · `eedbbde`; build/lint; 12 archivos de pruebas y UI 14/14 | Aceptación visual/mobile e integración configurada; etapas 2–6; publicación |
 | 2026-10-14 | Etapa 2 implementada sobre la misma rama | `mirror-pwa` · `feat/app-refresh-stage1` · `9fa20ef`; build/lint; 13 archivos de pruebas, captura 9/9 | Aceptación visual/mobile y extremo a extremo; etapas 3–6; publicación |
 | 2026-10-14 | Etapa 3 implementada sobre la misma rama | `mirror-pwa` · `feat/app-refresh-stage1` · `58129b0`; build/lint; 15 archivos de pruebas, modelo 8/8 y UI 13/13 | Aceptación visual/mobile y extremo a extremo; etapas 4–6; publicación |
+
+| 2026-10-14 | Etapa 4 implementada sobre la misma rama | `mirror-pwa` · `feat/app-refresh-stage1` · `4674067`; build/lint; 16 archivos, grabación 13/13 y captura 10/10 | Aceptación visual, codecs/teléfonos y extremo a extremo; etapas 5–6; publicación |
 
 ### Plantilla para próximas actualizaciones
 

@@ -48,6 +48,7 @@ class PushSubscription(Base):
     endpoint: Mapped[str] = mapped_column(Text, unique=True)
     p256dh: Mapped[str] = mapped_column(Text)
     auth: Mapped[str] = mapped_column(Text)
+    binding_id: Mapped[UUID] = mapped_column(default=uuid4)
     session_fingerprint: Mapped[str] = mapped_column(String(64))
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())

@@ -94,6 +94,7 @@ class ConfigureInvitations:
             if subscription.user_id != user_id:
                 raise InvitationError("subscription_account_conflict", 409)
             if subscription.session_fingerprint != fingerprint:
+                subscription.binding_id = uuid4()
                 await self.repository.cancel_deliveries(session, user_id, subscription.id)
             subscription.session_fingerprint = fingerprint
             subscription.p256dh, subscription.auth = p256dh, auth

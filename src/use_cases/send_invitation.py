@@ -84,6 +84,7 @@ class SendInvitation:
             await context.assert_lease()
             delivery.attempts += 1
             payload = {
+                "binding_id": str(subscription.binding_id),
                 "title": "Un momento para vos",
                 "question": invitation.question,
                 "invitation_id": str(invitation.id),

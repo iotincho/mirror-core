@@ -12,7 +12,7 @@ modelos SQL, operaciones de persistencia y adaptador Web Push. Los casos de uso
 `SendInvitation` poseen las decisiones y transiciones del flujo.
 
 PostgreSQL conserva preferencias, suscripciones, invitaciones, envíos por
-dispositivo y vínculos con documentos. Alembic `20261013_08` agrega las tablas.
+dispositivo y vínculos con documentos. Alembic `20261013_08` agrega las tablas y `20261013_09` agrega el binding opaco por suscripción.
 Cada invitación contiene la pregunta exacta, origen, candidato, categoría,
 versiones, fecha local, zona, hora programada, vencimiento y primera apertura.
 Las invitaciones históricas no cambian al actualizar el banco ni las preferencias.
@@ -129,7 +129,7 @@ el origen público detrás de Nginx/HTTPS. No se habilita CORS con credenciales.
 | `GET /exteriorization/preferences` | `enabled`, `local_time`, `timezone`, `next_due_at`. |
 | `PUT /exteriorization/preferences` | JSON completo `{ "enabled": true, "local_time": "20:30", "timezone": "America/Argentina/Buenos_Aires" }`. Habilitar requiere una suscripción activa. |
 | `GET /exteriorization/push/public-key` | `{ "public_key": "…" }`. |
-| `POST /exteriorization/push/subscriptions` | Objeto PushSubscription `{ "endpoint": "…", "keys": { "p256dh": "…", "auth": "…" }, "expirationTime": null }`; devuelve solo `{ "id": "UUID", "active": true }`. |
+| `POST /exteriorization/push/subscriptions` | Objeto PushSubscription `{ "endpoint": "…", "keys": { "p256dh": "…", "auth": "…" }, "expirationTime": null }`; devuelve solo `{ "id": "UUID", "active": true, "binding_id": "UUID" }`. |
 | `DELETE /exteriorization/push/subscriptions/{id}` | 204 idempotente, solo propietario y sesión actuales. |
 | `POST /exteriorization/invitations/test` | `{ "subscription_id": "UUID" }` + `Idempotency-Key: UUID`; 202 con invitación persistida. |
 | `GET /exteriorization/invitations/{id}` | Pregunta exacta y metadatos históricos. |
@@ -158,6 +158,7 @@ Payload push:
 
 ```json
 {
+  "binding_id": "UUID-opaco-de-la-suscripción",
   "title": "Un momento para vos",
   "question": "¿Cómo estuvo tu día?",
   "invitation_id": "UUID",
@@ -230,3 +231,14 @@ usaron bases separadas porque reclaman outbox globalmente. No ejecutar suites
 paralelas sobre la misma base de pruebas. La suite completa también necesitó
 archivos de entorno de ejemplo y un token Cloudflare ficticio para renderizar
 Compose; no se inició ningún túnel.
+
+## Ajuste de contrato para la etapa PWA
+
+`binding_id` es un UUID aleatorio de destino, no una credencial ni un ID de usuario.
+Se devuelve al registrar la suscripción y se incluye en el payload cifrado de cada
+envío. Un alta repetida con la misma sesión lo conserva; otra sesión lo renueva y
+cancela entregas pendientes de la asociación anterior. El service worker compara
+el binding persistido localmente antes de mostrar el push. Así puede notificar
+sin una cookie vigente o sin conexión HTTP, y descartar un push demorado de otra
+sesión/cuenta. No habilita acceso a APIs: consultar o responder sigue requiriendo
+autenticación y propiedad. Aplicar `20261013_09` antes de usar esta PWA.

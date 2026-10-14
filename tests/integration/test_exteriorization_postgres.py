@@ -704,3 +704,20 @@ async def test_http_document_upload_preserves_typed_invitation_contract(
         )
         assert response.status_code == 404
         assert len(await runtime.document_store.list()) == 1
+
+
+async def test_push_binding_is_idempotent_and_changes_with_the_authenticated_session(store):
+    repo, owner, service, subscriptions = await setup(store)
+    original = subscriptions[0]
+    repeated = await service.subscribe(owner, "session-0", original.endpoint, "public", "auth")
+    assert repeated.binding_id == original.binding_id
+    await ScheduleInvitations(repo).execute(await due_now(repo, owner))
+    changed = await service.subscribe(owner, "new-session", original.endpoint, "public", "auth")
+    assert changed.id == original.id and changed.binding_id != original.binding_id
+    assert (await rows(repo, InvitationDelivery, owner))[0].status == "cancelled"
+    invitation = await service.test(owner, "new-session", changed.id, uuid4())
+    transport = Transport()
+    await run_jobs(repo, owner, transport)
+    assert len(transport.payloads) == 1
+    assert transport.payloads[0][1]["binding_id"] == str(changed.binding_id)
+    assert transport.payloads[0][1]["invitation_id"] == str(invitation.id)

@@ -1,10 +1,10 @@
 # El Espejo: plan de rediseño y mejoras de usabilidad
 
 Fecha de acuerdo: 2026-10-14.
-Estado general: **etapas 1–4 implementadas localmente, pendientes de aceptación visual y pruebas de audio en teléfonos; etapas 5–6 pendientes**.
+Estado general: **etapas 1–5 implementadas localmente, pendientes de aceptación visual y pruebas en teléfonos; etapa 6 pendiente**.
 Referencia visual: [prototipo navegable](../prototypes/app-refresh/README.md).
 
-Este documento es el registro de alcance y avance del rediseño aprobado. El usuario aprobó el estilo general, la navegación, el botón único de captura, continuar grabando, la protección frente al bloqueo de pantalla y la posibilidad de fechar cualquier nota. El plan y el prototipo quedaron comiteados. El 2026-10-14 el usuario autorizó implementar sucesivamente las etapas 1, 2, 3 y 4, reutilizando la misma rama para acumular los cambios. Las etapas restantes y la publicación son pasos posteriores.
+Este documento es el registro de alcance y avance del rediseño aprobado. El usuario aprobó el estilo general, la navegación, el botón único de captura, continuar grabando, la protección frente al bloqueo de pantalla y la posibilidad de fechar cualquier nota. El plan y el prototipo quedaron comiteados. El 2026-10-14 el usuario autorizó implementar sucesivamente las etapas 1, 2, 3, 4 y 5, reutilizando la misma rama para acumular los cambios. Las etapas restantes y la publicación son pasos posteriores.
 
 ## Cómo mantener este plan
 
@@ -24,7 +24,7 @@ Actualizar este archivo al completar trabajo, en el mismo cambio o PR que lo imp
 | 2. Captura y fecha original | Implementada localmente; aceptación visual pendiente | `mirror-pwa` · misma rama `feat/app-refresh-stage1` · `9fa20ef`; build, lint y 13 archivos de pruebas |
 | 3. Material, lectura y ajustes | Implementada localmente; aceptación visual pendiente | `mirror-pwa` · misma rama `feat/app-refresh-stage1` · `58129b0`; build, lint y 15 archivos de pruebas |
 | 4. Grabación protegida y recuperable | Implementada localmente; aceptación visual, codecs y teléfonos pendientes | `mirror-pwa` · misma rama `feat/app-refresh-stage1` · 4674067; build, lint y 16 archivos de pruebas |
-| 5. Constelaciones | Pendiente | — |
+| 5. Constelaciones | Implementada localmente; aceptación visual/mobile y servidor real pendientes | `mirror-pwa` · misma rama `feat/app-refresh-stage1` · `975bdfd`; build, lint y 17 archivos de pruebas |
 | 6. Validación integral y publicación | Pendiente | — |
 
 El prototipo es una referencia de diseño con datos ficticios. No acredita la implementación funcional de estas etapas.
@@ -253,16 +253,31 @@ Pendiente: la validación temprana física de 4.0 no pudo realizarse; el navegad
 
 Repositorio principal: `mirror-pwa`.
 
-- [ ] Llevar la composición del prototipo al motor real de Cytoscape: colores, nodos, conexiones, controles y panel de evidencia.
-- [ ] Definir estilos según tipo/capa y selección, conservando consistencia entre grafo, lista y detalle.
-- [ ] Adaptar grafo y detalle a mobile, con gestos y lectura cómodos.
-- [ ] Conservar entrada por nota/emoción, capas de la API, Lista, citas y lectura completa.
-- [ ] Conservar ramas, posiciones, zoom y desplazamiento al expandir.
-- [ ] Volver restaura el estado anterior sin ramas añadidas posteriormente; Ordenar redistribuye bajo acción explícita.
-- [ ] Cambiar de nota abre todas las capas; actualizar conserva el filtro seleccionado.
-- [ ] Preservar el contexto al abrir una nota y regresar a la exploración.
+- [x] Llevar la composición del prototipo al motor real de Cytoscape: colores, nodos, conexiones, controles y panel de evidencia.
+- [x] Definir estilos según tipo/capa y selección, conservando consistencia entre grafo, lista y detalle.
+- [x] Adaptar grafo y detalle a mobile, con gestos y lectura cómodos.
+- [x] Conservar entrada por nota/emoción, capas de la API, Lista, citas y lectura completa.
+- [x] Conservar ramas, posiciones, zoom y desplazamiento al expandir.
+- [x] Volver restaura el estado anterior sin ramas añadidas posteriormente; Ordenar redistribuye bajo acción explícita.
+- [x] Cambiar de nota abre todas las capas; actualizar conserva el filtro seleccionado.
+- [x] Preservar el contexto al abrir una nota y regresar a la exploración.
 
 Aceptación: estética aprobada aplicada a datos reales, incluso grafos densos; filtros y navegación conservan su semántica y trazabilidad; Lista ofrece acceso por teclado.
+
+### Avance registrado: 2026-10-14
+
+Implementación: `mirror-pwa`, misma rama `feat/app-refresh-stage1`, commit `975bdfd`. Decisiones y aceptación pendiente en `mirror-pwa/docs/constellation-redesign.md`.
+
+- Fondo petróleo con luz suave, nodos compactos y etiquetas externas; conexiones discretas, centro destacado y selección mediante contorno/halo. Paleta derivada del prototipo: notas salvia, emociones verde suave, entidades azul y afirmaciones ámbar. La misma clasificación guía grafo, leyenda y lista; se conservan elipses para emociones y clases semánticas de centro/selección. Capas desconocidas siguen visibles con nombre y tono alternativo.
+- Controles, selector, filtros, lista, historial y detalle comparten las bases visuales. CSS histórico reemplazado por reglas organizadas; controles táctiles de 44 px, leyenda y acciones que envuelven, sin posiciones absolutas dependientes de alturas fijas.
+- Grafo con altura adaptable; detalle lateral cuando hay espacio y debajo en mobile, con enlace para llegar a la selección. Citas editoriales con nota/fecha de origen y lector completo. Texto íntegro en lista/detalle; etiquetas del lienzo acotadas para que nombres extensos no dominen la composición.
+- Grafo/Lista conserva la instancia de Cytoscape, posiciones, zoom y pan. La distribución inicial considera etiquetas y se aplaza si el lienzo está oculto; volver a mostrarlo recalcula tamaño sin ajustar el encuadre automáticamente.
+- Alternar Por nota/Por emoción conserva el estado de cada exploración. Actualizar la misma nota mantiene el grafo mientras carga y conserva el filtro; errores dejan visible el grafo previo y ofrecen reintento. Cambiar de nota abre todas las capas.
+- Se conserva la semántica de expansión en el mismo grafo, snapshots/historial/Volver sin ramas posteriores, Ordenar explícito, evidencia y lectura sin perder contexto. Sin cambios de API, extracción o conexiones inferidas.
+
+Validación local: `npm run build`, `npm run lint`, `npm test` (17 archivos) y `git diff --check`. Nuevos recorridos UI 6/6 con React/JSDOM y Cytoscape real en modo headless: tipos/paleta/lista/evidencia, vista/lector sin perder viewport, refresh/filtro/cambio de nota, error/reintento, expansión/Volver/alternancia y etiquetas largas. Modelo de Constelaciones 17/17, incluidas expansión, posiciones, citas, snapshots y Ordenar con grafos densos. Las respuestas HTTP son controladas; sólo se sustituye el renderer de canvas en los nuevos tests.
+
+Pendiente: Browser no disponible (`iab` ausente; lista de navegadores vacía), por lo que no se acredita aceptación visual, ancho real de texto ni gestos. Revisar 320/375/390/768/1024/1440 px, datos y grafos densos reales, Safari/iOS y Chrome/Android, selección de conexiones, foco/teclado, pan/zoom, contraste y convivencia con barra de audio/áreas seguras. Sin despliegue ni validación contra servidor real. La siguiente etapa es validación integral y publicación, con la publicación como paso posterior autorizado.
 
 ## 6. Validación integral y publicación
 
@@ -297,6 +312,8 @@ La persistencia del audio debe definirse después de validar los formatos; la re
 | 2026-10-14 | Etapa 3 implementada sobre la misma rama | `mirror-pwa` · `feat/app-refresh-stage1` · `58129b0`; build/lint; 15 archivos de pruebas, modelo 8/8 y UI 13/13 | Aceptación visual/mobile y extremo a extremo; etapas 4–6; publicación |
 
 | 2026-10-14 | Etapa 4 implementada sobre la misma rama | `mirror-pwa` · `feat/app-refresh-stage1` · `4674067`; build/lint; 16 archivos, grabación 13/13 y captura 10/10 | Aceptación visual, codecs/teléfonos y extremo a extremo; etapas 5–6; publicación |
+
+| 2026-10-14 | Etapa 5 implementada sobre la misma rama | `mirror-pwa` · `feat/app-refresh-stage1` · `975bdfd`; build/lint; 17 archivos, UI Constelaciones 6/6 y modelo 17/17 | Aceptación visual/mobile, gestos y servidor real; etapa 6; publicación |
 
 ### Plantilla para próximas actualizaciones
 

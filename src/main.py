@@ -4,8 +4,9 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from starlette.exceptions import HTTPException
+from starlette.responses import JSONResponse
 
 from src.api.error_handlers import (
     logged_http_exception_handler,
@@ -13,6 +14,7 @@ from src.api.error_handlers import (
 )
 from src.api.router import api_router
 from src.config import get_settings
+from src.exteriorization.repository import InvitationError
 from src.logging import configure_logging
 from src.user_management.database import close_database
 from src.workspaces.provisioning import reconcile_active_workspaces
@@ -52,5 +54,13 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.include_router(api_router)
+
+
+@app.exception_handler(InvitationError)
+async def invitation_error_handler(request: Request, error: InvitationError) -> JSONResponse:
+    headers = {"Retry-After": "60"} if error.status_code == 429 else None
+    return JSONResponse({"detail": error.code}, status_code=error.status_code, headers=headers)
+
+
 app.add_exception_handler(HTTPException, logged_http_exception_handler)
 app.add_exception_handler(Exception, unexpected_exception_handler)

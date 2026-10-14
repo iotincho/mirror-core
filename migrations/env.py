@@ -8,6 +8,7 @@ from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from src.config import get_settings
+from src.exteriorization import models as invitation_models  # noqa: F401
 from src.maintenance import models as maintenance_models  # noqa: F401
 from src.processing import models as processing_models  # noqa: F401
 from src.user_management.models import Base

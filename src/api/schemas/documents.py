@@ -9,7 +9,9 @@ from src.domain.documents import NewDocument
 
 
 class CreateDocumentRequest(NewDocument):
-    """HTTP alias for the application input contract."""
+    """Typed invitation input; provenance is stored separately from user content."""
+
+    invitation_id: UUID | None = None
 
 
 class DocumentResponse(BaseModel):

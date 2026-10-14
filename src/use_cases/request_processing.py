@@ -129,7 +129,7 @@ class RequestProcessing:
 
     async def retry(self, processing_id: UUID, key: UUID):
         record = await self.repository.get(processing_id, self.runtime.context.user_id)
-        if record is None:
+        if record is None or record.workflow == "invitation_push":
             raise DocumentNotFoundError("Processing not found")
         lock = record.status == "failed"
 

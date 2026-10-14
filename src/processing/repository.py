@@ -27,6 +27,8 @@ class ProcessingRepository:
 
     @staticmethod
     def event(session, record):
+        if record.workflow == "invitation_push":
+            return  # Internal deliveries must not enter the document event feed.
         session.add(
             ProcessingEvent(
                 processing_id=record.id,
@@ -443,7 +445,10 @@ class ProcessingRepository:
         self, user_id: UUID, *, active: bool = False, cursor: UUID | None = None, limit: int = 50
     ):
         async with self.sessions() as session:
-            query = select(ProcessingRecord).where(ProcessingRecord.user_id == user_id)
+            query = select(ProcessingRecord).where(
+                ProcessingRecord.user_id == user_id,
+                ProcessingRecord.workflow != "invitation_push",
+            )
             if active:
                 query = query.where(
                     ProcessingRecord.status.in_(
@@ -551,6 +556,16 @@ class ProcessingRepository:
             )
             for record in rows:
                 record.resource_deleted = True
+            from sqlalchemy import delete
+
+            from src.exteriorization.models import InvitationResponse
+
+            await session.execute(
+                delete(InvitationResponse).where(
+                    InvitationResponse.user_id == user_id,
+                    InvitationResponse.document_id == resource_id,
+                )
+            )
 
     async def recover_parents(self):
         async with self.sessions.begin() as session:

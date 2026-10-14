@@ -178,6 +178,27 @@ class SubmissionRepository:
             await session.flush()
             self.processing.event(session, record)
             self.processing.schedule(session, record)
+            if receipt.operation == "upload_document" and receipt.manifest.get("invitation_id"):
+                from src.exteriorization.models import Invitation, InvitationResponse
+
+                invitation_id = UUID(receipt.manifest["invitation_id"])
+                invitation = await session.scalar(
+                    select(Invitation.id).where(
+                        Invitation.id == invitation_id,
+                        Invitation.user_id == receipt.user_id,
+                    )
+                )
+                if invitation is None:
+                    raise SubmissionConflict("invitation_not_found")
+                await session.execute(
+                    insert(InvitationResponse)
+                    .values(
+                        user_id=receipt.user_id,
+                        document_id=receipt.resource_id,
+                        invitation_id=invitation_id,
+                    )
+                    .on_conflict_do_nothing()
+                )
             current.processing_id = record.id
             current.accepted_at = await session.scalar(select(func.clock_timestamp()))
         return record

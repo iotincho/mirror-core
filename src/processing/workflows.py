@@ -154,8 +154,13 @@ async def retired_extraction(context):
 
 def register_workflows(registry):
     # Old messages cannot recreate historical extractions after the cutover.
-    from src.processing.execution import WorkflowDefinition
+    from src.exteriorization.dependencies import get_send_invitation
+    from src.processing.execution import ExecutionContext, WorkflowDefinition
 
+    async def send_invitation(context: ExecutionContext) -> None:
+        await get_send_invitation().execute(context)
+
+    registry.register("invitation_push", 1, WorkflowDefinition(send_invitation, frozenset()))
     registry.register("document", 1, WorkflowDefinition(retired_extraction, frozenset()))
     registry.register("document", 2, ProcessDocument(worker_runtime).definition)
     registry.register(

@@ -1,10 +1,10 @@
 # El Espejo: plan de rediseño y mejoras de usabilidad
 
 Fecha de acuerdo: 2026-10-14.
-Estado general: **etapas 1 y 2 implementadas localmente, pendientes de aceptación visual; etapas 3–6 pendientes**.
+Estado general: **etapas 1–3 implementadas localmente, pendientes de aceptación visual; etapas 4–6 pendientes**.
 Referencia visual: [prototipo navegable](../prototypes/app-refresh/README.md).
 
-Este documento es el registro de alcance y avance del rediseño aprobado. El usuario aprobó el estilo general, la navegación, el botón único de captura, continuar grabando, la protección frente al bloqueo de pantalla y la posibilidad de fechar cualquier nota. El plan y el prototipo quedaron comiteados. El 2026-10-14 el usuario autorizó implementar las etapas 1 y 2, reutilizando la misma rama para acumular los cambios. Las etapas restantes y la publicación son pasos posteriores.
+Este documento es el registro de alcance y avance del rediseño aprobado. El usuario aprobó el estilo general, la navegación, el botón único de captura, continuar grabando, la protección frente al bloqueo de pantalla y la posibilidad de fechar cualquier nota. El plan y el prototipo quedaron comiteados. El 2026-10-14 el usuario autorizó implementar sucesivamente las etapas 1, 2 y 3, reutilizando la misma rama para acumular los cambios. Las etapas restantes y la publicación son pasos posteriores.
 
 ## Cómo mantener este plan
 
@@ -22,7 +22,7 @@ Actualizar este archivo al completar trabajo, en el mismo cambio o PR que lo imp
 | --- | --- | --- |
 | 1. Base visual y navegación | Implementada localmente; aceptación visual pendiente | `mirror-pwa` · `feat/app-refresh-stage1` · `eedbbde`; build, lint y pruebas automáticas |
 | 2. Captura y fecha original | Implementada localmente; aceptación visual pendiente | `mirror-pwa` · misma rama `feat/app-refresh-stage1` · `9fa20ef`; build, lint y 13 archivos de pruebas |
-| 3. Material, lectura y ajustes | Pendiente | — |
+| 3. Material, lectura y ajustes | Implementada localmente; aceptación visual pendiente | `mirror-pwa` · misma rama `feat/app-refresh-stage1` · `58129b0`; build, lint y 15 archivos de pruebas |
 | 4. Grabación protegida y recuperable | Pendiente | — |
 | 5. Constelaciones | Pendiente | — |
 | 6. Validación integral y publicación | Pendiente | — |
@@ -137,20 +137,55 @@ El navegador integrado continúa sin estar disponible (`Browser is not available
 
 Repositorio principal: `mirror-pwa`.
 
-- [ ] Reemplazar el menú sobrecargado por una pantalla completa de material.
-- [ ] Añadir búsqueda y filtros por texto, audio, archivo, pendientes y borradores.
-- [ ] Definir explícitamente el alcance de búsqueda según los documentos cargados; no presentar búsquedas parciales como completas.
-- [ ] Reunir copias locales/remotas por identificadores y vínculos conocidos, incluyendo audio y su documento derivado; no fusionar por parecido de contenido.
-- [ ] Conservar elementos locales sin sincronizar y mostrar claramente su disponibilidad en el dispositivo/servidor.
-- [ ] Separar visualmente guardado local, subida pendiente/en curso, procesamiento, listo y error.
-- [ ] Llevar lectura, reproductor, transcripción y acciones al detalle de cada nota.
-- [ ] Ofrecer descarga del audio, reintento desde la transcripción cuando corresponda, nueva subida y eliminación con confirmación.
-- [ ] Actualizar material con los eventos de procesamiento existentes.
-- [ ] Incorporar ajustes de invitaciones: activación, horario, zona y prueba, preservando gestión de permisos y sesión.
-- [ ] Crear vistas de respaldo/importación, con límites y errores claros. El respaldo JSON no incluye archivos de audio.
-- [ ] Conservar identidad, fechas, detección de conflictos y procesamiento durable de documentos importados.
+- [x] Reemplazar el menú sobrecargado por una pantalla completa de material.
+- [x] Añadir búsqueda y filtros por texto, audio, archivo, pendientes y borradores.
+- [x] Definir explícitamente el alcance de búsqueda según los documentos cargados; no presentar búsquedas parciales como completas.
+- [x] Reunir copias locales/remotas por identificadores y vínculos conocidos, incluyendo audio y su documento derivado; no fusionar por parecido de contenido.
+- [x] Conservar elementos locales sin sincronizar y mostrar claramente su disponibilidad en el dispositivo/servidor.
+- [x] Separar visualmente guardado local, subida pendiente/en curso, procesamiento, listo y error.
+- [x] Llevar lectura, reproductor, transcripción y acciones al detalle de cada nota.
+- [x] Ofrecer descarga del audio, reintento desde la transcripción cuando corresponda, nueva subida y eliminación con confirmación.
+- [x] Actualizar material con los eventos de procesamiento existentes.
+- [x] Incorporar ajustes de invitaciones: activación, horario, zona y prueba, preservando gestión de permisos y sesión.
+- [x] Crear vistas de respaldo/importación, con límites y errores claros. El respaldo JSON no incluye archivos de audio.
+- [x] Conservar identidad, fechas, detección de conflictos y procesamiento durable de documentos importados.
 
 Aceptación: no aparecen duplicados por la convivencia local/remota; ninguna nota pendiente desaparece al cambiar de vista; cada acción se puede usar desde mobile; fallos de sincronización/procesamiento permiten recuperación sin perder original o transcripción.
+
+### Avance registrado: 2026-10-14
+
+Implementación: `mirror-pwa`, commit `58129b0` (`feat: unify material browsing, recovery details and archives`), en la misma rama `feat/app-refresh-stage1`, sobre las etapas 1 y 2. El plan continúa en la rama existente `mirror-core/feat/app-refresh-plan`.
+
+- `features/material/model.ts`: reúne copias por UUID de documento, `remoteDocumentId`, referencia explícita de procesamiento o metadata `audio_note_id` inequívoca. Un ID de audio no se interpreta por sí solo como ID de documento. Referencias ambiguas o textos parecidos no provocan fusiones.
+- La unificación es de presentación: no sobrescribe persistencia local. Todas las copias y originales asociados se conservan, y los textos diferentes de una misma identidad se pueden leer individualmente.
+- `MaterialScreen`: búsqueda y filtros Todas/Texto/Audio/Archivo/Pendientes/Borradores; incluye el borrador actual y los conservados. Las fechas originales ordenan la lista cuando están disponibles.
+- La búsqueda alcanza títulos, nombres de archivo, textos y transcripciones cargados. No lee todos los Blobs para indexarlos. Los archivos locales sin texto en el modelo se buscan por nombre; el texto remoto entra al cargarse. Fallos de carga conservan los resultados disponibles y anuncian que la búsqueda puede estar incompleta.
+- Cada fila distingue disponibilidad, envío y procesamiento. No se presenta un documento como procesado sólo porque exista en el servidor.
+- `MaterialDetail`: lectura, reproducción, transcripción, descarga de originales, reintento de envío/procesamiento, nueva subida y eliminación con confirmación. Las acciones dejaron de ocupar cada fila de la lista.
+- Reintentar procesamiento utiliza las rutas existentes y conserva original/transcripción. La nueva subida exige confirmación separada; no se dispara como sustituto automático de un reintento.
+- Audio local: Quitar copia local conserva el documento del servidor. En otros documentos se elimina usando la identidad remota correcta y luego se retiran las copias locales, sólo tras confirmar. El borrado del texto derivado no elimina el recurso de audio original del servidor. Un bloqueo de procesamiento devuelve una explicación útil y conserva las copias.
+- Las actualizaciones existentes refrescan filas y detalle sin reiniciar búsqueda/filtro. La URL del audio permanece estable ante clones de Blob por cambios de metadata, para evitar reiniciar la reproducción. Lecturas/respuestas tardías de otra sesión o de una petición anterior se descartan.
+- `ArchiveDialog`: descarga e importación con mensajes propios, selección de JSON y reintento conservando el archivo. Informa formato/versionado, 25 MiB/10.000 documentos, conflictos y exclusión de audios/notas sin subir del respaldo.
+- La importación conserva el contrato de identidad, fechas y aceptación durable del backend; se reutilizan las mismas rutas, sin introducir un flujo alternativo ni sobrescrituras. Se revisaron las rutas de archivo y el límite real del contrato.
+- Ajustes mantiene activación, horario, zona y prueba de invitaciones, permisos y logout. El respaldo se puede abrir también desde ajustes.
+- Los diálogos contienen/restauran foco, bloquean scroll del fondo mientras están abiertos e impiden cierre durante una operación confirmada en curso.
+- No hubo cambios backend, de esquemas ni dependencias nuevas. La grabación protegida/recuperable sigue pendiente de etapa 4.
+
+Validación realizada:
+
+- `npm test`: pasaron los 15 archivos de pruebas. Las pruebas existentes de captura, invitaciones, sincronización, audio, archivos y exploración siguen pasando.
+- `tests/material-model.test.mjs`: 8 pruebas de identidad explícita, audio/documento derivado, ambigüedad, copias pendientes, estados independientes, versiones de procesamiento, búsqueda y semántica de eliminación. Pasaron también tras el último ajuste de fecha de una copia pendiente.
+- `tests/material-ui.test.mjs`: 13 pruebas de navegación/listado, búsqueda/filtros, conservación ante errores remotos, lectura de textos divergentes, eventos con detalle abierto, recuperación de audio, confirmación de borrado, identidad de eliminación, reintentos remotos con clave estable, conflicto/importación con fechas, aislamiento entre cuentas, respuestas fuera de orden, nueva subida fallida, bloqueo de procesamiento y estabilidad del reproductor. Varias comprobaciones se agrupan en un mismo caso.
+- `npm run build`, `npm run lint` y `git diff --check`: pasaron.
+- Las pruebas UI usan DOM/IndexedDB simulados y respuestas HTTP controladas; no son evidencia de reproducción física ni de procesamiento real del servidor.
+
+Aceptación aún pendiente:
+
+- [ ] Revisar búsqueda, filtros, lista, detalle y archivos a 320–1440 px, incluyendo títulos largos y listas extensas.
+- [ ] Probar scroll de diálogos, teclado, reproducción, descargas e importación en Safari/iOS y Chrome/Android reales.
+- [ ] Validar reintentos, eventos y aceptación de importación con servidor/SQL/RabbitMQ configurados.
+
+El navegador integrado continúa sin estar disponible (`Browser is not available: iab`). No hubo push, despliegue ni validación de producción.
 
 ## 4. Grabación protegida y recuperable
 
@@ -242,6 +277,7 @@ La persistencia del audio debe definirse después de validar los formatos; la re
 | 2026-10-14 | Diseño y ajustes del prototipo aprobados; plan registrado en rama desde origin/develop | `mirror-core` · `9142f91`; `prototypes/app-refresh/`; sintaxis y recorridos JSDOM | Implementación real de etapas 1–6; revisión visual y pruebas en dispositivos |
 | 2026-10-14 | Etapa 1 implementada localmente | `mirror-pwa` · `feat/app-refresh-stage1` · `eedbbde`; build/lint; 12 archivos de pruebas y UI 14/14 | Aceptación visual/mobile e integración configurada; etapas 2–6; publicación |
 | 2026-10-14 | Etapa 2 implementada sobre la misma rama | `mirror-pwa` · `feat/app-refresh-stage1` · `9fa20ef`; build/lint; 13 archivos de pruebas, captura 9/9 | Aceptación visual/mobile y extremo a extremo; etapas 3–6; publicación |
+| 2026-10-14 | Etapa 3 implementada sobre la misma rama | `mirror-pwa` · `feat/app-refresh-stage1` · `58129b0`; build/lint; 15 archivos de pruebas, modelo 8/8 y UI 13/13 | Aceptación visual/mobile y extremo a extremo; etapas 4–6; publicación |
 
 ### Plantilla para próximas actualizaciones
 

@@ -1,10 +1,10 @@
 # El Espejo: plan de rediseño y mejoras de usabilidad
 
 Fecha de acuerdo: 2026-10-14.
-Estado general: **etapa 1 implementada localmente, pendiente de aceptación visual; etapas 2–6 pendientes**.
+Estado general: **etapas 1 y 2 implementadas localmente, pendientes de aceptación visual; etapas 3–6 pendientes**.
 Referencia visual: [prototipo navegable](../prototypes/app-refresh/README.md).
 
-Este documento es el registro de alcance y avance del rediseño aprobado. El usuario aprobó el estilo general, la navegación, el botón único de captura, continuar grabando, la protección frente al bloqueo de pantalla y la posibilidad de fechar cualquier nota. El plan y el prototipo quedaron comiteados. El 2026-10-14 el usuario autorizó implementar la primera etapa. Las etapas restantes y la publicación son pasos posteriores.
+Este documento es el registro de alcance y avance del rediseño aprobado. El usuario aprobó el estilo general, la navegación, el botón único de captura, continuar grabando, la protección frente al bloqueo de pantalla y la posibilidad de fechar cualquier nota. El plan y el prototipo quedaron comiteados. El 2026-10-14 el usuario autorizó implementar las etapas 1 y 2, reutilizando la misma rama para acumular los cambios. Las etapas restantes y la publicación son pasos posteriores.
 
 ## Cómo mantener este plan
 
@@ -21,7 +21,7 @@ Actualizar este archivo al completar trabajo, en el mismo cambio o PR que lo imp
 | Etapa | Estado | Evidencia de cierre |
 | --- | --- | --- |
 | 1. Base visual y navegación | Implementada localmente; aceptación visual pendiente | `mirror-pwa` · `feat/app-refresh-stage1` · `eedbbde`; build, lint y pruebas automáticas |
-| 2. Captura y fecha original | Pendiente | — |
+| 2. Captura y fecha original | Implementada localmente; aceptación visual pendiente | `mirror-pwa` · misma rama `feat/app-refresh-stage1` · `9fa20ef`; build, lint y 13 archivos de pruebas |
 | 3. Material, lectura y ajustes | Pendiente | — |
 | 4. Grabación protegida y recuperable | Pendiente | — |
 | 5. Constelaciones | Pendiente | — |
@@ -29,11 +29,11 @@ Actualizar este archivo al completar trabajo, en el mismo cambio o PR que lo imp
 
 El prototipo es una referencia de diseño con datos ficticios. No acredita la implementación funcional de estas etapas.
 
-## Bases existentes verificadas
+## Bases verificadas antes de la implementación
 
 En `mirror-pwa`, `CaptureScreen.tsx` ya alterna entre grabar y enviar según el contenido. Se mejorarán la presentación y los estados, aprovechando esa lógica.
 
-La fecha original ya forma parte del borrador, de `LocalDocument.authoredAt` y del envío al backend. Su edición actualmente aparece sólo en capturas compartidas (`isSharedCapture`). `authored-date.ts` valida fecha/hora local y la convierte a ISO con zona; se reutilizará esta base.
+La fecha original ya forma parte del borrador, de `LocalDocument.authoredAt` y del envío al backend. Al inicio del plan, su edición aparecía sólo en capturas compartidas (`isSharedCapture`); la etapa 2 la generaliza. `authored-date.ts` valida fecha/hora local y la convierte a ISO con zona; se reutilizará esta base.
 
 La grabación actual acumula fragmentos en memoria y guarda el Blob al detenerse. El grabador vive dentro de la pantalla de captura y sus tracks se detienen al desmontarla. No solicita protección de pantalla.
 
@@ -90,17 +90,48 @@ El navegador integrado no está disponible (`Browser is not available: iab`; lis
 
 Repositorio principal: `mirror-pwa`; reutilizar contratos existentes de `mirror-core`.
 
-- [ ] Un único botón de captura: micrófono por defecto; enviar/guardar cuando haya texto no vacío o adjunto; vuelve al micrófono al quitar contenido.
-- [ ] Iconos accesibles, tooltip y estados claros de carga, guardado y error. Evitar envíos duplicados.
-- [ ] Habilitar Fecha en cualquier captura: texto escrito o pegado, archivo y audio.
-- [ ] Permitir fecha/hora, modificación y regreso a “Ahora”; mostrar un resumen junto al editor.
-- [ ] Persistir la selección en el borrador y conservarla al navegar, recargar o abrir/restaurar una invitación.
-- [ ] Usar `authored_at` para fecha original y conservar `created_at` como incorporación al sistema.
-- [ ] Cuando sólo se conozca el día, ofrecer usar 00:00 de manera explícita; mantener calendario y alternativa de entrada manual.
-- [ ] Aplicar la fecha elegida también al audio, que actualmente se guarda con la fecha del momento de grabación.
-- [ ] Conservar adjuntos, share target, borradores y respuestas a invitaciones con sus asociaciones actuales.
+- [x] Un único botón de captura: micrófono por defecto; enviar/guardar cuando haya texto no vacío o adjunto; vuelve al micrófono al quitar contenido.
+- [x] Iconos accesibles, tooltip y estados claros de carga, guardado y error. Evitar envíos duplicados.
+- [x] Habilitar Fecha en cualquier captura: texto escrito o pegado, archivo y audio.
+- [x] Permitir fecha/hora, modificación y regreso a “Ahora”; mostrar un resumen junto al editor.
+- [x] Persistir la selección en el borrador y conservarla al navegar, recargar o abrir/restaurar una invitación.
+- [x] Usar `authored_at` para fecha original y conservar `created_at` como incorporación al sistema.
+- [x] Cuando sólo se conozca el día, ofrecer usar 00:00 de manera explícita; mantener calendario y alternativa de entrada manual.
+- [x] Aplicar la fecha elegida también al audio, conservando el momento de grabación como valor por defecto.
+- [x] Conservar adjuntos, share target, borradores y respuestas a invitaciones con sus asociaciones actuales.
 
 Aceptación: pegar una nota antigua, fecharla, salir y volver, guardar y sincronizar conserva contenido y fecha. La fecha se presenta consistentemente en lista, lector y Constelaciones. Un error de validación o guardado conserva el borrador.
+
+### Avance registrado: 2026-10-14
+
+Implementación: `mirror-pwa`, commit `9fa20ef` (`feat: add original dates and adaptive capture controls`), sobre la misma rama `feat/app-refresh-stage1` y después de `eedbbde`. El plan continúa en `mirror-core/feat/app-refresh-plan`; no se crearon ramas adicionales para esta etapa.
+
+- Botón único de 44 × 44 px: icono de micrófono por defecto, enviar si hay texto o archivo y detener mientras se graba. Tiene nombre accesible, tooltip y estado ocupado.
+- Se conserva el contrato existente de invitaciones con respuesta escrita: si una invitación está vacía, el botón de enviar permanece deshabilitado hasta escribir. Esta etapa no incorpora audio como respuesta vinculada a una invitación.
+- Fecha está disponible en cualquier captura y muestra un resumen junto al editor. Permite calendario o entrada manual, hora local, elección explícita de 00:00 y regreso a Ahora. Abrir el panel y volver a Ahora gestionan el foco.
+- La fecha elegida se conserva al navegar y remontar la pantalla. Los borradores que sólo tienen fecha también se conservan al abrir/restaurar una invitación o recibir contenido compartido.
+- La validación rechaza fechas incompletas o imposibles antes de guardar; conserva texto, adjunto y fecha ante errores.
+- `authored_at` mantiene la fecha original. `created_at` sigue siendo la fecha de creación del documento nuevo. Volver a Ahora elimina la fecha histórica seleccionada.
+- Audio fija la fecha elegida al iniciar; sin selección usa el instante de inicio. La fecha se envía mediante el multipart ya existente. Al confirmar el guardado se limpia la selección para la siguiente captura.
+- Lista, lector, transcripción y Constelaciones comparten presentación de fecha original, con fecha de guardado como alternativa cuando no existe fecha original.
+- Hay guardas síncronas contra doble guardado, doble solicitud de micrófono y doble detención, además de estado visible mientras se solicita permiso o se guarda. Una concesión tardía de micrófono tras desmontar/cambiar sesión cierra los tracks.
+- El mensaje de borrador guardado aparece después de confirmar su escritura; los errores de almacenamiento tienen anuncio accesible.
+- No se agregaron dependencias ni se modificaron endpoints o esquemas del backend. Pausa/continuación, Wake Lock y persistencia progresiva del audio permanecen en etapa 4.
+
+Validación realizada:
+
+- `npm test`: pasaron los 13 archivos de pruebas, incluyendo 9 casos nuevos en `tests/capture-usability.test.mjs` y 14 pruebas de UI de invitaciones.
+- Casos nuevos: alternancia del botón; texto histórico con navegación/remontaje; validación y hora desconocida; regreso a Ahora; archivo y contenido compartido; borrador sólo con fecha e invitaciones; fallo real simulado de escritura IndexedDB y reintento; fecha de audio y guardas de concurrencia; permiso de micrófono concedido después de desmontar.
+- Se verificaron payloads JSON/multipart de texto, archivo y audio mediante el servicio real de la PWA y respuestas HTTP simuladas; esto no acredita procesamiento real del servidor.
+- `npm run build`, `npm run lint` y `git diff --check`: pasaron.
+
+Aceptación aún pendiente:
+
+- [ ] Revisar tamaño, distribución y foco del botón/panel de fecha a 320–1440 px en navegador real.
+- [ ] Probar los selectores nativos y entrada manual en Safari/iOS y Chrome/Android, con teclado y áreas seguras.
+- [ ] Confirmar fechas y procesamiento en una prueba de extremo a extremo con servidor configurado.
+
+El navegador integrado continúa sin estar disponible (`Browser is not available: iab`). No hubo push, despliegue ni pruebas de micrófono real en esta etapa.
 
 ## 3. Tu material, lectura y ajustes
 
@@ -210,6 +241,7 @@ La persistencia del audio debe definirse después de validar los formatos; la re
 | --- | --- | --- | --- |
 | 2026-10-14 | Diseño y ajustes del prototipo aprobados; plan registrado en rama desde origin/develop | `mirror-core` · `9142f91`; `prototypes/app-refresh/`; sintaxis y recorridos JSDOM | Implementación real de etapas 1–6; revisión visual y pruebas en dispositivos |
 | 2026-10-14 | Etapa 1 implementada localmente | `mirror-pwa` · `feat/app-refresh-stage1` · `eedbbde`; build/lint; 12 archivos de pruebas y UI 14/14 | Aceptación visual/mobile e integración configurada; etapas 2–6; publicación |
+| 2026-10-14 | Etapa 2 implementada sobre la misma rama | `mirror-pwa` · `feat/app-refresh-stage1` · `9fa20ef`; build/lint; 13 archivos de pruebas, captura 9/9 | Aceptación visual/mobile y extremo a extremo; etapas 3–6; publicación |
 
 ### Plantilla para próximas actualizaciones
 

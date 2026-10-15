@@ -3,7 +3,7 @@
 Plan aprobado el 2026-10-15:
 
 - [x] Etapa 1: backend, extractor independiente, persistencia recuperable y compatibilidad de respaldos.
-- [ ] Etapa 2: actualización inmediata de títulos en material, lector, búsqueda, caché local y constelaciones.
+- [x] Etapa 2: actualización inmediata de títulos en material, lector, búsqueda, caché local y constelaciones.
 - [ ] Etapa 3: generación específica para documentos anteriores sin título, sin repetir otros extractores.
 
 ## Contrato y ejecución
@@ -82,5 +82,30 @@ extractores independientes, emociones y embeddings). Ruff y `git diff --check`
 sin errores. Los contenedores temporales se eliminaron al finalizar. Sin despliegue,
 llamadas a proveedores reales ni evaluación editorial de títulos generados por un LLM.
 
-Pendientes de las etapas siguientes: actualización inmediata de la PWA y generación
-de títulos para el material anterior. No se ejecuta un backfill automáticamente.
+## Etapa 2 — PWA
+
+Implementada localmente el 2026-10-15 en `mirror-pwa`, misma rama
+`feat/app-refresh-stage1`, commit `15e200d`. Los eventos de `document_title`
+reconcilian el título sin adoptar/completar el trabajo padre. Los audios obtienen
+el título desde que existe el documento, sin esperar al resto de extractores.
+Lista, búsqueda y lector abierto reflejan los cambios; las copias sincronizadas
+conservan el título en IndexedDB para reabrir sin servidor. Las identidades se
+vinculan por documento confirmado o metadata de audio explícita y no ambigua;
+las copias pendientes y el material original se preservan.
+
+Constelaciones hidrata sólo etiquetas de notas sobre el grafo existente. Mantiene
+canvas, posiciones, selección, filtros, zoom/pan y snapshots de exploración. Los
+lectores, breadcrumbs y pasos anteriores muestran los títulos actuales sin
+volver a cargar relaciones. La primera línea del contenido sirve de referencia
+provisional antes que nombres de archivos cuando todavía no hay título.
+
+Validación: 156 pruebas aprobadas en 17 archivos PWA (50 focalizadas en títulos,
+procesamiento diferido, material y constelaciones), build, lint, verificación de
+artefactos PWA y diff sin errores. Incluye lectura tras reabrir sin servidor,
+audio/transcripción preservados y respuestas tardías al cambiar de cuenta. Las
+pruebas usan JSDOM, IndexedDB simulado, Cytoscape headless y HTTP/SSE simulados;
+quedan pendientes aceptación en navegador/dispositivo real y flujo con LLM real.
+Documentación detallada en `mirror-pwa/docs/document-titles.md`. Sin despliegue.
+
+Pendiente: etapa 3, generación específica de títulos para el material anterior.
+No se ejecuta un backfill automáticamente.

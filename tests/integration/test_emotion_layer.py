@@ -126,7 +126,7 @@ async def test_dry_run_deferred_write_replay_tags_evidence_and_document_deletion
         assert (await client.query(f"SELECT FROM {name}"))["result"] == []
 
 
-async def test_empty_result_is_persisted_and_runs_are_independent(layer_database):
+async def test_empty_result_replaces_previous_layer(layer_database):
     extractor, document, client, provider, _ = layer_database
     provider.payload = Emotions(emotions=[])
     empty = await extractor.extract(document, dry_run=False)
@@ -135,8 +135,13 @@ async def test_empty_result_is_persisted_and_runs_are_independent(layer_database
     provider.payload = Emotions(emotions=[{"label": "miedo", "quotes": ["Después sentí miedo."]}])
     other = await extractor.extract(document, dry_run=False)
     assert other.run_id != empty.run_id
-    assert len((await client.query("SELECT FROM EmotionExtraction"))["result"]) == 2
+    assert len((await client.query("SELECT FROM EmotionExtraction"))["result"]) == 1
     assert len((await client.query("SELECT FROM Emotion"))["result"]) == 1
+    provider.payload = Emotions(emotions=[])
+    await extractor.extract(document, dry_run=False)
+    assert not (await client.query("SELECT FROM Emotion"))["result"]
+    assert not (await client.query("SELECT FROM HAS_EMOTION"))["result"]
+    assert len((await client.query("SELECT FROM EmotionExtraction"))["result"]) == 1
 
 
 async def test_missing_graph_source_does_not_report_success(layer_database):
@@ -151,6 +156,8 @@ async def test_missing_graph_source_does_not_report_success(layer_database):
 @pytest.mark.parametrize("failure", ["node", "edge", "evidence"])
 async def test_partial_layer_write_rolls_back_and_retry_reuses_artifact(layer_database, failure):
     extractor, document, client, provider, _ = layer_database
+    previous = await extractor.extract(document, dry_run=False)
+    previous_nodes = (await client.query("SELECT FROM Emotion"))["result"]
     output = await extractor.extract(document)
 
     class PartialWrite:
@@ -183,12 +190,17 @@ async def test_partial_layer_write_rolls_back_and_retry_reuses_artifact(layer_da
     verification = "nodes" if failure == "node" else "edges"
     with pytest.raises(ValueError, match=f"{verification}_verification_failed"):
         await extractor.persist(output)
-    assert not (await client.query("SELECT FROM EmotionExtraction"))["result"]
-    assert not (await client.query("SELECT FROM HAS_EMOTION_EXTRACTION"))["result"]
+    assert (await client.query("SELECT FROM Emotion"))["result"] == previous_nodes
+    assert (await client.query("SELECT id FROM EmotionExtraction"))["result"] == [
+        {"id": str(previous.run_id)}
+    ]
     extractor.graph = client
     await extractor.persist(output)
-    assert provider.calls == 1
+    assert provider.calls == 2
     assert len((await client.query("SELECT FROM Emotion"))["result"]) == 2
+    assert (await client.query("SELECT id FROM EmotionExtraction"))["result"] == [
+        {"id": str(output.run_id)}
+    ]
 
 
 async def test_repeated_emotion_has_one_node_multiple_edges_and_independent_documents(
@@ -214,7 +226,7 @@ async def test_repeated_emotion_has_one_node_multiple_edges_and_independent_docu
     second_run = await extractor.extract(document, dry_run=False)
     assert second_run.run_id != output.run_id
     result = await graph.get_extraction_graph(str(document.id))
-    assert len(result.nodes) == 3 and len(result.edges) == 6
+    assert len(result.nodes) == 2 and len(result.edges) == 3
     other = build_document(NewDocument(content=document.content))
     await extractor.documents.save(other)
     await graph.persist_document(other)

@@ -120,7 +120,10 @@ El ciclo común ofrece:
 
 - `extract(document, dry_run=True, run_id=None)`: genera, valida y guarda un
   artefacto durable. `dry_run=False` además persiste la capa. Un UUID nuevo
-  acumula una ejecución independiente; no reemplaza ni selecciona resultados vigentes.
+  crea un artefacto independiente. Al persistir, emociones reemplaza sus entidades
+  y relaciones anteriores para esa nota dentro de la misma transacción. Un resultado
+  vacío también elimina las emociones anteriores. Si la escritura o verificación
+  falla, el rollback conserva la capa anterior.
 - `persist(output)`: exige el artefacto guardado en el workspace, recupera el
   original actual, comprueba su huella y valida el payload antes de escribir.
   Funciona sin proveedor y sin volver a extraer.
@@ -235,7 +238,7 @@ salida estructurada; sigue el contrato de
 Integraciones opt-in crean y eliminan bases desechables en ArcadeDB 26.9.1.
 Comprueban esquema propio, dry run sin DDL, metadatos/citas en relaciones,
 agrupación de tres citas en un nodo, persistencia diferida, repetición idempotente,
-resultado vacío, ejecuciones independientes, rechazo de original ausente, rollback
+resultado vacío, reemplazo de ejecuciones, rechazo de original ausente, rollback
 de nodos/aristas ausentes o evidencia incorrecta y borrado de documentos.
 No se ejecutó la prueba contra notas de usuario, proveedores reales ni producción.
 

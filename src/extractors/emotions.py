@@ -221,6 +221,15 @@ class EmotionExtractor(Extractor):
             )
             if existing and existing != [{"artifact_hash": params["artifact_hash"]}]:
                 raise ValueError("emotion_run_conflict")
+            # This layer owns replacement of its vertices and incident relations.
+            # Generation and validation already succeeded; rollback retains the old layer.
+            await tx.command(
+                "MATCH (n) WHERE n.document_id=$document_id AND "
+                "(n:EmotionExtraction OR n:Emotion) AND (n.run_id IS NULL OR n.run_id<>$run_id) "
+                "DETACH DELETE n",
+                params,
+                language="cypher",
+            )
             await tx.command(
                 """
 MATCH (document:Document {id:$document_id})

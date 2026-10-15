@@ -524,6 +524,16 @@ class ProcessingRepository:
             yield await self._acquire_resource_lock(session, user_id, resource_id)
 
     @asynccontextmanager
+    async def lock_resources(self, user_id: UUID, resource_ids: list[UUID]):
+        # One connection for the whole selection, including large batches.
+        async with self.sessions.begin() as session:
+            for identifier in sorted(resource_ids):
+                if not await self._acquire_resource_lock(session, user_id, identifier):
+                    yield False
+                    return
+            yield True
+
+    @asynccontextmanager
     async def lock_extractor(self, user_id: UUID, resource_id: UUID, processing_id: UUID):
         """Concurrent branches share the document guard, and exclude duplicate executors."""
         async with self.sessions.begin() as session:

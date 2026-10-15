@@ -14,6 +14,7 @@ from src.processing.workflows import worker_runtime
 from src.use_cases.schedule_invitations import ScheduleInvitations
 from src.use_cases.submit_processing import recover_submissions
 from src.user_management.database import close_database
+from src.user_management.recovery.dependencies import get_recovery_repository
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ async def main():
         while not stop.is_set():
             try:
                 repository = get_repository()
+                await get_recovery_repository().cleanup()
                 await ScheduleInvitations(get_invitation_repository()).execute()
                 await repository.recover()
                 await repository.recover_parents()

@@ -1,9 +1,10 @@
 """Runtime configuration loaded from environment variables."""
 
 from functools import lru_cache
+from ipaddress import ip_network
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -157,6 +158,22 @@ class Settings(BaseSettings):
         gt=0,
     )
     auth_cookie_secure: bool = Field(default=True, validation_alias="AUTH_COOKIE_SECURE")
+    resend_api_key: str | None = Field(default=None, validation_alias="RESEND_API_KEY", repr=False)
+    auth_email_from: str | None = Field(default=None, validation_alias="AUTH_EMAIL_FROM")
+    password_recovery_secret: str | None = Field(
+        default=None, validation_alias="PASSWORD_RECOVERY_SECRET", repr=False
+    )
+    password_recovery_trusted_proxy_cidrs: list[str] = Field(
+        default_factory=list, validation_alias="PASSWORD_RECOVERY_TRUSTED_PROXY_CIDRS"
+    )
+
+    @field_validator("password_recovery_trusted_proxy_cidrs")
+    @classmethod
+    def validate_recovery_proxies(cls, values):
+        for value in values:
+            if ip_network(value).prefixlen == 0:
+                raise ValueError("Recovery proxies must be explicit trusted networks")
+        return values
 
 
 @lru_cache

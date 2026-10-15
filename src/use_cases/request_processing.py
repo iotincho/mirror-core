@@ -20,7 +20,29 @@ class RequestProcessing:
         self.repository, self.runtime = repository, runtime
         self.changed = False
 
-    async def mutate(self, operation, key, request, resource_id, action, lock=True, branch_id=None):
+    async def receipt_result(self, session, receipt):
+        ids = receipt.manifest.get("processing_ids")
+        if ids is None:
+            record = await session.get(ProcessingRecord, receipt.processing_id)
+            if record.resource_deleted:
+                raise SubmissionConflict("resource_deleted")
+            return record
+        records = [await session.get(ProcessingRecord, UUID(value)) for value in ids]
+        if any(record is None or record.resource_deleted for record in records):
+            raise SubmissionConflict("resource_deleted")
+        return records
+
+    async def mutate(
+        self,
+        operation,
+        key,
+        request,
+        resource_id,
+        action,
+        lock=True,
+        branch_id=None,
+        resource_ids=None,
+    ):
         owner = self.runtime.context.user_id
         async with self.repository.sessions() as session:
             previous = await session.scalar(
@@ -34,14 +56,14 @@ class RequestProcessing:
                 if previous.request_hash != fingerprint(request):
                     raise SubmissionConflict("idempotency_conflict")
                 if previous.accepted_at:
-                    record = await session.get(ProcessingRecord, previous.processing_id)
-                    if record.resource_deleted:
-                        raise SubmissionConflict("resource_deleted")
-                    return record
+                    return await self.receipt_result(session, previous)
 
         @asynccontextmanager
         async def guard():
-            if lock:
+            if resource_ids is not None:
+                async with self.repository.lock_resources(owner, resource_ids) as acquired:
+                    yield acquired
+            elif lock:
                 manager = (
                     self.repository.lock_extractor(owner, resource_id, branch_id)
                     if branch_id
@@ -88,17 +110,19 @@ class RequestProcessing:
                 if receipt.request_hash != fingerprint(request):
                     raise SubmissionConflict("idempotency_conflict")
                 if receipt.accepted_at:
-                    return await session.get(ProcessingRecord, receipt.processing_id)
+                    return await self.receipt_result(session, receipt)
                 record = await action(session, now)
-                receipt.processing_id, receipt.accepted_at = record.id, now
+                if isinstance(record, list):
+                    receipt.manifest = {"processing_ids": [str(item.id) for item in record]}
+                    receipt.processing_id = record[0].id
+                else:
+                    receipt.processing_id = record.id
+                receipt.accepted_at = now
         return record
 
     async def reprocess_document(self, document_id: UUID, key: UUID):
-        await self.runtime.document_store.get(document_id)
-        config = deepcopy(workflow_config())
-        for specification in config.get("extractors", []):
-            if "force" in specification:
-                specification["force"] = True
+        document = await self.runtime.document_store.get(document_id)
+        config = self.reprocessing_config(document)
 
         async def action(session, now):
             await self.repository.assert_inactive(self.runtime.context.user_id, document_id)
@@ -126,6 +150,63 @@ class RequestProcessing:
             document_id,
             action,
         )
+
+    async def reprocess_documents(self, document_ids: list[UUID], key: UUID):
+        if not document_ids or len(document_ids) > 1000:
+            raise ValueError("Select between 1 and 1000 documents")
+        if len(set(document_ids)) != len(document_ids):
+            raise ValueError("Duplicate documents")
+        identifiers = sorted(document_ids)
+
+        async def action(session, now):
+            # Validate ownership and exclusivity of the entire selection before enqueuing.
+            documents = []
+            for identifier in identifiers:
+                documents.append(await self.runtime.document_store.get(identifier))
+                await self.repository.assert_inactive(self.runtime.context.user_id, identifier)
+            records = []
+            for document in documents:
+                config = self.reprocessing_config(document)
+                record = ProcessingRecord(
+                    id=uuid4(),
+                    user_id=self.runtime.context.user_id,
+                    workflow="document",
+                    resource_kind="document",
+                    resource_id=document.id,
+                    document_id=document.id,
+                    workflow_version=document_workflow_version(config),
+                    stage="document_persistence",
+                    config=config,
+                )
+                session.add(record)
+                records.append(record)
+            await session.flush()
+            for record in records:
+                self.repository.event(session, record)
+                self.repository.schedule(session, record)
+            return records
+
+        return await self.mutate(
+            "reprocess_documents",
+            key,
+            {"document_ids": [str(identifier) for identifier in identifiers]},
+            identifiers[0],
+            action,
+            resource_ids=identifiers,
+        )
+
+    @staticmethod
+    def reprocessing_config(document):
+        config = deepcopy(workflow_config())
+        config["extractors"] = [
+            spec
+            for spec in config.get("extractors", [])
+            if spec["name"] != "document_title" or not (document.title or "").strip()
+        ]
+        for spec in config["extractors"]:
+            if "force" in spec:
+                spec["force"] = True
+        return config
 
     async def retry(self, processing_id: UUID, key: UUID, *, require_inactive=False):
         record = await self.repository.get(processing_id, self.runtime.context.user_id)

@@ -58,8 +58,9 @@ La concurrencia sigue limitada por workers, conexiones y semáforos de proveedor
 Los snapshots de notas conservan el estado del coordinador aunque un hijo sea
 más reciente. La PWA sigue mostrando el conjunto como “Procesando extracciones”
 y no interpreta un hijo completado como una nota completada. El estado de cada
-capa está disponible por API; los controles detallados de la PWA y selección de
-extractores, dry run y persistencia diferida por API quedan para la siguiente etapa.
+capa está disponible por API. La PWA permite reprocesar notas desde Ajustes,
+sin selección de extractores; ver [reprocesamiento de notas](reprocess-notes.md).
+Dry run y persistencia diferida por API quedan para una etapa posterior.
 La CLI conserva sus operaciones existentes; las notas nuevas seleccionan emociones,
 embeddings y `document_title`. El último actualiza `Document.title` sin crear una
 capa visualizable adicional; ver [títulos de documentos](document-title-extractor.md).

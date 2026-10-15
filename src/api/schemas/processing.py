@@ -3,7 +3,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from src.api.schemas.audio_notes import AudioNoteResponse
 from src.api.schemas.documents import DocumentResponse
@@ -63,3 +63,11 @@ class AudioSnapshot(AudioNoteResponse):
 class ProcessingPage(BaseModel):
     items: list[ProcessingResponse]
     next_cursor: UUID | None
+
+
+class ReprocessDocumentsRequest(BaseModel):
+    document_ids: list[UUID] = Field(min_length=1, max_length=1000)
+
+
+class ReprocessDocumentsResponse(BaseModel):
+    items: list[ProcessingResponse]

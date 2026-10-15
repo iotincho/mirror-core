@@ -6,7 +6,7 @@ from uuid import UUID, uuid4, uuid5
 
 from sqlalchemy import select
 
-from src.processing.models import ProcessingRecord
+from src.processing.models import ProcessingReceipt, ProcessingRecord
 from src.processing.submissions import SubmissionConflict, SubmissionRepository
 from src.services.document_store import DocumentNotFoundError
 from src.use_cases.request_processing import RequestProcessing
@@ -15,6 +15,11 @@ from src.use_cases.submit_processing import document_title_specification
 
 class TitleAlreadyPresent(ValueError):
     pass
+
+
+class TitleWorkPresent(ValueError):
+    def __init__(self, result):
+        self.result = result
 
 
 @dataclass(frozen=True)
@@ -57,6 +62,63 @@ class BackfillDocumentTitles:
             is not None
         )
 
+    @staticmethod
+    def has_title_specification(config):
+        return any(
+            isinstance(spec, dict) and spec.get("name") == "document_title"
+            for spec in config.get("extractors") or []
+        )
+
+    async def unavailable(self, document_ids, session=None):
+        """Batch-filter existing work, including uploads reserved before their job exists."""
+        if session is None:
+            async with self.repository.sessions() as session:
+                return await self.unavailable(document_ids, session)
+        records = await session.scalars(
+            select(ProcessingRecord)
+            .where(
+                ProcessingRecord.user_id == self.owner,
+                ProcessingRecord.resource_id.in_(document_ids),
+            )
+            .order_by(ProcessingRecord.created_at.desc())
+        )
+        blocked = {}
+        for record in records:
+            previous = blocked.get(record.resource_id)
+            if record.resource_deleted:
+                state = "deleted"
+            elif previous and previous.status == "deleted":
+                continue
+            elif record.status in {"queued", "running", "waiting", "retrying"}:
+                state = "busy"
+            elif previous and previous.status == "busy":
+                continue
+            elif record.extractor_name == "document_title" or self.has_title_specification(
+                record.config
+            ):
+                state = "failed" if record.status == "failed" else "completed"
+            else:
+                continue
+            blocked[record.resource_id] = TitleBackfillResult(record.resource_id, state, record.id)
+        receipts = await session.scalars(
+            select(ProcessingReceipt).where(
+                ProcessingReceipt.user_id == self.owner,
+                ProcessingReceipt.resource_id.in_(document_ids),
+                ProcessingReceipt.operation != self.operation,
+            )
+        )
+        for receipt in receipts:
+            if receipt.accepted_at is None or self.has_title_specification(receipt.config):
+                blocked.setdefault(
+                    receipt.resource_id,
+                    TitleBackfillResult(
+                        receipt.resource_id,
+                        "already_scheduled",
+                        receipt.processing_id,
+                    ),
+                )
+        return blocked
+
     async def inspect(self, document_id):
         receipt = await self.submissions.get(self.owner, self.operation, self.key(document_id))
         if receipt is not None and receipt.accepted_at is not None:
@@ -83,15 +145,20 @@ class BackfillDocumentTitles:
                 return TitleBackfillResult(document_id, "deleted")
         if document.title and document.title.strip():
             return TitleBackfillResult(document_id, "titled")
+        blocked = await self.unavailable([document_id])
+        if document_id in blocked:
+            return blocked[document_id]
         try:
             await self.repository.assert_inactive(self.owner, document_id)
         except ValueError:
             return TitleBackfillResult(document_id, "busy")
         return TitleBackfillResult(document_id, "eligible")
 
-    async def execute(self, document_id, *, apply=False):
+    async def execute(self, document_id, *, apply=False, retry_failed=True):
         result = await self.inspect(document_id)
         if not apply or result.status not in {"eligible", "retryable"}:
+            return result
+        if result.status == "retryable" and not retry_failed:
             return result
         try:
             if result.status == "retryable":
@@ -110,6 +177,9 @@ class BackfillDocumentTitles:
                 document = await self.runtime.document_store.get(document_id)
                 if document.title and document.title.strip():
                     raise TitleAlreadyPresent()
+                blocked = await self.unavailable([document_id], session)
+                if document_id in blocked:
+                    raise TitleWorkPresent(blocked[document_id])
                 await self.repository.assert_inactive(self.owner, document_id)
                 record = ProcessingRecord(
                     id=uuid4(),
@@ -144,6 +214,8 @@ class BackfillDocumentTitles:
             )
         except TitleAlreadyPresent:
             return TitleBackfillResult(document_id, "titled")
+        except TitleWorkPresent as error:
+            return error.result
         except DocumentNotFoundError:
             return TitleBackfillResult(document_id, "missing")
         except ValueError as error:

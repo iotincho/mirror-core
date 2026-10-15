@@ -36,6 +36,7 @@ from src.processing.submissions import SubmissionConflict, SubmissionRepository
 from src.services.audio_note_store import AudioNoteNotFoundError
 from src.services.document_store import DocumentNotFoundError
 from src.use_cases.create_audio_note import AudioFileTooLargeError, UnsupportedAudioFileError
+from src.use_cases.ensure_document_titles import EnsureDocumentTitles
 from src.use_cases.ingest_document_file import (
     IngestDocumentFile,
     InvalidDocumentEncodingError,
@@ -241,7 +242,9 @@ async def request_document_processing(
 @router.get("/v2/documents", response_model=list[DocumentSnapshot])
 async def document_snapshots(runtime: Runtime):
     snapshots = []
-    for document in await runtime.document_store.list():
+    documents = await runtime.document_store.list()
+    await EnsureDocumentTitles(get_repository(), runtime).execute(documents)
+    for document in documents:
         record = await get_repository().latest(runtime.context.user_id, document.id, "document")
         snapshots.append(
             DocumentSnapshot(
@@ -258,6 +261,7 @@ async def document_snapshot(document_id: UUID, runtime: Runtime):
         document = await runtime.document_store.get(document_id)
     except DocumentNotFoundError as error:
         raise http_error(error) from error
+    await EnsureDocumentTitles(get_repository(), runtime).execute([document])
     record = await get_repository().latest(runtime.context.user_id, document_id, "document")
     return DocumentSnapshot(
         **document.model_dump(),

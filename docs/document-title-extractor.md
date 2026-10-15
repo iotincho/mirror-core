@@ -187,6 +187,57 @@ Ruff, ayuda de la CLI y `git diff --check` sin errores. Los contenedores tempora
 se eliminaron al terminar.
 
 Las tres etapas de implementación están completas. No se ejecutó el backfill
-sobre notas reales, no se consultó un proveedor real ni se desplegó. No se agrega
-una migración automática ni una ejecución al iniciar la app. Se mantienen los
-pendientes de aceptación visual/dispositivos y evaluación editorial con un LLM real.
+sobre notas reales, no se consultó un proveedor real ni se desplegó. La CLI queda
+como mantenimiento opcional; la generación bajo demanda descrita abajo pasa a ser
+el mecanismo habitual. Se mantienen los pendientes de aceptación visual/dispositivos
+y evaluación editorial con un LLM real.
+
+## Generación bajo demanda al leer — 2026-10-15
+
+Los GET autenticados de `/v2/documents/{document_id}`, `/v2/documents` y la lista
+legacy `/documents` intentan encolar la extracción si falta el título canónico.
+La etiqueta provisional local o el fallback de primera línea no cuentan como
+`Document.title`: no impiden generar un título real. El GET devuelve el original
+sin esperar al LLM; el worker actualiza el título y los eventos existentes lo
+reflejan en la PWA.
+
+`EnsureDocumentTitles` limita la creación a **5 trabajos nuevos por consulta**,
+configurable con `DOCUMENT_TITLE_READ_LIMIT` (0–100). El valor 0 deshabilita sólo
+la generación disparada por lecturas; las notas nuevas mantienen su extractor de
+títulos normal. También debe estar configurado el proveedor/modelo/API key del
+backend. Si falta esa configuración, no se crean trabajos con un modelo inválido.
+La lista filtra el trabajo existente por lotes de hasta 100 IDs para que los
+documentos ya procesados o fallidos no bloqueen los siguientes pendientes.
+
+La coordinación reutiliza la identidad y el recibo determinístico del backfill.
+Los guards y la restricción única de PostgreSQL evitan duplicados entre lecturas,
+entre GET individual/lista y entre lecturas/CLI. Bajo el guard se revisa de nuevo
+el título y se detectan tanto los trabajos `document_title` como los coordinadores
+normales que ya lo incluyen en su configuración. También se respetan reservas de
+subida/importación aún no aceptadas, que existen antes de publicar su trabajo.
+Esto cubre la ventana en la que el archivo original ya puede leerse pero todavía
+no existe el trabajo normal en `processing_records`.
+
+Los GET no reactivan trabajos terminales, aunque el error haya sido recuperable:
+los reintentos automáticos y su límite pertenecen al worker. Después de agotarlos,
+el retry explícito por API o CLI conserva el trabajo y sus artefactos. Los fallos
+permanentes tampoco generan otro trabajo con cada lectura. Los documentos
+ocupados, eliminados, ya titulados o pertenecientes a otro workspace no se encolan.
+Si falla la coordinación del título, se conserva la lectura normal del original;
+se registra únicamente workspace y tipo de error, sin contenido ni configuración.
+Una lectura posterior puede reintentar un encolado que no llegó a confirmarse.
+
+No se agrega una migración de datos, un barrido global ni una tarea al iniciar el
+backend. Sólo se consideran los documentos devueltos por las consultas del usuario.
+Dispatcher/outbox/workers siguen siendo los responsables de ejecutar el trabajo;
+no se usa una tarea en memoria asociada a la vida del request HTTP.
+
+Validación: 216 pruebas de regresión aprobadas y ejecución separada con PostgreSQL
+17 y ArcadeDB 26.9.1 aislados: 34 integraciones aprobadas, incluidas 9 de lecturas.
+Cubren GET concurrentes al detalle/listas con un solo recibo/trabajo/outbox,
+respuesta sin llamada al LLM, actualización posterior del título, límite por GET,
+respeto del procesamiento normal antes de crear hijos, reservas previas a aceptar
+una subida, fallo de encolado sin perder la lectura, aislamiento de workspace,
+reintentos agotados que no se reinician al consultar y nueva comprobación bajo
+guard tras una vista previa desactualizada. Ruff y diff sin errores. Sin despliegue
+ni generación sobre notas reales; se usaron proveedores determinísticos de prueba.

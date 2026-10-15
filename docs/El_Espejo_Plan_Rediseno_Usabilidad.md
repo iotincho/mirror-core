@@ -93,10 +93,10 @@ Repositorio principal: `mirror-pwa`; reutilizar contratos existentes de `mirror-
 - [x] Un único botón de captura: micrófono por defecto; enviar/guardar cuando haya texto no vacío o adjunto; vuelve al micrófono al quitar contenido.
 - [x] Iconos accesibles, tooltip y estados claros de carga, guardado y error. Evitar envíos duplicados.
 - [x] Habilitar Fecha en cualquier captura: texto escrito o pegado, archivo y audio.
-- [x] Permitir fecha/hora, modificación y regreso a “Ahora”; mostrar un resumen junto al editor.
+- [x] Permitir fecha, hora opcional, modificación y regreso a “Ahora”; precargar fecha/hora local al abrir un editor vacío y mostrar un resumen.
 - [x] Persistir la selección en el borrador y conservarla al navegar, recargar o abrir/restaurar una invitación.
 - [x] Usar `authored_at` para fecha original y conservar `created_at` como incorporación al sistema.
-- [x] Cuando sólo se conozca el día, ofrecer usar 00:00 de manera explícita; mantener calendario y alternativa de entrada manual.
+- [x] Cuando sólo se conozca el día, guardar con 00:00 sin exigir hora; mantener calendario y alternativa de entrada manual. Ajuste solicitado el 2026-10-15.
 - [x] Aplicar la fecha elegida también al audio, conservando el momento de grabación como valor por defecto.
 - [x] Conservar adjuntos, share target, borradores y respuestas a invitaciones con sus asociaciones actuales.
 
@@ -317,6 +317,16 @@ Orden acordado: **1 → 2 → 3 → 4 → 5 → 6**. Ejecutar la validación tem
 
 La persistencia del audio debe definirse después de validar los formatos; la recuperación debe estar operativa antes de dar por terminada la mejora de grabación. El rediseño no debe sustituir los contratos reales por las simplificaciones del prototipo.
 
+## Ajustes de revisión — 2026-10-15
+
+Implementados en `mirror-pwa`, misma rama `feat/app-refresh-stage1`, commit `0813076`.
+
+- Fecha: al abrir el editor sin fecha elegida se precargan fecha y hora locales actuales. La hora pasa a ser opcional: si se borra o se recupera un borrador sólo con día, se usa 00:00. Se mantienen validación de fechas imposibles, zona local, fecha original, borradores y regreso a Ahora.
+- Constelaciones: se sustituyen rellenos y figuras planas por esferas SVG con luz radial, reflejo, sombra y halo, compartidas por tono y disponibles offline. La leyenda/lista acompaña la nueva silueta; el centro es mayor y la selección mantiene aro/halo. No cambia exploración ni evidencia. Se inspeccionó el SVG de una esfera rasterizado como recurso aislado; no se obtuvo captura del grafo completo.
+- Tu material: en las filas, el chip de envío se reemplaza por icono de ancho fijo (dispositivo, subiendo, enviado/servidor o error), con nombre accesible y tooltip. Queda un solo chip de procesamiento, sin prefijo repetitivo, en una fila estable; los estados extensos se acotan visualmente y conservan el texto completo accesible. El detalle mantiene los estados completos.
+
+Validación: 17 archivos de pruebas PWA aprobados, incluidos guardado sólo con fecha, precarga local y preservación de contenido ante fechas imposibles; pruebas de grafo actualizadas para la presentación esférica; build, lint, artefactos PWA y diff sin errores. Browser continúa no disponible: quedan pendientes aceptación visual responsive, transiciones de estado en mobile y render real de las esferas en Safari/Chrome. Sin despliegue ni publicación; la etapa 6 mantiene sus pendientes de aceptación/dispositivos.
+
 ## Historial de avance
 
 | Fecha | Trabajo | Evidencia | Pendientes |
@@ -328,6 +338,8 @@ La persistencia del audio debe definirse después de validar los formatos; la re
 | 2026-10-14 | Etapa 4 implementada sobre la misma rama | `mirror-pwa` · `feat/app-refresh-stage1` · `4674067`; build/lint; 16 archivos, grabación 13/13 y captura 10/10 | Aceptación visual, codecs/teléfonos y extremo a extremo; etapas 5–6; publicación |
 | 2026-10-14 | Etapa 5 implementada sobre la misma rama | `mirror-pwa` · `feat/app-refresh-stage1` · `975bdfd`; build/lint; 17 archivos, UI Constelaciones 6/6 y modelo 17/17 | Aceptación visual/mobile, gestos y servidor real; etapa 6; publicación |
 | 2026-10-14 | Etapa 6: validación automática y runtime local; correcciones de recuperación y manifest | `mirror-pwa` · misma rama · `4c6d1bc`; 17 archivos PWA; backend 175/107 omitidos; integración real aislada; imagen y HTTP local | Aceptación visual/dispositivos/HTTPS, proveedores, PWA instalada/offline y publicación; etapa 6 abierta |
+
+| 2026-10-15 | Ajustes pedidos en revisión: hora opcional, volumen del grafo e iconos de envío | `mirror-pwa` · misma rama · `0813076`; 17 archivos de pruebas, build/lint/artefactos, inspección SVG aislada | Aceptación visual y dispositivos; pendientes de etapa 6 y publicación |
 
 ### Plantilla para próximas actualizaciones
 

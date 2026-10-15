@@ -7,9 +7,9 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.domain.documents import Document
-from src.processing.submissions import SubmissionRepository, fingerprint
+from src.processing.submissions import SubmissionConflict, SubmissionRepository, fingerprint
 from src.services.document_store import DocumentAlreadyExistsError, DocumentNotFoundError
-from src.use_cases.submit_processing import workflow_config
+from src.use_cases.submit_processing import imported_document_identity, workflow_config
 
 
 class ArchivedDocument(Document):
@@ -67,7 +67,7 @@ class DocumentArchiveTransfer:
             current = await self.documents.get(document.id)
         except DocumentNotFoundError:
             return False
-        if current.model_dump() != document.model_dump():
+        if imported_document_identity(current) != imported_document_identity(document):
             raise ArchiveConflict(f"El documento {document.id} ya existe con datos distintos.")
         return True
 
@@ -83,7 +83,19 @@ class DocumentArchiveTransfer:
                     raise ArchiveConflict("Hay un documento en procesamiento; reintentá luego.")
                 present = await self.existing(document)
                 submissions = self.submissions or SubmissionRepository(self.processing)
-                request_hash = fingerprint(document.model_dump(mode="json"))
+                request_hash = imported_document_identity(document)
+                previous = await submissions.get(self.user_id, "import_document", document.id)
+                if previous is not None:
+                    if previous.manifest.get("archive_identity") == "original/1":
+                        if previous.request_hash != request_hash:
+                            raise SubmissionConflict("idempotency_conflict")
+                    elif not present and previous.request_hash != fingerprint(
+                        document.model_dump(mode="json")
+                    ):
+                        raise SubmissionConflict("idempotency_conflict")
+                    # Existing immutable material was checked above under the resource lock.
+                    # Keep legacy receipts replayable after a derived title changes.
+                    request_hash = previous.request_hash
                 receipt = await submissions.accepted(
                     self.user_id, "import_document", document.id, request_hash
                 )
@@ -108,7 +120,7 @@ class DocumentArchiveTransfer:
                     resource_kind="document",
                     resource_id=document.id,
                     config=workflow_config(),
-                    manifest={},
+                    manifest={"archive_identity": "original/1"},
                 )
                 if receipt.accepted_at is None:
                     try:

@@ -48,7 +48,10 @@ async def get_delete_document(
 
 async def get_list_documents(
     document_store: Annotated[FileDocumentStore, Depends(get_document_store)],
+    runtime: Annotated[WorkspaceRuntime, Depends(get_workspace_runtime)],
 ):
+    from src.processing.runtime import get_repository
+    from src.use_cases.ensure_document_titles import EnsureDocumentTitles
     from src.use_cases.list_documents import ListDocuments
 
-    return ListDocuments(document_store)
+    return ListDocuments(document_store, EnsureDocumentTitles(get_repository(), runtime))

@@ -83,6 +83,9 @@ class Settings(BaseSettings):
         validation_alias="WORKSPACES_PATH",
     )
     llm_provider: str = Field(default="openai", validation_alias="LLM_PROVIDER")
+    document_title_read_limit: int = Field(
+        default=5, ge=0, le=100, validation_alias="DOCUMENT_TITLE_READ_LIMIT"
+    )
     openai_api_key: str | None = Field(default=None, validation_alias="OPENAI_API_KEY", repr=False)
     openai_model: str | None = Field(default=None, validation_alias="OPENAI_MODEL")
     openai_embedding_model: str = Field(

@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -16,6 +16,7 @@ from src.processing.runtime import get_repository
 from src.processing.submissions import SubmissionConflict, fingerprint
 from src.services.document_store import FileDocumentStore
 from src.use_cases.document_archive import ArchiveConflict, DocumentArchive, DocumentArchiveTransfer
+from src.use_cases.submit_processing import imported_document_identity
 from src.workspaces.dependencies import get_workspace_runtime
 
 
@@ -38,6 +39,9 @@ class Submissions:
         self.receipts = {}
         self.jobs = []
         self.fail = False
+
+    async def get(self, user_id, operation, key):
+        return self.receipts.get((user_id, key))
 
     async def accepted(self, user_id, operation, key, request_hash):
         receipt = self.receipts.get((user_id, key))
@@ -98,11 +102,12 @@ async def test_roundtrip_all_fields_and_retry_enqueues_once_after_partial_write(
     receipt = submissions.jobs[0]
     assert receipt.resource_id == doc.id
     assert receipt.operation == "import_document"
-    assert receipt.request_hash == fingerprint(doc.model_dump(mode="json"))
+    assert receipt.request_hash == imported_document_identity(doc)
     assert receipt.config["document_workflow_version"] == 4
     assert {item["name"] for item in receipt.config["extractors"]} == {
         "emotions",
         "document_embeddings",
+        "document_title",
     }
     assert len(await restored.list()) == 1
 
@@ -122,6 +127,72 @@ async def test_conflict_preflight_writes_nothing(tmp_path):
         ).import_archive(archive)
     assert await store.list() == [old]
     assert not submissions.receipts
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("legacy", [False, True])
+async def test_reimport_after_title_generation_preserves_title_and_receipt(tmp_path, legacy):
+    store, submissions = FileDocumentStore(tmp_path), Submissions()
+    doc = document().model_copy(update={"title": None})
+    archive = DocumentArchive(exported_at=datetime.now(UTC), documents=[doc.model_dump()])
+    owner = uuid4()
+    transfer = DocumentArchiveTransfer(
+        store, processing=Processing(), user_id=owner, submissions=submissions
+    )
+    await transfer.import_archive(archive)
+    receipt = submissions.receipts[owner, doc.id]
+    if legacy:
+        receipt.manifest = {}
+        receipt.request_hash = fingerprint(doc.model_dump(mode="json"))
+    await store.update_title(doc.id, "Título generado después del respaldo")
+    assert await transfer.import_archive(archive) == {"imported": 0, "existing": 1, "total": 1}
+    latest_archive = await transfer.export()
+    assert await transfer.import_archive(latest_archive) == {
+        "imported": 0,
+        "existing": 1,
+        "total": 1,
+    }
+    assert (await store.get(doc.id)).title == "Título generado después del respaldo"
+    assert len(submissions.jobs) == 1
+    assert submissions.jobs[0] is receipt
+
+
+@pytest.mark.anyio
+async def test_title_difference_preserves_existing_original_without_old_receipt(tmp_path):
+    store, submissions = FileDocumentStore(tmp_path), Submissions()
+    doc = document()
+    await store.save(doc)
+    archive = DocumentArchive(
+        exported_at=datetime.now(UTC),
+        documents=[doc.model_copy(update={"title": "Otro título"}).model_dump()],
+    )
+    await DocumentArchiveTransfer(
+        store, processing=Processing(), user_id=uuid4(), submissions=submissions
+    ).import_archive(archive)
+    assert await store.get(doc.id) == doc
+    assert len(submissions.jobs) == 1
+
+
+@pytest.mark.anyio
+async def test_import_identity_compares_date_instants_without_changing_original_zone(tmp_path):
+    store, submissions = FileDocumentStore(tmp_path), Submissions()
+    doc = document()
+    archive = DocumentArchive(exported_at=datetime.now(UTC), documents=[doc.model_dump()])
+    transfer = DocumentArchiveTransfer(
+        store, processing=Processing(), user_id=uuid4(), submissions=submissions
+    )
+    await transfer.import_archive(archive)
+    zone = timezone(timedelta(hours=-3))
+    equivalent = doc.model_copy(
+        update={
+            "created_at": doc.created_at.astimezone(zone),
+            "authored_at": doc.authored_at.astimezone(zone),
+        }
+    )
+    replay = DocumentArchive(exported_at=datetime.now(UTC), documents=[equivalent.model_dump()])
+    assert (await transfer.import_archive(replay))["existing"] == 1
+    assert (await store.get(doc.id)).model_dump(mode="json") == doc.model_dump(mode="json")
+    assert len(submissions.jobs) == 1
 
 
 def test_rejects_duplicate_unknown_fields_version_and_naive_dates():

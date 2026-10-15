@@ -86,12 +86,15 @@ class FileDocumentStore:
         updated = Document.model_validate({**document.model_dump(), "title": title})
         destination = self._directory / f"{document.id}.json"
         temporary = destination.with_suffix(f".{uuid4().hex}.tmp")
-        temporary.write_text(
-            json.dumps(updated.model_dump(mode="json"), ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
-        temporary.replace(destination)
-        sync_published(destination)
+        try:
+            temporary.write_text(
+                json.dumps(updated.model_dump(mode="json"), ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            temporary.replace(destination)
+            sync_published(destination)
+        finally:
+            temporary.unlink(missing_ok=True)
         return updated
 
     def _list(self) -> list[Document]:

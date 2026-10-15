@@ -9,8 +9,11 @@ from src.extractors.artifacts import LayerArtifacts
 from src.extractors.contracts import ExtractorProfile
 from src.extractors.document_embedding_store import ArcadeDBDocumentEmbeddingStore
 from src.extractors.document_embeddings import DocumentEmbeddingExtractor, EmbeddingConfiguration
+from src.extractors.document_title import DocumentTitleExtractor
+from src.extractors.document_title_store import ArcadeDBDocumentTitleStore
 from src.extractors.emotions import EmotionExtractor
 from src.extractors.openai_document_embeddings import OpenAIDocumentEmbeddingProvider
+from src.extractors.openai_document_title import OpenAIDocumentTitleProvider
 from src.extractors.openai_emotions import OpenAIEmotionProvider
 from src.extractors.registry import ExtractorRegistry
 from src.processing.execution import WorkflowFailure
@@ -120,9 +123,32 @@ def build_document_embedding_extractor(runtime, specification, *, extracting):
     )
 
 
+@lru_cache(maxsize=32)
+def title_provider_configured(provider_name, model):
+    if provider_name != "openai":
+        raise WorkflowFailure("provider_configuration", retryable=True)
+    # Credentials are checked only if generation is needed. Imported titles require no LLM.
+    provider = OpenAIDocumentTitleProvider(get_settings().openai_api_key, model, max_retries=0)
+    _provider_instances.append(provider)
+    return provider
+
+
+def build_document_title_extractor(runtime, specification, *, extracting):
+    return DocumentTitleExtractor(
+        documents=runtime.document_store,
+        artifacts=LayerArtifacts(runtime.context.filesystem_root / "layers"),
+        store=ArcadeDBDocumentTitleStore(runtime.graph_store.database_client),
+        profile=ExtractorProfile.model_validate(specification["profile"]),
+        provider=title_provider_configured(specification["provider"], specification["model"])
+        if extracting
+        else None,
+    )
+
+
 _extractor_registry = ExtractorRegistry()
 _extractor_registry.register("emotions", build_emotion_extractor)
 _extractor_registry.register("document_embeddings", build_document_embedding_extractor)
+_extractor_registry.register("document_title", build_document_title_extractor)
 
 
 def workflow_extractor(runtime, specification, *, extracting):
@@ -146,6 +172,7 @@ async def close_workflow_providers():
         workflow_providers_configured.cache_clear()
         emotion_provider_configured.cache_clear()
         embedding_provider_configured.cache_clear()
+        title_provider_configured.cache_clear()
 
 
 async def retired_extraction(context):

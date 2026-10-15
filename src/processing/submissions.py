@@ -30,6 +30,17 @@ class SubmissionRepository:
         self.processing = processing
         self.sessions = processing.sessions
 
+    async def get(self, user_id, operation, key):
+        """Read a workspace-scoped receipt, including an interrupted reservation."""
+        async with self.sessions() as session:
+            return await session.scalar(
+                select(ProcessingReceipt).where(
+                    ProcessingReceipt.user_id == user_id,
+                    ProcessingReceipt.operation == operation,
+                    ProcessingReceipt.key == key,
+                )
+            )
+
     async def accepted(self, user_id, operation, key, request_hash):
         """Replay an accepted request before checking for active processing."""
         async with self.sessions() as session:

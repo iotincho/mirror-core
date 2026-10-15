@@ -327,6 +327,12 @@ Implementados en `mirror-pwa`, misma rama `feat/app-refresh-stage1`, commit `081
 
 Validación: 17 archivos de pruebas PWA aprobados, incluidos guardado sólo con fecha, precarga local y preservación de contenido ante fechas imposibles; pruebas de grafo actualizadas para la presentación esférica; build, lint, artefactos PWA y diff sin errores. Browser continúa no disponible: quedan pendientes aceptación visual responsive, transiciones de estado en mobile y render real de las esferas en Safari/Chrome. Sin despliegue ni publicación; la etapa 6 mantiene sus pendientes de aceptación/dispositivos.
 
+### Corrección desde captura del usuario — 2026-10-15
+
+`mirror-pwa`, misma rama `feat/app-refresh-stage1`, commit `5dcb226`. La captura mostró el icono de nube visualmente pegado y desalineado respecto del chip. Se reemplazó por check circular de 16 px, con espacio fijo de 24 × 28 px, SVG en bloque y fila flex centrada con separación de 12 px. El icono no se contrae; el chip puede acotarse con elipsis sin invadirlo. La fila reutiliza también la base compartida de badges y mantiene nombres accesibles/tooltip para todos los estados de envío.
+
+Validación: build, lint, 13 pruebas existentes de UI Material y diff sin errores. No se agregaron pruebas que sólo repitan CSS. Browser continúa no disponible; falta comprobar el resultado visual en navegador/mobile. Sin publicación ni despliegue.
+
 ## Historial de avance
 
 | Fecha | Trabajo | Evidencia | Pendientes |
@@ -340,6 +346,8 @@ Validación: 17 archivos de pruebas PWA aprobados, incluidos guardado sólo con 
 | 2026-10-14 | Etapa 6: validación automática y runtime local; correcciones de recuperación y manifest | `mirror-pwa` · misma rama · `4c6d1bc`; 17 archivos PWA; backend 175/107 omitidos; integración real aislada; imagen y HTTP local | Aceptación visual/dispositivos/HTTPS, proveedores, PWA instalada/offline y publicación; etapa 6 abierta |
 
 | 2026-10-15 | Ajustes pedidos en revisión: hora opcional, volumen del grafo e iconos de envío | `mirror-pwa` · misma rama · `0813076`; 17 archivos de pruebas, build/lint/artefactos, inspección SVG aislada | Aceptación visual y dispositivos; pendientes de etapa 6 y publicación |
+
+| 2026-10-15 | Corrección de icono y separación en Tu material a partir de captura | `mirror-pwa` · misma rama · `5dcb226`; build/lint, UI Material 13/13 | Comprobación visual/mobile y pendientes de etapa 6 |
 
 ### Plantilla para próximas actualizaciones
 

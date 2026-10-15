@@ -60,7 +60,9 @@ más reciente. La PWA sigue mostrando el conjunto como “Procesando extraccione
 y no interpreta un hijo completado como una nota completada. El estado de cada
 capa está disponible por API; los controles detallados de la PWA y selección de
 extractores, dry run y persistencia diferida por API quedan para la siguiente etapa.
-La CLI conserva sus operaciones existentes; las notas nuevas seleccionan emociones.
+La CLI conserva sus operaciones existentes; las notas nuevas seleccionan emociones,
+embeddings y `document_title`. El último actualiza `Document.title` sin crear una
+capa visualizable adicional; ver [títulos de documentos](document-title-extractor.md).
 
 ## Validación
 

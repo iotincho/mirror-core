@@ -12,6 +12,7 @@ from src.config import get_settings
 from src.domain.audio_notes import AudioNote
 from src.domain.documents import Document, NewDocument
 from src.extractors.document_embeddings import EMBEDDINGS_PROFILE, EmbeddingConfiguration
+from src.extractors.document_title import TITLE_PROFILE
 from src.extractors.emotions import EMOTIONS_PROFILE
 from src.processing.execution import WorkflowFailure
 from src.processing.submissions import SubmissionConflict, SubmissionRepository, fingerprint
@@ -46,6 +47,12 @@ def workflow_config():
                 ).model_dump(mode="json"),
                 "force": False,
             },
+            {
+                "name": "document_title",
+                "profile": TITLE_PROFILE.model_dump(mode="json"),
+                "provider": settings.llm_provider,
+                "model": settings.openai_model,
+            },
         ],
     }
 
@@ -60,6 +67,15 @@ def document_identity(document):
             "authored_at": authored,
         }
     )
+
+
+def imported_document_identity(document):
+    # Archive identity also preserves stable ID and creation time. Display titles are derived.
+    original = document.model_dump(mode="json", exclude={"title"})
+    for name in ("created_at", "authored_at"):
+        value = getattr(document, name)
+        original[name] = value.astimezone(UTC).isoformat() if value is not None else None
+    return fingerprint(original)
 
 
 def audio_manifest(filename, media_type, content, authored_at):
@@ -215,7 +231,11 @@ async def recover_submissions(submissions, runtime_factory):
                 if receipt.resource_kind == "document":
                     original = await runtime.document_store.get(receipt.resource_id)
                     identity = (
-                        fingerprint(original.model_dump(mode="json"))
+                        (
+                            imported_document_identity(original)
+                            if receipt.manifest.get("archive_identity") == "original/1"
+                            else fingerprint(original.model_dump(mode="json"))
+                        )
                         if receipt.operation == "import_document"
                         else document_identity(original)
                     )

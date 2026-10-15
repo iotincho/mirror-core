@@ -12,6 +12,7 @@ from src.exteriorization import models as invitation_models  # noqa: F401
 from src.maintenance import models as maintenance_models  # noqa: F401
 from src.processing import models as processing_models  # noqa: F401
 from src.user_management.models import Base
+from src.user_management.recovery import models as recovery_models  # noqa: F401
 from src.workspaces import models as workspace_models  # noqa: F401
 
 config = context.config

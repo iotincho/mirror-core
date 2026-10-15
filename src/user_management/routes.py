@@ -8,6 +8,7 @@ from src.config import Settings, get_settings
 from src.user_management.authentication import auth_backend
 from src.user_management.dependencies import AuthenticatedUser, get_authenticated_user
 from src.user_management.oauth import get_google_oauth_configuration
+from src.user_management.recovery.routes import router as recovery_router
 from src.user_management.schemas import SessionRead, UserCreate, UserRead
 from src.user_management.users import fastapi_users
 
@@ -16,6 +17,7 @@ def build_router(settings: Settings) -> APIRouter:
     router = APIRouter(prefix="/auth", tags=["auth"])
     router.include_router(fastapi_users.get_auth_router(auth_backend))
     router.include_router(fastapi_users.get_register_router(UserRead, UserCreate))
+    router.include_router(recovery_router)
 
     google_oauth = get_google_oauth_configuration(settings)
     if google_oauth is None:

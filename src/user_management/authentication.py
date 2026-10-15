@@ -23,6 +23,18 @@ cookie_transport = CookieTransport(
 
 
 class InvitationDatabaseStrategy(DatabaseStrategy[User, UUID, AccessToken]):
+    def _create_access_token_dict(self, user: User):
+        return {**super()._create_access_token_dict(user), "session_version": user.session_version}
+
+    async def read_token(self, token, user_manager):
+        user = await super().read_token(token, user_manager)
+        if user is None:
+            return None
+        access_token = await self.database.get_by_token(token)
+        if access_token is None or access_token.session_version != user.session_version:
+            return None
+        return user
+
     async def destroy_token(self, token: str, user: User) -> None:
         from src.exteriorization.dependencies import get_invitation_repository
         from src.exteriorization.repository import session_fingerprint

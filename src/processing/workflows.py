@@ -183,9 +183,19 @@ def register_workflows(registry):
     # Old messages cannot recreate historical extractions after the cutover.
     from src.exteriorization.dependencies import get_send_invitation
     from src.processing.execution import ExecutionContext, WorkflowDefinition
+    from src.user_management.recovery.dependencies import get_send_recovery_email
 
     async def send_invitation(context: ExecutionContext) -> None:
         await get_send_invitation().execute(context)
+
+    async def send_recovery_email(context: ExecutionContext) -> None:
+        await get_send_recovery_email().execute(context)
+
+    registry.register(
+        "password_recovery_email",
+        1,
+        WorkflowDefinition(send_recovery_email, frozenset(), requires_workspace=False),
+    )
 
     registry.register("invitation_push", 1, WorkflowDefinition(send_invitation, frozenset()))
     registry.register("document", 1, WorkflowDefinition(retired_extraction, frozenset()))

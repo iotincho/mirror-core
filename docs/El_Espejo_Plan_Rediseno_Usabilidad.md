@@ -349,6 +349,18 @@ Validación: build, lint, 13 pruebas existentes de UI Material y diff sin errore
 
 | 2026-10-15 | Corrección de icono y separación en Tu material a partir de captura | `mirror-pwa` · misma rama · `5dcb226`; build/lint, UI Material 13/13 | Comprobación visual/mobile y pendientes de etapa 6 |
 
+### Publicación de ramas y PR — 2026-10-15
+
+Ramas publicadas en `origin` y PR abiertos contra `develop`:
+
+- [mirror-core #33](https://github.com/iotincho/mirror-core/pull/33): `feat/app-refresh-plan`, prototipo, plan y generación durable de títulos bajo demanda.
+- [mirror-pwa #28](https://github.com/iotincho/mirror-pwa/pull/28): `feat/app-refresh-stage1`, rediseño completo, recuperación de audio y actualización de títulos.
+
+Ambos PR incluyen alcance, validación local y pendientes de aceptación; están
+vinculados entre sí. Esta publicación no acredita ejecución de CI, merge,
+publicación de imágenes ni despliegue. Se mantienen los pendientes de navegador,
+dispositivos, PWA instalada y proveedores reales de la etapa 6.
+
 ### Plantilla para próximas actualizaciones
 
 - Fecha y etapa/tareas:

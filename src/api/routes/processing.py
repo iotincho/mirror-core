@@ -27,6 +27,8 @@ from src.api.schemas.processing import (
     DocumentSnapshot,
     ProcessingPage,
     ProcessingResponse,
+    ReprocessDocumentsRequest,
+    ReprocessDocumentsResponse,
 )
 from src.config import get_settings
 from src.domain.documents import NewDocument
@@ -56,6 +58,8 @@ def http_error(error):
         return HTTPException(error.status_code, error.code)
     if isinstance(error, (DocumentNotFoundError, AudioNoteNotFoundError)):
         return HTTPException(404, "Resource not found")
+    if isinstance(error, ValueError) and str(error) == "processing_active":
+        return HTTPException(409, "processing_active")
     if isinstance(error, SubmissionConflict):
         return HTTPException(409, str(error))
     if isinstance(error, (UnsupportedAudioFileError, UnsupportedDocumentFileError)):
@@ -237,6 +241,23 @@ async def request_document_processing(
         raise http_error(error) from error
     accepted_headers(request, response, record)
     return ProcessingResponse.from_record(record)
+
+
+@router.post("/v2/documents/reprocess", response_model=ReprocessDocumentsResponse, status_code=202)
+async def reprocess_documents(
+    payload: ReprocessDocumentsRequest,
+    runtime: Runtime,
+    key: Key,
+):
+    try:
+        records = await RequestProcessing(get_repository(), runtime).reprocess_documents(
+            payload.document_ids, key
+        )
+    except Exception as error:
+        raise http_error(error) from error
+    return ReprocessDocumentsResponse(
+        items=[ProcessingResponse.from_record(record) for record in records]
+    )
 
 
 @router.get("/v2/documents", response_model=list[DocumentSnapshot])

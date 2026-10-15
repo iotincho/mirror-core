@@ -53,7 +53,7 @@ class Extractor(ABC):
     async def extract(
         self, document: Document, *, dry_run: bool = True, run_id: UUID | None = None
     ) -> ExtractionOutput:
-        # Callers supply a stable run ID to resume; fresh calls deliberately accumulate runs.
+        # Stable run IDs resume an artifact; each layer owns replacement of persisted results.
         run_id = run_id or uuid4()
         current = await self.documents.get(document.id)
         if current.content != document.content:

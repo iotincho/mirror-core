@@ -38,6 +38,7 @@ class WorkflowWaiting(Exception):
 class WorkflowDefinition:
     run: Callable[[ExecutionContext], Awaitable[None]]
     transitions: frozenset[tuple[str, str]]
+    requires_workspace: bool = True
 
 
 class WorkflowRegistry:
@@ -103,9 +104,11 @@ class ExecuteProcessing:
             try:
                 if record.resource_deleted:
                     raise WorkflowFailure("resource_deleted")
-                if not await self.repository.workspace_active(record.user_id):
-                    raise WorkflowFailure("workspace_unavailable")
                 definition = self.registry.get(record)
+                if definition.requires_workspace and not await self.repository.workspace_active(
+                    record.user_id
+                ):
+                    raise WorkflowFailure("workspace_unavailable")
                 await definition.run(ExecutionContext(self.repository, record, definition))
                 await self.repository.finish(record)
             except WorkflowFailure as error:

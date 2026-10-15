@@ -49,7 +49,7 @@ class ProcessingRecord(Base):
         ),
     )
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    user_id: Mapped[UUID] = mapped_column(ForeignKey("user_graphs.user_id"), nullable=False)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("user.id"), nullable=False)
     workflow: Mapped[str] = mapped_column(String(100))
     workflow_version: Mapped[int] = mapped_column(Integer, default=1)
     resource_kind: Mapped[str] = mapped_column(String(50))

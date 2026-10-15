@@ -190,7 +190,7 @@ async def list_processing(
 @router.get("/processing/{processing_id}", response_model=ProcessingResponse)
 async def get_processing(processing_id: UUID, runtime: Runtime):
     record = await get_repository().get(processing_id, runtime.context.user_id)
-    if record is None or record.workflow == "invitation_push":
+    if record is None or record.workflow in {"invitation_push", "password_recovery_email"}:
         raise HTTPException(404, "Processing not found")
     return ProcessingResponse.from_record(record)
 
@@ -199,7 +199,7 @@ async def get_processing(processing_id: UUID, runtime: Runtime):
 async def extractor_states(processing_id: UUID, runtime: Runtime):
     repository = get_repository()
     record = await repository.get(processing_id, runtime.context.user_id)
-    if record is None or record.workflow == "invitation_push":
+    if record is None or record.workflow in {"invitation_push", "password_recovery_email"}:
         raise HTTPException(404, "Processing not found")
     return [
         ProcessingResponse.from_record(child)

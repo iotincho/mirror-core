@@ -11,7 +11,11 @@ class UserRead(schemas.BaseUser[UUID]):
 
 
 class UserCreate(schemas.BaseUserCreate):
-    pass
+    def create_update_dict(self):
+        return {**super().create_update_dict(), "password_login_enabled": True}
+
+    def create_update_dict_superuser(self):
+        return {**super().create_update_dict_superuser(), "password_login_enabled": True}
 
 
 class UserUpdate(schemas.BaseUserUpdate):

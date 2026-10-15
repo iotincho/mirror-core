@@ -4,7 +4,7 @@ Plan aprobado el 2026-10-15:
 
 - [x] Etapa 1: backend, extractor independiente, persistencia recuperable y compatibilidad de respaldos.
 - [x] Etapa 2: actualización inmediata de títulos en material, lector, búsqueda, caché local y constelaciones.
-- [ ] Etapa 3: generación específica para documentos anteriores sin título, sin repetir otros extractores.
+- [x] Etapa 3: generación específica para documentos anteriores sin título, sin repetir otros extractores.
 
 ## Contrato y ejecución
 
@@ -107,5 +107,86 @@ pruebas usan JSDOM, IndexedDB simulado, Cytoscape headless y HTTP/SSE simulados;
 quedan pendientes aceptación en navegador/dispositivo real y flujo con LLM real.
 Documentación detallada en `mirror-pwa/docs/document-titles.md`. Sin despliegue.
 
-Pendiente: etapa 3, generación específica de títulos para el material anterior.
-No se ejecuta un backfill automáticamente.
+## Etapa 3 — material anterior
+
+Implementada localmente el 2026-10-15, sobre `feat/app-refresh-plan`.
+`BackfillDocumentTitles` inspecciona originales de un workspace y encola un
+coordinador de documento v4 cuya única extracción es `document_title`. Se persiste
+el original en el grafo antes de generar el título, por lo que también funciona
+si un documento antiguo todavía no tiene vértice. No repite transcripción,
+emociones ni embeddings, ni elimina sus resultados existentes.
+
+Cada documento tiene una clave determinística por workspace. Recibo, trabajo,
+evento y outbox se confirman juntos; repetir el comando no duplica trabajos.
+Cambiar el modelo/profile configurado tampoco genera otra ejecución para un
+documento ya aceptado: conserva la configuración y artefactos originales.
+Los fallos recuperables del propio backfill retoman el trabajo existente, incluso
+si el título ya está en el original y sólo falta persistirlo en el grafo. Los
+fallos permanentes se informan sin crear otra llamada al LLM automáticamente.
+
+Los documentos con título, ocupados, ausentes o marcados como eliminados se
+omiten. Título, existencia y disponibilidad se revisan otra vez bajo el guard
+exclusivo antes de encolar; el retry también comprueba que no haya otro workflow
+activo. Las respuestas muestran solamente IDs y estados, sin contenido, títulos
+ni credenciales.
+
+### Uso
+
+Ejecutar con la versión actual del código, la configuración y el almacenamiento
+compartido del backend. `WORKSPACE_ID` debe contener el UUID del usuario dueño del
+workspace, no el nombre de la base de ArcadeDB. La vista previa requiere acceso
+a PostgreSQL y al workspace activo, pero no credenciales del LLM ni consultas al
+grafo. Por defecto sólo inspecciona:
+
+```bash
+python -m src.extractors.backfill_titles --workspace "$WORKSPACE_ID" --limit 100
+```
+
+Para encolar el lote revisado:
+
+```bash
+python -m src.extractors.backfill_titles --workspace "$WORKSPACE_ID" --limit 100 --apply
+```
+
+`--apply` verifica la configuración del proveedor antes de escribir. Dispatcher
+y workers deben estar activos para consumir el outbox y ejecutar las extracciones;
+el comando no llama al LLM directamente ni espera a que terminen los trabajos.
+`--limit` limita nuevos trabajos/reintentos por invocación (100 por defecto).
+Repetirlo permite avanzar con los siguientes documentos sin duplicar los anteriores.
+
+Para seleccionar documentos concretos se puede repetir `--document`:
+
+```bash
+python -m src.extractors.backfill_titles --workspace "$WORKSPACE_ID" --document "$DOCUMENT_ID"
+```
+
+El JSON informa `mode`, `workspace`, `limit`, `total_documents`, `counts` y los IDs
+de documentos/trabajos con sus estados:
+
+| Estado | Significado |
+| --- | --- |
+| `eligible` / `retryable` | Se crearía un trabajo o se retomaría uno recuperable; vista previa |
+| `deferred` | Pendiente fuera del límite del lote |
+| `queued` / `retried` | Trabajo nuevo encolado o trabajo anterior retomado |
+| `already_scheduled` / `completed` | El propio backfill ya lo tiene en curso o completado |
+| `titled` | Tiene título; se conserva |
+| `busy` | Otro procesamiento ocupa el documento; se puede revisar más tarde |
+| `failed` | Fallo permanente; no se vuelve a generar automáticamente |
+| `missing` / `deleted` | Original ausente o marcado como eliminado; no se recrea |
+
+### Validación y estado operativo
+
+Suite general: 210 pruebas aprobadas y 119 integraciones omitidas por falta de
+servicios opt-in. Ejecución separada con PostgreSQL 17 y ArcadeDB 26.9.1
+temporales: 25 integraciones aprobadas, incluidas 8 de backfill. Cubren vista previa
+sin escrituras, límites/lotes, encolado concurrente sin duplicados, creación del
+vértice faltante, conservación de originales/títulos, aislamiento de workspace,
+tombstones, rollback de recibo/evento/outbox, retry con el mismo artefacto y
+protección ante un procesamiento que se encoló después de la vista previa.
+Ruff, ayuda de la CLI y `git diff --check` sin errores. Los contenedores temporales
+se eliminaron al terminar.
+
+Las tres etapas de implementación están completas. No se ejecutó el backfill
+sobre notas reales, no se consultó un proveedor real ni se desplegó. No se agrega
+una migración automática ni una ejecución al iniciar la app. Se mantienen los
+pendientes de aceptación visual/dispositivos y evaluación editorial con un LLM real.

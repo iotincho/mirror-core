@@ -127,7 +127,7 @@ class RequestProcessing:
             action,
         )
 
-    async def retry(self, processing_id: UUID, key: UUID):
+    async def retry(self, processing_id: UUID, key: UUID, *, require_inactive=False):
         record = await self.repository.get(processing_id, self.runtime.context.user_id)
         if record is None or record.workflow == "invitation_push":
             raise DocumentNotFoundError("Processing not found")
@@ -141,6 +141,9 @@ class RequestProcessing:
                 return current
             if not lock:
                 raise SubmissionConflict("processing_state_changed")
+            if require_inactive:
+                # Batch maintenance must not race another queued workflow for this original.
+                await self.repository.assert_inactive(current.user_id, current.resource_id)
             await self.retry_record(session, current, now)
             await self.resume_ancestors(session, current, now)
             return current

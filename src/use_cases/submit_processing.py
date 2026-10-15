@@ -22,6 +22,16 @@ from src.use_cases.create_audio_note import validate_audio_upload
 from src.workspaces.secrets import WorkspaceSecretError
 
 
+def document_title_specification(settings=None):
+    settings = settings or get_settings()
+    return {
+        "name": "document_title",
+        "profile": TITLE_PROFILE.model_dump(mode="json"),
+        "provider": settings.llm_provider,
+        "model": settings.openai_model,
+    }
+
+
 def workflow_config():
     settings = get_settings()
     return {
@@ -47,12 +57,7 @@ def workflow_config():
                 ).model_dump(mode="json"),
                 "force": False,
             },
-            {
-                "name": "document_title",
-                "profile": TITLE_PROFILE.model_dump(mode="json"),
-                "provider": settings.llm_provider,
-                "model": settings.openai_model,
-            },
+            document_title_specification(settings),
         ],
     }
 

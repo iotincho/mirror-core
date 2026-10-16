@@ -6,7 +6,7 @@ from uuid import UUID
 
 from taskiq import Context, TaskiqDepends, TaskiqEvents
 
-from src.observability import initialize_sentry, report_issue
+from src.observability import initialize_sentry, report_issue, trace_operation
 from src.processing.broker import broker
 from src.processing.execution import ResourceBusy
 from src.processing.runtime import get_executor
@@ -28,7 +28,8 @@ async def execute_processing(
         return
     while True:
         try:
-            await get_executor()(identifier, generation)
+            with trace_operation("processing.execute", processing_id=identifier):
+                await get_executor()(identifier, generation)
             await context.ack()  # Only after PostgreSQL resolves the execution.
             return
         except ResourceBusy:

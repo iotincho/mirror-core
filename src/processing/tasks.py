@@ -6,6 +6,7 @@ from uuid import UUID
 
 from taskiq import Context, TaskiqDepends, TaskiqEvents
 
+from src.observability import initialize_sentry, report_issue
 from src.processing.broker import broker
 from src.processing.execution import ResourceBusy
 from src.processing.runtime import get_executor
@@ -32,10 +33,16 @@ async def execute_processing(
             return
         except ResourceBusy:
             await asyncio.sleep(2)
-        except Exception:
+        except Exception as error:
+            report_issue("processing_delivery_failed", error, processing_id=identifier)
             # Keep delivery unacknowledged while DB/recovery resolves the lease.
             # Also avoids exhausting Rabbit prefetch with abandoned messages.
             await asyncio.sleep(5)
+
+
+@broker.on_event(TaskiqEvents.WORKER_STARTUP)
+async def startup_worker(state):
+    initialize_sentry("processing-worker")
 
 
 @broker.on_event(TaskiqEvents.WORKER_SHUTDOWN)

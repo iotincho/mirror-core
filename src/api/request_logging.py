@@ -6,6 +6,8 @@ from uuid import uuid4
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from src.observability import report_issue
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,6 +37,7 @@ class RequestLoggingMiddleware:
                 received_bytes += len(message.get("body", b""))
             elif message["type"] == "http.disconnect" and writing and not disconnected:
                 disconnected = True
+                report_issue("upload_disconnected", request_id=request_id, method=method)
                 logger.warning(
                     "http_client_disconnected %s received_bytes=%s elapsed_ms=%s",
                     context, received_bytes, int((monotonic() - started_at) * 1000),
@@ -44,6 +47,13 @@ class RequestLoggingMiddleware:
         async def observed_send(message: Message) -> None:
             if message["type"] == "http.response.start":
                 status = message["status"]
+                if writing and 400 <= status < 500 and not disconnected:
+                    route = scope.get("route")
+                    report_issue(
+                        "http_write_rejected", status_code=status, method=method,
+                        request_id=request_id, route=getattr(route, "path", None),
+                        error_code=state.get("error_type", "http_error"),
+                    )
                 message = dict(message)
                 message["headers"] = [
                     *message.get("headers", []),

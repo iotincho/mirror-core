@@ -10,6 +10,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy.exc import SQLAlchemyError
 
+from src.observability import report_issue
 from src.processing.models import ProcessingRecord
 from src.processing.repository import LeaseLost, ProcessingRepository
 
@@ -113,6 +114,12 @@ class ExecuteProcessing:
                 await self.repository.finish(record)
             except WorkflowFailure as error:
                 retry = error.retry_delay is not None and record.stage_attempts < self.max_attempts
+                report_issue(
+                    "workflow_failure", error, processing_id=processing_id,
+                    resource_id=record.resource_id, workflow=record.workflow,
+                    stage=record.stage, attempt=record.stage_attempts,
+                    error_code=error.code, retry=retry,
+                )
                 logger.log(
                     logging.WARNING if retry else logging.ERROR,
                     "Workflow failure: processing_id=%s document_id=%s resource_id=%s "
@@ -140,7 +147,9 @@ class ExecuteProcessing:
             except LeaseLost:
                 # Reconciliation owns the replacement generation; no stale mutation.
                 return
-            except SQLAlchemyError:
+            except SQLAlchemyError as error:
+                report_issue("workflow_database_error", error, processing_id=processing_id,
+                             workflow=record.workflow, stage=record.stage)
                 # Unexpected errors keep the lease unacknowledged until recovery.
                 logger.exception(
                     "Workflow database error: processing_id=%s document_id=%s "
@@ -152,7 +161,9 @@ class ExecuteProcessing:
                     record.stage,
                 )
                 raise
-            except Exception:
+            except Exception as error:
+                report_issue("workflow_internal_error", error, processing_id=processing_id,
+                             workflow=record.workflow, stage=record.stage)
                 logger.exception(
                     "Workflow internal error: processing_id=%s document_id=%s "
                     "workflow=%s extractor=%s stage=%s",

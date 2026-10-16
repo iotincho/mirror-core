@@ -19,19 +19,26 @@ def anyio_backend():
 
 @pytest.fixture
 def captured(monkeypatch):
-    events = []
+    class Events(list):
+        transactions = None
+
+    events = Events()
+    events.transactions = []
 
     class MemoryTransport(Transport):
         def capture_envelope(self, envelope):
             for item in envelope.items:
                 if item.headers.get("type") == "event":
                     events.append(item.payload.json)
+                elif item.headers.get("type") == "transaction":
+                    events.transactions.append(item.payload.json)
 
     previous = sentry_sdk.get_global_scope().client
     actual_init = sentry_sdk.init
     settings = SimpleNamespace(
         sentry_dsn="https://public@example.invalid/1", sentry_release="test-release",
         environment="test",
+        sentry_traces_sample_rate=1.0,
     )
     monkeypatch.setattr(observability, "get_settings", lambda: settings)
     monkeypatch.setattr(
@@ -126,3 +133,47 @@ async def test_unexpected_api_error_is_captured_once_with_request_id(captured):
     assert len(captured) == 1
     assert captured[0]["tags"]["request_id"] == response.headers["X-Request-ID"]
     assert "private provider payload" not in json.dumps(captured)
+
+
+def test_transaction_and_error_keep_trace_identity_without_private_data(captured):
+    with sentry_sdk.start_transaction(name="src.test.operation", op="app.operation") as transaction:
+        with sentry_sdk.start_span(op="http.client", name="GET /private?token=private"):
+            try:
+                raise ValueError("private note")
+            except ValueError as error:
+                observability.report_issue("workflow_failure", error)
+    assert len(captured.transactions) == 1
+    trace = captured.transactions[0]
+    assert trace["contexts"]["trace"]["trace_id"] == transaction.trace_id
+    assert captured[0]["contexts"]["trace"]["trace_id"] == transaction.trace_id
+    assert trace["transaction"] == "src.test.operation"
+    assert trace["spans"][0]["description"] == "http.client"
+    assert "private" not in json.dumps(trace)
+
+
+@pytest.mark.anyio
+async def test_api_continues_the_incoming_browser_trace(captured):
+    test_app = FastAPI(exception_handlers=app.exception_handlers.copy())
+    test_app.add_middleware(RequestLoggingMiddleware)
+
+    @test_app.post("/upload")
+    async def upload():
+        raise HTTPException(415, "private note")
+
+    incoming_trace = "a" * 32
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=test_app), base_url="http://test"
+    ) as client:
+        await client.post("/upload", headers={"sentry-trace": f"{incoming_trace}-{'b' * 16}-1"})
+    assert captured.transactions[0]["contexts"]["trace"]["trace_id"] == incoming_trace
+    assert captured[0]["contexts"]["trace"]["trace_id"] == incoming_trace
+
+
+def test_worker_operation_has_its_own_trace_and_processing_id(captured):
+    with observability.trace_operation("processing.execute", processing_id="job-1"):
+        observability.report_issue("workflow_failure", ValueError("private note"))
+    trace = captured.transactions[0]
+    assert trace["transaction"] == "processing.execute"
+    assert trace["tags"]["processing_id"] == "job-1"
+    assert trace["contexts"]["trace"]["trace_id"] == captured[0]["contexts"]["trace"]["trace_id"]
+    assert "private" not in json.dumps(trace)

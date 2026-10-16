@@ -6,6 +6,7 @@ ningún DSN real en el repositorio. Para activarlo en producción:
 ```dotenv
 SENTRY_DSN=<DSN del proyecto backend>
 SENTRY_RELEASE=mirror-core@<version desplegada>
+SENTRY_TRACES_SAMPLE_RATE=1.0
 ENVIRONMENT=production
 ```
 
@@ -26,9 +27,20 @@ Los tags técnicos incluyen operación, servicio, request_id, estado HTTP y, en
 workflows, processing_id, recurso, etapa, intento y código seguro. El SDK conserva
 el tipo de excepción y ubicaciones del stack, pero el filtro elimina sus mensajes
 dinámicos, variables locales, cuerpo/headers/URL de la petición, usuario, extras,
-breadcrumbs, contexto de SQL/proveedores y adjuntos. No habilita trazas,
+breadcrumbs, contexto de SQL/proveedores y adjuntos. No habilita
 profiling, integración OpenAI ni captura automática de logs. Los logs locales
 existentes conservan sus tracebacks y no son alterados por este filtro.
+
+Tracing está habilitado cuando hay DSN, con muestreo local predeterminado de 1.0
+(100%). `SENTRY_TRACES_SAMPLE_RATE` acepta valores entre 0 y 1. Las peticiones
+continúan el `sentry-trace`/`baggage` recibido desde la PWA, incluyendo su decisión
+de muestreo. El filtro conserva trace_id/span_id tanto en errores como en
+transacciones, elimina atributos y descripciones dinámicas y usa nombres de
+funciones del backend. No propaga headers de tracing a proveedores externos.
+
+Workers y dispatcher generan transacciones independientes para ejecutar trabajos
+y publicar outbox. Se correlacionan por processing_id cuando corresponde; no se
+añade contexto de tracing al contrato durable del broker.
 
 Validación local sin red: `tests/test_observability.py` usa el SDK real con un
 transporte en memoria. Comprueba configuración desactivada, correlación de un

@@ -8,6 +8,7 @@ import httpx
 
 from src.processing.artifacts import ArtifactCorrupted
 from src.processing.execution import WorkflowFailure
+from src.services.audio_transcoding import AudioTranscoderUnavailable
 from src.services.document_store import DocumentNotFoundError
 from src.workspaces.secrets import WorkspaceSecretError
 
@@ -19,6 +20,8 @@ def failure_for(error, attempts, service):
         current = current.__cause__
     if any(isinstance(item, WorkspaceSecretError) for item in chain):
         return WorkflowFailure("workspace_credentials_unavailable", retryable=True)
+    if any(isinstance(item, AudioTranscoderUnavailable) for item in chain):
+        return WorkflowFailure("transcription_configuration", retryable=True)
     if any(isinstance(item, (DocumentNotFoundError, FileNotFoundError)) for item in chain):
         return WorkflowFailure("original_missing")
     if any(isinstance(item, ArtifactCorrupted) for item in chain):

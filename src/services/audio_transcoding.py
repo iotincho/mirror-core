@@ -9,6 +9,10 @@ class AudioPreparationError(RuntimeError):
     """Audio could not be prepared for transcription."""
 
 
+class AudioTranscoderUnavailable(AudioPreparationError):
+    """The worker needs its audio conversion dependency installed."""
+
+
 async def transcription_upload(audio_path: Path, *, timeout: float) -> tuple[str, bytes]:
     if audio_path.suffix.lower() != ".webm":
         return audio_path.name, await asyncio.to_thread(audio_path.read_bytes)
@@ -39,7 +43,7 @@ async def transcription_upload(audio_path: Path, *, timeout: float) -> tuple[str
                 stderr=asyncio.subprocess.DEVNULL,
             )
         except FileNotFoundError:
-            raise AudioPreparationError("WebM transcription requires ffmpeg") from None
+            raise AudioTranscoderUnavailable("WebM transcription requires ffmpeg") from None
 
         try:
             await asyncio.wait_for(process.wait(), timeout=timeout)

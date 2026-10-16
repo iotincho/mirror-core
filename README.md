@@ -32,6 +32,14 @@ por capa (`extraction → persistence → done`). Incluye los
 documentos creados desde audio; los trabajos históricos v2 siguen guardando sólo
 documentos. Se requieren `LLM_PROVIDER=openai`, `OPENAI_API_KEY` y `OPENAI_MODEL`.
 
+Para transcribir WebM, el backend requiere `ffmpeg` con el codificador `libmp3lame`
+(incluido en la imagen Docker). Conserva el audio original y genera una copia
+temporal MP3 mono de 16 kHz a 64 kb/s antes de enviarla a OpenAI. La copia se
+elimina después de leerla, incluso si falla la conversión; el SDK recibe sus bytes
+y un nombre `.mp3`. Los demás formatos se envían directamente. La conversión
+usa `PROVIDER_TIMEOUT_SECONDS` como tiempo máximo y rechaza MP3 de más de 25 MB.
+Los WebM ya guardados usan el mismo flujo al reintentar su procesamiento.
+
 ## Contexto
 
 El Espejo es una prueba de concepto (POC) para explorar si la IA puede ayudar a una persona a observar, recorrer y comprender sus propios pensamientos a lo largo del tiempo.

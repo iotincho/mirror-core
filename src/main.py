@@ -5,13 +5,18 @@ import logging
 from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException
+from starlette.requests import ClientDisconnect
 from starlette.responses import JSONResponse
 
 from src.api.error_handlers import (
+    client_disconnect_handler,
     logged_http_exception_handler,
+    logged_validation_exception_handler,
     unexpected_exception_handler,
 )
+from src.api.request_logging import RequestLoggingMiddleware
 from src.api.router import api_router
 from src.config import get_settings
 from src.exteriorization.repository import InvitationError
@@ -54,6 +59,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 app.include_router(api_router)
+app.add_middleware(RequestLoggingMiddleware)
 
 
 @app.exception_handler(InvitationError)
@@ -63,4 +69,6 @@ async def invitation_error_handler(request: Request, error: InvitationError) -> 
 
 
 app.add_exception_handler(HTTPException, logged_http_exception_handler)
+app.add_exception_handler(RequestValidationError, logged_validation_exception_handler)
+app.add_exception_handler(ClientDisconnect, client_disconnect_handler)
 app.add_exception_handler(Exception, unexpected_exception_handler)

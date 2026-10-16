@@ -85,6 +85,36 @@ Los endpoints legacy siguen disponibles para clientes anteriores. La PWA nueva
 requiere el core con esta migración; publicar sólo la PWA antes que el backend
 no permite utilizar este contrato.
 
+## Diagnóstico de sincronización
+
+La API asigna un `request_id` y lo devuelve como `X-Request-ID`. Con `LOG_LEVEL=INFO`
+(valor predeterminado), cada POST/PUT/PATCH/DELETE registra `http_write_started`
+y, al iniciar la respuesta, `http_response` con método, ruta sin query, estado,
+bytes recibidos y tiempo transcurrido. El registro de respuesta indica aceptación
+HTTP; el procesamiento posterior se sigue en `processing-worker`.
+
+Todas las respuestas HTTP 4xx/5xx que atraviesan el middleware tienen un resumen
+de error. Las excepciones 5xx conservan además su traceback existente. Las
+validaciones registran únicamente los tipos de error; los nuevos resúmenes no
+incluyen cuerpo, audio, nombres de archivo, cookies, credenciales ni query string.
+Un `http.disconnect` observado durante una escritura registra
+`http_client_disconnected`. Si se propaga como `ClientDisconnect`, se trata como
+499 en lugar de un error interno. No garantiza que una operación ya confirmada
+en el servidor se haya revertido.
+
+Los fallos después de abrir SSE se registran como `event_feed_closed`,
+`event_feed_storage_error` o `event_feed_unexpected_error`, con usuario y request_id.
+El cierre normal del stream por el cliente no se trata como un fallo del servidor.
+
+```sh
+docker compose logs --since 30m api gateway cloudflared processing-worker
+```
+
+Un fallo local del navegador, una conexión que nunca llega a la API o un rechazo
+previo del gateway/Cloudflare no puede registrarse desde la API. En esos casos
+hay que correlacionar el error guardado por la PWA y los logs del gateway/túnel.
+Estos registros no reconstruyen fallos anteriores al despliegue.
+
 ## Validación
 
 - Suite backend completa con PostgreSQL aislado: 154 passed, 5 skipped. Los skips

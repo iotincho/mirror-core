@@ -1,10 +1,10 @@
 """OpenAI implementation of the speech-to-text port."""
 
-import asyncio
 from pathlib import Path
 from typing import Any
 
 from src.services.async_provider import AsyncProvider
+from src.services.audio_transcoding import transcription_upload
 from src.services.transcription_provider import TranscriptionProviderError
 
 
@@ -23,11 +23,11 @@ class OpenAITranscriptionProvider(AsyncProvider):
         client = self._get_client()
         try:
             async with self._request_slot():
-                # Pass bytes to the SDK so multipart encoding never reads a file on the loop.
-                content = await asyncio.to_thread(audio_path.read_bytes)
+                # Transcode WebM off the event loop; retain only bytes during SDK retries.
+                filename, content = await transcription_upload(audio_path, timeout=self._timeout)
                 response = await client.audio.transcriptions.create(
                     model=self.model_name,
-                    file=(audio_path.name, content),
+                    file=(filename, content),
                 )
             transcript = response.text
         except Exception as error:

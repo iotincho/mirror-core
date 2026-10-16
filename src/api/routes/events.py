@@ -89,9 +89,22 @@ async def stream(request, feed, owner, token, cursor, sessions):
             if len(rows) < 100:
                 await asyncio.sleep(POLL_SECONDS)
     except HTTPException as error:
+        logger.warning(
+            "event_feed_closed owner_id=%s status_code=%s request_id=%s",
+            owner, error.status_code, getattr(request.state, "request_id", "unavailable"),
+        )
         yield frame("session.expired" if error.status_code == 401 else "processing.unavailable", {})
-    except SQLAlchemyError:
-        logger.warning("Event feed interrupted by database unavailability")
+    except SQLAlchemyError as error:
+        logger.warning(
+            "event_feed_storage_error owner_id=%s error_type=%s request_id=%s",
+            owner, type(error).__name__, getattr(request.state, "request_id", "unavailable"),
+        )
+    except Exception as error:
+        logger.error(
+            "event_feed_unexpected_error owner_id=%s error_type=%s request_id=%s",
+            owner, type(error).__name__, getattr(request.state, "request_id", "unavailable"),
+        )
+        raise
 
 
 @router.get("/events")

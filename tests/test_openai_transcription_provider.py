@@ -198,6 +198,14 @@ async def test_conversion_failure_does_not_call_api_or_leave_temporary_files(
     with pytest.raises(TranscriptionProviderError) as raised:
         await provider_for(create).transcribe(path)
     assert isinstance(raised.value.__cause__, audio_transcoding.AudioPreparationError)
+    failure = failure_for(raised.value, 1, "transcription")
+    if reason == "missing_ffmpeg":
+        assert failure.code == "transcription_configuration"
+        assert failure.retryable is True
+        assert failure.retry_delay is None
+    else:
+        assert failure.code == "transcription_invalid_response"
+        assert failure.retryable is False
     assert path.read_bytes() == b"original"
     assert list(conversion_directory.iterdir()) == []
 

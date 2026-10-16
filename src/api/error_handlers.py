@@ -9,10 +9,16 @@ from starlette.exceptions import HTTPException
 from starlette.requests import ClientDisconnect
 from starlette.responses import JSONResponse, Response
 
+from src.observability import report_issue
+
 logger = logging.getLogger(__name__)
 
 
 def _log_server_error(request: Request, error: Exception, status_code: int) -> None:
+    report_issue(
+        "http_server_error", error, status_code=status_code, method=request.method,
+        request_id=getattr(request.state, "request_id", None),
+    )
     logger.error(
         "http_server_error method=%s path=%s status_code=%s request_id=%s",
         request.method,

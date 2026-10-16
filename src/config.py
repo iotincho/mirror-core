@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     environment: str = Field(default="development", validation_alias="ENVIRONMENT")
+    sentry_dsn: str = Field(default="", validation_alias="SENTRY_DSN", repr=False)
+    sentry_release: str = Field(default="", validation_alias="SENTRY_RELEASE")
     rabbitmq_url: str = Field(
         default="amqp://guest:guest@localhost:5672/",
         validation_alias="RABBITMQ_URL",

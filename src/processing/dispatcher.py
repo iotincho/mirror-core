@@ -5,6 +5,7 @@ import logging
 import signal
 
 from src.exteriorization.dependencies import get_invitation_repository
+from src.observability import initialize_sentry, report_issue
 from src.processing.broker import broker
 from src.processing.repository import ProcessingRepository
 from src.processing.runtime import get_repository
@@ -24,7 +25,8 @@ async def dispatch_once(repository: ProcessingRepository, publish) -> int:
     for row in rows:
         try:
             await asyncio.wait_for(publish(str(row.processing_id), row.generation), timeout=20)
-        except Exception:
+        except Exception as error:
+            report_issue("outbox_delivery_failed", error, processing_id=row.processing_id)
             # Avoid logging broker URLs, credentials or document content.
             logger.warning("Outbox delivery postponed: %s", row.id)
             await repository.settle_outbox(row, published=False)
@@ -36,6 +38,7 @@ async def dispatch_once(repository: ProcessingRepository, publish) -> int:
 
 async def main():
     logging.basicConfig(level=logging.INFO)
+    initialize_sentry("processing-dispatcher")
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
@@ -58,7 +61,8 @@ async def main():
                         await broker.shutdown()
                         raise
                 await dispatch_once(repository, execute_processing.kiq)
-            except Exception:
+            except Exception as error:
+                report_issue("dispatcher_unavailable", error)
                 logger.warning("Dispatcher unavailable; pending work remains in PostgreSQL")
             try:
                 await asyncio.wait_for(stop.wait(), timeout=5)

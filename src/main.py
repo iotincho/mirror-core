@@ -21,10 +21,12 @@ from src.api.router import api_router
 from src.config import get_settings
 from src.exteriorization.repository import InvitationError
 from src.logging import configure_logging
+from src.observability import initialize_sentry
 from src.user_management.database import close_database
 from src.workspaces.provisioning import reconcile_active_workspaces
 
 logger = logging.getLogger(__name__)
+initialize_sentry("api")
 
 
 async def _reconcile_workspaces_at_startup() -> None:

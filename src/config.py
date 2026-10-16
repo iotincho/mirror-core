@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     environment: str = Field(default="development", validation_alias="ENVIRONMENT")
     sentry_dsn: str = Field(default="", validation_alias="SENTRY_DSN", repr=False)
     sentry_release: str = Field(default="", validation_alias="SENTRY_RELEASE")
+    sentry_traces_sample_rate: float = Field(
+        default=1.0, ge=0, le=1, validation_alias="SENTRY_TRACES_SAMPLE_RATE"
+    )
     rabbitmq_url: str = Field(
         default="amqp://guest:guest@localhost:5672/",
         validation_alias="RABBITMQ_URL",

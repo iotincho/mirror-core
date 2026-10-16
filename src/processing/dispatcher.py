@@ -5,7 +5,7 @@ import logging
 import signal
 
 from src.exteriorization.dependencies import get_invitation_repository
-from src.observability import initialize_sentry, report_issue
+from src.observability import initialize_sentry, report_issue, trace_operation
 from src.processing.broker import broker
 from src.processing.repository import ProcessingRepository
 from src.processing.runtime import get_repository
@@ -60,7 +60,8 @@ async def main():
                     except Exception:
                         await broker.shutdown()
                         raise
-                await dispatch_once(repository, execute_processing.kiq)
+                with trace_operation("processing.dispatch"):
+                    await dispatch_once(repository, execute_processing.kiq)
             except Exception as error:
                 report_issue("dispatcher_unavailable", error)
                 logger.warning("Dispatcher unavailable; pending work remains in PostgreSQL")

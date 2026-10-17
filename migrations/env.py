@@ -7,6 +7,7 @@ from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+from src.administration import models as admin_models  # noqa: F401
 from src.config import get_settings
 from src.exteriorization import models as invitation_models  # noqa: F401
 from src.maintenance import models as maintenance_models  # noqa: F401

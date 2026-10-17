@@ -1,3 +1,25 @@
+x-admin-core: &admin-core
+  image: mirror-core:admin-workspace
+  build:
+    context: .
+    dockerfile: Dockerfile.prod
+
+x-admin-runtime: &admin-runtime
+  <<: *admin-core
+  profiles: [admin-lan]
+  restart: unless-stopped
+  environment:
+    DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs: [/tmp]
+  depends_on:
+    postgres:
+      condition: service_healthy
+    database-migrations:
+      condition: service_completed_successfully
+
 x-processing: &processing
   build:
     context: .
@@ -66,13 +88,10 @@ services:
         condition: service_completed_successfully
 
   database-migrations:
-    build:
-      context: .
-    env_file:
-      - .env.local
+    <<: *admin-core
     command: alembic upgrade head
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-el_espejo}:${POSTGRES_PASSWORD:-el-espejo-local-password}@postgres:5432/${POSTGRES_DB:-el_espejo}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
     depends_on:
       postgres:
         condition: service_healthy
@@ -128,6 +147,53 @@ services:
       pwa:
         condition: service_started
 
+  admin-api:
+    <<: *admin-runtime
+    command: uvicorn src.admin_main:app --host 0.0.0.0 --port 8000
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
+      ADMIN_INVENTORY_MAX_AGE_SECONDS: ${ADMIN_INVENTORY_MAX_AGE_SECONDS:?}
+    networks: [administration, admin-database]
+    healthcheck:
+      interval: 5s
+      start_period: 5s
+
+  admin-sync:
+    <<: *admin-runtime
+    init: true
+    stop_grace_period: 15s
+    command: [python, -m, src.administration.sync, --interval, "${ADMIN_SYNC_INTERVAL_SECONDS:?}"]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
+      WORKSPACES_PATH: /data/users
+    volumes: [core_data:/data:ro]
+    networks: [admin-database]
+    healthcheck:
+      disable: true
+
+  admin-web:
+    image: mirror-admin:admin-workspace
+    build:
+      context: ../mirror-admin
+      dockerfile: Dockerfile.prod
+    profiles: [admin-lan]
+    restart: unless-stopped
+    environment:
+      ADMIN_ALLOWED_HOSTS: ${ADMIN_ALLOWED_HOSTS:?}
+    ports:
+      - "127.0.0.1:${ADMIN_PORT:?}:8080"
+      - "${ADMIN_BIND_ADDRESS:?}:${ADMIN_PORT:?}:8080"
+    depends_on:
+      admin-api:
+        condition: service_healthy
+    networks: [admin-ingress, administration]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp
+      - /etc/nginx/conf.d:uid=101,gid=101,mode=0755
+
   cloudflared:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
@@ -166,13 +232,14 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:?}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-el_espejo} -d ${POSTGRES_DB:-el_espejo}"]
-      interval: 60s
+      interval: 5s
       timeout: 5s
       retries: 20
-      start_period: 10s
+      start_period: 5s
+    networks: [default, admin-database]
 
   rabbitmq:
     image: rabbitmq:4.3.6-management-alpine
@@ -199,6 +266,13 @@ services:
   processing-dispatcher:
     <<: *processing
     command: python -m src.processing.dispatcher
+
+networks:
+  admin-ingress:
+  administration:
+    internal: true
+  admin-database:
+    internal: true
 
 volumes:
   arcadedb_data:

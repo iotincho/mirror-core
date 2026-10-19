@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastapi_users.db import SQLAlchemyBaseUserTableUUID
 from fastapi_users_db_sqlalchemy import SQLAlchemyBaseOAuthAccountTableUUID
 from fastapi_users_db_sqlalchemy.access_token import SQLAlchemyBaseAccessTokenTableUUID
-from sqlalchemy import Boolean, Integer, text
+from sqlalchemy import Boolean, DateTime, Integer, func, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -18,6 +20,9 @@ class OAuthAccount(SQLAlchemyBaseOAuthAccountTableUUID, Base):
 
 
 class User(SQLAlchemyBaseUserTableUUID, Base):
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, server_default=func.now()
+    )
     password_login_enabled: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )

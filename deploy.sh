@@ -8,7 +8,7 @@ docker-compose "$@" config --quiet
 # the same release as the source mounted into API/workers/data-migrations.
 docker-compose "$@" build --pull
 # Old processes must not write while derived graph/files are being retired.
-docker-compose "$@" stop api processing-worker processing-dispatcher pwa
+docker-compose "$@" --profile admin-lan stop admin-web admin-api admin-sync api processing-worker processing-dispatcher pwa
 docker-compose "$@" up -d --wait postgres arcadedb rabbitmq
 for task in database-migrations arcadedb-schema data-migrations; do
   docker-compose "$@" up --no-deps --abort-on-container-exit --exit-code-from "$task" "$task"

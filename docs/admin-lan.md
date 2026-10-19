@@ -1,0 +1,76 @@
+# Administración local/LAN — API y métricas
+
+La API administrativa se ejecuta desde `src.admin_main:app`. No está montada en `src.main:app`, no comparte su ciclo de arranque y no inicia reconciliación de workspaces, workers, proveedores ni conexiones a ArcadeDB. Esta entrega conserva la decisión de uso LAN sin autenticación administrativa.
+
+El panel ya está iniciado en esta máquina usando imágenes locales y los volúmenes
+existentes. Ver [acceso y operación del workspace](admin-workspace.md).
+
+Para ejecutar imágenes compiladas y los tres servicios con Docker, seguir el
+[runbook LAN de mirror-deploy](../../mirror-deploy/ADMIN-LAN.md). El Compose principal, con el perfil `admin-lan`, incluye redes, proxy, sincronización y migración previa; los pasos de
+abajo corresponden a desarrollo sin contenedores.
+
+## Iniciar con la base de la plataforma
+
+Desde mirror-core, configurar `DATABASE_URL` y `WORKSPACES_PATH` en el entorno o en `.env`, apuntando al volumen/base de desarrollo o LAN deseados. No colocar credenciales en variables VITE_*.
+
+```sh
+.venv/bin/python -m alembic upgrade head
+.venv/bin/python -m src.administration.sync
+.venv/bin/python -m uvicorn src.admin_main:app --host 127.0.0.1 --port 8001
+```
+
+En otro proceso, para mantener actualizado el inventario:
+
+```sh
+.venv/bin/python -m src.administration.sync --interval 30
+```
+
+El sincronizador necesita acceso a los archivos originales. La API solo necesita PostgreSQL; el Compose principal monta el volumen de contenido únicamente en el sincronizador, en modo de solo lectura. admin-api no recibe claves de OpenAI/ArcadeDB ni se publica mediante el gateway público.
+
+Desde mirror-admin:
+
+```sh
+npm ci
+npm run dev
+```
+
+El panel usa API por defecto, en http://127.0.0.1:5176; Vite publica `/api/admin/*` hacia http://127.0.0.1:8001 manteniendo el prefijo íntegro. No hay que remover `/api` en este proceso: sus rutas reales empiezan por `/api/admin` y no usa root_path. `ADMIN_API_PROXY_TARGET` permite apuntar a otra dirección LAN sin poner secretos en el bundle. Para servir el panel en LAN, habilitar su host explícitamente con `npm run dev -- --host 0.0.0.0`; la API puede seguir escuchando solo en loopback si está en la misma máquina que Vite.
+
+La demo sigue disponible con `VITE_DATA_MODE=demo npm run dev`, solo en desarrollo. Build/preview requieren un proxy del mismo origen hacia la API; no incluyen fixtures.
+
+## Qué se obtiene
+
+- Usuarios registrados/habilitados, listado paginado, filtros por correo/ID y estado, ordenamiento permitido, detalle.
+- Notas existentes por cuenta y globales, con fecha de sincronización. El inventario se invalida si está incompleto o supera `ADMIN_INVENTORY_MAX_AGE_SECONDS` (300 por defecto).
+- Incorporaciones por texto/audio/importación y usuarios que escribieron cuando hay evidencia completa de llegada/procedencia en los receipts. Reprocesar, importar una copia ya existente o repetir la sincronización no duplica documentos.
+- Procesamientos por estado y tasa de éxito de workflows principales creados en el período. No duplica extractores hijos; pendiente agrupa queued/waiting/retrying.
+- Accesos observados a la app, únicos por usuario/día en Buenos Aires, con fecha de inicio de medición.
+
+Las fechas de creación de cuentas antiguas permanecen null; las cuentas nuevas tienen fecha de alta desde la migración. No se usa la fecha del workspace para inventar una fecha de registro.
+
+Las importaciones conservan su fecha original, pero se cuentan por accepted_at del receipt. En audio se usa la creación efectiva del documento derivado. Archivos .md/.txt subidos (`file_upload`) se clasifican como importaciones. Los originales anteriores sin receipt permiten contar inventario, pero no reconstruir de manera fiable su llegada: las métricas de incorporación/escritura quedan null. Un borrado conserva en la proyección la evidencia de creación conocida, aunque baja el inventario actual. No se pueden reconstruir notas eliminadas antes del primer inventario si no dejaron evidencia durable de su existencia y procedencia. Las métricas de incorporación describen los registros recuperables, no una garantía de histórico completo previo a la instrumentación.
+
+## Actividad de la PWA
+
+Activar `PLATFORM_ACTIVITY_ENABLED=true` en la API pública cuando se despliegue la PWA actualizada. Por defecto está deshabilitado. El endpoint público `POST /activity` (externamente `/api/activity`) usa la sesión normal existente y valida el origen. No permite elegir otro usuario.
+
+La PWA envía una observación al entrar o volver al primer plano, con un máximo de un intento cada cinco minutos por instancia. Sin heartbeat, contenido, ruta, IP ni identificador en el body. Errores, 401 o ausencia del endpoint se ignoran sin cerrar sesión, mostrar avisos o reportar telemetría. Al cerrar sesión se eliminan listeners y se cancela la petición pendiente.
+
+La primera observación fija `activity_since`. Los días anteriores son null; el primer día puede ser parcial. El total de usuarios que accedieron expresa lo observado desde esa fecha, no actividad histórica reconstruida. Se conservan 90 días de agregados diarios; si se deshabilita o se dejan instancias sin actualizar, puede haber huecos que no se reconstruyen. La señal registra apertura/retorno al foreground y no prueba actividad continua durante toda una sesión.
+
+## Recuperación e integridad
+
+El sincronizador guarda un checkpoint por cuenta en PostgreSQL y tiene exclusión mutua mediante advisory lock. Solo persiste IDs, fechas, categorías y flags. No guarda título, texto, audio ni metadata libre. Fallos de lectura, JSON inválido, identidad incorrecta, symlinks o falta del volumen invalidan cobertura sin borrar el inventario previo. Reejecutar recupera las cuentas fallidas.
+
+La lectura de originales sucede fuera del servicio administrativo. Es una proyección periódica, no una transacción conjunta con el filesystem: un cambio concurrente puede verse en el siguiente ciclo. El panel muestra la fecha del snapshot y actualiza sus consultas cada 30 segundos. Una interrupción del proceso no afecta al guardado de notas; después se reanuda desde los originales y checkpoints.
+
+## Validación
+
+- Migración desde esquema anterior: usuarios históricos siguen sin fecha inventada y las sesiones existentes sobreviven.
+- PostgreSQL aislado: conteos, filtros booleanos, búsqueda literal con `%`, idempotencia, importación con fecha antigua, extractores hijos, borrados, lectura fallida, inventario vencido y exclusión mutua.
+- API pública sin rutas administrativas; API administrativa sin rutas de contenido ni mutaciones.
+- Respuestas explícitas sin hashes, OAuth, contenido o secretos; errores SQL devuelven 503 genérico y no-store.
+- PWA: foreground, frecuencia acotada, limpieza al logout y fallo offline silencioso; suite completa, lint y build.
+- Panel: tipos, pruebas, lint, build sin fixtures y verificación por navegador contra la API.
+
+Las pruebas usan `ADMIN_TEST_DATABASE_URL`, que debe apuntar a una base desechable cuyo nombre empiece por `admin_test`. No se ejecutan migraciones ni cargas iniciales automáticamente contra una base existente de la plataforma.

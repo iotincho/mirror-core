@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from src.api.routes import (
+    activity,
     audio_notes,
     auth,
     document_archive,
@@ -18,6 +19,7 @@ from src.workspaces.routes import router as workspace_router
 api_router = APIRouter()
 api_router.include_router(system.router)
 api_router.include_router(auth.router)
+api_router.include_router(activity.router)
 api_router.include_router(workspace_router)
 # Events perform the same cookie checks in short sessions, also during the stream.
 api_router.include_router(events.router)

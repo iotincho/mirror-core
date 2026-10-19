@@ -13,6 +13,9 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
+    platform_activity_enabled: bool = Field(
+        default=False, validation_alias="PLATFORM_ACTIVITY_ENABLED"
+    )
     environment: str = Field(default="development", validation_alias="ENVIRONMENT")
     sentry_dsn: str = Field(default="", validation_alias="SENTRY_DSN", repr=False)
     sentry_release: str = Field(default="", validation_alias="SENTRY_RELEASE")

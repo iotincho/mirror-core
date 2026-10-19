@@ -41,7 +41,18 @@ def test_local_deploy_rebuilds_all_images_before_stopping_writers(tmp_path):
     assert commands[:4] == [
         ["config", "--quiet"],
         ["build", "--pull"],
-        ["stop", "api", "processing-worker", "processing-dispatcher", "pwa"],
+        [
+            "--profile",
+            "admin-lan",
+            "stop",
+            "admin-web",
+            "admin-api",
+            "admin-sync",
+            "api",
+            "processing-worker",
+            "processing-dispatcher",
+            "pwa",
+        ],
         ["up", "-d", "--wait", "postgres", "arcadedb", "rabbitmq"],
     ]
     for command, task in zip(
@@ -85,13 +96,20 @@ def test_local_compose_uses_same_arcadedb_credentials_for_all_core_services():
         [
             docker,
             "compose",
+            "--env-file",
+            str(SCRIPT.parent / ".env.example"),
             "-f",
             str(SCRIPT.parent / "docker-compose.yml"),
             "config",
+            "--no-env-resolution",
             "--format",
             "json",
         ],
-        env={**os.environ, "ARCADEDB_ROOT_PASSWORD": "compose-regression-test-password"},
+        env={
+            **os.environ,
+            "ARCADEDB_ROOT_PASSWORD": "compose-regression-test-password",
+            "CLOUDFLARE_TUNNEL_TOKEN": "compose-model-check-only",
+        },
         capture_output=True,
         text=True,
         check=True,

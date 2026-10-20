@@ -1,5 +1,11 @@
 # Invitaciones para escribir — backend v1
 
+> Actualización: [Centro de notificaciones](notification-center.md) incorpora la bandeja
+> y separa habilitación diaria de push. Aplicar `20261020_12`. La descripción histórica
+> de v1 que exigía suscripciones para habilitar/generar cambió:
+> hoy se genera una invitación y su aviso aun sin suscripciones; VAPID sólo es necesario
+> para registrar dispositivos y enviar push. Los demás contratos se conservan.
+
 El motor usa doce preguntas curadas (`generic-v1`, catálogo `1`). No lee notas,
 no consulta ArcadeDB y no invoca modelos. Una respuesta entra por el alta normal
 de documentos y conserva el procesamiento de extractores existente.
@@ -40,7 +46,8 @@ workspace activo; un workspace suspendido no genera ni envía invitaciones.
 - Tras una caída prolongada se omiten días anteriores y se considera la ocurrencia
   de hoy solamente si su horario pasó y sigue dentro de la ventana.
 - Cambiar horario/zona no reabre una fecha local ya reservada.
-- Sin suscripciones vigentes, no se genera una invitación para esa ocurrencia.
+- Sin suscripciones vigentes se genera igualmente la invitación y su aviso en la bandeja;
+  no se crean trabajos de envío push.
 - Hasta cuatro intentos por dispositivo, con demoras 10/30/120 segundos y sin
   sobrepasar vencimiento ni los límites de recuperación del runtime.
 - 404/410 invalidan esa suscripción. 408/429/5xx y fallos de transporte admiten retry.
@@ -148,7 +155,7 @@ conceder permiso. No hace falta habilitar el horario diario para una prueba.
 
 No copiar archivos de claves al repositorio. Rotar el par exige renovar las
 suscripciones del navegador; la v1 no implementa rotación automática.
-Las claves vacías hacen que activación/alta/prueba respondan 503
+Las claves vacías hacen que alta/prueba de push respondan 503
 `web_push_not_configured`; la captura normal continúa disponible.
 
 En desarrollo `docker-compose.yml` ya carga `.env.local` para API/worker/dispatcher.
@@ -176,7 +183,7 @@ el origen público detrás de Nginx/HTTPS. No se habilita CORS con credenciales.
 | Método/ruta interna | Entrada/salida |
 | --- | --- |
 | `GET /exteriorization/preferences` | `enabled`, `local_time`, `timezone`, `next_due_at`. |
-| `PUT /exteriorization/preferences` | JSON completo `{ "enabled": true, "local_time": "20:30", "timezone": "America/Argentina/Buenos_Aires" }`. Habilitar requiere una suscripción activa. |
+| `PUT /exteriorization/preferences` | JSON completo `{ "enabled": true, "local_time": "20:30", "timezone": "America/Argentina/Buenos_Aires" }`. Habilitar no requiere suscripción ni VAPID. |
 | `GET /exteriorization/push/public-key` | `{ "public_key": "…" }`. |
 | `POST /exteriorization/push/subscriptions` | Objeto PushSubscription `{ "endpoint": "…", "keys": { "p256dh": "…", "auth": "…" }, "expirationTime": null }`; devuelve solo `{ "id": "UUID", "active": true, "binding_id": "UUID" }`. |
 | `DELETE /exteriorization/push/subscriptions/{id}` | 204 idempotente, solo propietario y sesión actuales. |

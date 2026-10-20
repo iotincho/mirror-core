@@ -1,0 +1,9 @@
+[
+  {
+    "key": "notification-center-v1",
+    "title": "Un lugar para lo nuevo",
+    "summary": "Tus novedades, primeros pasos y preguntas ahora están acá.",
+    "body": "En Notificaciones podés encontrar mejoras de El Espejo, descubrir opciones para tu espacio y abrir tus preguntas diarias. Podés consultar este lugar aunque no recibas avisos en tu dispositivo. Cada aviso permanece disponible durante 15 días.",
+    "lifetime_days": 15
+  }
+]

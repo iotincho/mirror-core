@@ -51,3 +51,6 @@ select = ["E", "F", "I"]
 
 [tool.setuptools.packages.find]
 include = ["src*"]
+
+[tool.setuptools.package-data]
+"src.notifications" = ["announcements.json"]

@@ -3,12 +3,14 @@
 from datetime import timedelta
 from uuid import UUID, uuid4
 
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 
 from src.exteriorization.models import Invitation, InvitationPreference, PushSubscription
 from src.exteriorization.repository import InvitationError, InvitationRepository
 from src.exteriorization.scheduling import next_occurrence
+from src.notifications.invitations import add_invitation_notification
+from src.notifications.models import Notification
 from src.use_cases.generate_invitation import GenerateInvitation
 from src.workspaces.models import UserWorkspace
 
@@ -30,17 +32,6 @@ class ConfigureInvitations:
     ) -> InvitationPreference:
         async with self.repository.sessions.begin() as session:
             preference = await self.repository.preference(session, user_id)
-            if enabled:
-                active = await session.scalar(
-                    select(PushSubscription.id)
-                    .where(
-                        PushSubscription.user_id == user_id,
-                        PushSubscription.active.is_(True),
-                    )
-                    .limit(1)
-                )
-                if active is None:
-                    raise InvitationError("active_subscription_required", 409)
             now = await self.repository.now(session)
             changed = (preference.enabled, preference.local_time, preference.timezone) != (
                 enabled,
@@ -139,6 +130,7 @@ class ConfigureInvitations:
             if previous is not None:
                 if previous.test_subscription_id != subscription_id:
                     raise InvitationError("idempotency_conflict", 409)
+                await add_invitation_notification(session, previous)
                 return previous
             if not subscription.active:
                 raise InvitationError("active_subscription_required", 409)
@@ -181,4 +173,12 @@ class ConfigureInvitations:
                 raise InvitationError("invitation_not_found", 404)
             if invitation.first_opened_at is None:
                 invitation.first_opened_at = await self.repository.now(session)
+            await session.execute(
+                update(Notification)
+                .where(
+                    Notification.user_id == user_id,
+                    Notification.deduplication_key == f"invitation:{invitation_id}",
+                )
+                .values(read_at=func.coalesce(Notification.read_at, invitation.first_opened_at))
+            )
             return invitation

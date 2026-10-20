@@ -16,6 +16,7 @@ from src.exteriorization.models import (
     PushSubscription,
 )
 from src.exteriorization.scheduling import expires_at
+from src.notifications.invitations import add_invitation_notification
 from src.processing.models import ProcessingRecord
 from src.processing.repository import ProcessingRepository
 
@@ -74,6 +75,7 @@ class GenerateInvitation:
         )
         session.add(invitation)
         await session.flush()
+        await add_invitation_notification(session, invitation)
         for subscription in subscriptions:
             delivery_id = uuid4()
             record = ProcessingRecord(

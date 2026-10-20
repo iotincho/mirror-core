@@ -51,10 +51,11 @@ class ArchiveConflict(ValueError):
 
 
 class DocumentArchiveTransfer:
-    def __init__(self, documents, processing=None, user_id=None, submissions=None):
+    def __init__(self, documents, processing=None, user_id=None, submissions=None, *, graph=None):
         self.documents = documents
         self.processing, self.user_id = processing, user_id
         self.submissions = submissions
+        self.graph = graph
 
     async def export(self):
         return DocumentArchive(
@@ -72,6 +73,8 @@ class DocumentArchiveTransfer:
         return True
 
     async def import_archive(self, archive):
+        if self.graph is None:
+            raise RuntimeError("Document import requires a graph store")
         # Check every conflict before writing the first document. Recheck under the
         # resource lock as concurrent imports/deletions can race with this preflight.
         for document in archive.documents:
@@ -129,6 +132,8 @@ class DocumentArchiveTransfer:
                                 await self.documents.save(Document(**document.model_dump()))
                             except DocumentAlreadyExistsError:
                                 present = await self.existing(document)
+                        original = await self.documents.get(document.id)
+                        await self.graph.persist_document(original)
                         # The receipt, processing record and outbox make extraction
                         # recoverable even if the HTTP request or broker fails.
                         await submissions.accept(receipt)

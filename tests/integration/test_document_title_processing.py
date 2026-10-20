@@ -161,7 +161,9 @@ async def test_audio_title_reprocess_and_import_keep_transcript_and_existing_tit
         await run(env, part)
     await run(env, reprocess)
     assert env.title_provider.extract.await_count == 1 and env.transcriber.calls == 1
-    transfer = DocumentArchiveTransfer(env.runtime.document_store, env.repo, env.owner, env.submit)
+    transfer = DocumentArchiveTransfer(
+        env.runtime.document_store, env.repo, env.owner, env.submit, graph=env.runtime.graph_store
+    )
     backup = DocumentArchive(
         exported_at=datetime.now(UTC),
         documents=[doc.model_copy(update={"title": None}).model_dump()],
@@ -205,7 +207,9 @@ async def test_interrupted_import_recovery_and_legacy_receipt_replay(titled):
         legacy = await session.get(ProcessingReceipt, recovered.id)
         legacy.request_hash = fingerprint(doc.model_dump(mode="json"))
         legacy.manifest = {}
-    transfer = DocumentArchiveTransfer(env.runtime.document_store, env.repo, env.owner, env.submit)
+    transfer = DocumentArchiveTransfer(
+        env.runtime.document_store, env.repo, env.owner, env.submit, graph=env.runtime.graph_store
+    )
     backup = DocumentArchive(exported_at=datetime.now(UTC), documents=[doc.model_dump()])
     assert (await transfer.import_archive(backup))["existing"] == 1
     assert (await transfer.import_archive(await transfer.export()))["existing"] >= 1

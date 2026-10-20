@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import httpx
@@ -362,7 +363,8 @@ async def test_answer_link_recovers_after_original_write_and_preserves_content(
     invitation = await service.test(owner, "session-0", subscriptions[0].id, uuid4())
     monkeypatch.setattr("src.exteriorization.dependencies.get_invitation_repository", lambda: repo)
     runtime = SimpleNamespace(
-        context=SimpleNamespace(user_id=owner), document_store=FileDocumentStore(tmp_path)
+        context=SimpleNamespace(user_id=owner), document_store=FileDocumentStore(tmp_path),
+        graph_store=SimpleNamespace(persist_document=AsyncMock()),
     )
     submissions = SubmissionRepository(ProcessingRepository(repo.sessions))
     original_accept = submissions.accept
@@ -669,7 +671,8 @@ async def test_http_document_upload_preserves_typed_invitation_contract(
     repo, owner, service, subscriptions = await setup(store)
     invitation = await service.test(owner, "session-0", subscriptions[0].id, uuid4())
     runtime = SimpleNamespace(
-        context=SimpleNamespace(user_id=owner), document_store=FileDocumentStore(tmp_path)
+        context=SimpleNamespace(user_id=owner), document_store=FileDocumentStore(tmp_path),
+        graph_store=SimpleNamespace(persist_document=AsyncMock()),
     )
     app.dependency_overrides[require_authenticated] = lambda: SimpleNamespace(id=owner)
     app.dependency_overrides[get_workspace_runtime] = lambda: runtime

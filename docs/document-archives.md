@@ -19,8 +19,11 @@ El archivo tiene un contrato `format: "el-espejo-documents"`, `version: 1`,
 El JSON descargado puede abrirse para comprobar el número de documentos y el
 contenido antes del corte. El importador valida todo el archivo antes de escribir,
 conserva las fechas originales y encola para cada documento el workflow durable
-vigente: persistencia en el grafo y extracción de emociones y embeddings en paralelo.
-La respuesta confirma la restauración de originales y la programación del pipeline;
+vigente. Antes de aceptar cada recepción, confirma el vértice `Document` en
+ArcadeDB usando el original canónico (incluido su título actual). Emociones,
+embeddings y título continúan en segundo plano; el worker mantiene la
+persistencia idempotente como respaldo.
+La respuesta confirma la restauración de originales, sus vértices base y la programación del pipeline;
 los workers completan la extracción de forma asíncrona.
 
 UUID idéntico con contenido/campos idénticos: se conserva, sin duplicar.
@@ -33,6 +36,13 @@ siguen activos: reutiliza la misma recepción por usuario/documento y no duplica
 extracciones. Los documentos idénticos existentes también se encolan la primera vez
 que se importan. El dispatcher recupera recepciones pendientes si el original ya
 se guardó. Los trabajos fallidos se reintentan mediante la API de procesamiento.
+
+Si falla ArcadeDB, la importación devuelve `503` y conserva los originales y
+recibos pendientes. Reintentar el mismo archivo recupera la operación sin
+duplicar documentos ni ejecuciones; un commit de grafo con respuesta perdida se
+repite de forma idempotente. Se conserva el timeout configurado de 30 segundos
+por defecto. Una recepción ya aceptada se reproduce sin reescribir el grafo,
+para no sobrescribir resultados de extractores que siguen activos.
 
 API autenticada:
 

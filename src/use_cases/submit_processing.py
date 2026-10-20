@@ -1,4 +1,4 @@
-"""Accept originals quickly; no model or graph calls run in the request."""
+"""Accept originals after their base graph document commits; models stay deferred."""
 
 from __future__ import annotations
 
@@ -14,10 +14,12 @@ from src.domain.documents import Document, NewDocument
 from src.extractors.document_embeddings import EMBEDDINGS_PROFILE, EmbeddingConfiguration
 from src.extractors.document_title import TITLE_PROFILE
 from src.extractors.emotions import EMOTIONS_PROFILE
+from src.observability import report_issue
 from src.processing.execution import WorkflowFailure
 from src.processing.submissions import SubmissionConflict, SubmissionRepository, fingerprint
 from src.services.audio_note_store import AudioNoteAlreadyExistsError
 from src.services.document_store import DocumentAlreadyExistsError, DocumentNotFoundError
+from src.services.graph_store import GraphPersistenceError
 from src.use_cases.create_audio_note import validate_audio_upload
 from src.workspaces.secrets import WorkspaceSecretError
 
@@ -150,24 +152,31 @@ class SubmitDocument:
                 await self.submissions.processing.get(receipt.processing_id, receipt.user_id),
             )
         try:
-            original = Document(
-                **document.model_dump(exclude={"id"}),
-                id=receipt.resource_id,
-                created_at=receipt.created_at,
-            )
-            try:
-                await self.runtime.document_store.save(original)
-            except DocumentAlreadyExistsError:
-                original = await self.runtime.document_store.get(receipt.resource_id)
-                if (
-                    document_identity(original) != receipt.request_hash
-                    or original.created_at != receipt.created_at
-                ):
-                    raise SubmissionConflict("resource_already_exists") from None
-            record = await self.submissions.accept(receipt)
-            return original, record
+            # Exclude deletion/import while the original and graph are being published.
+            async with self.submissions.processing.lock_resource(
+                receipt.user_id, receipt.resource_id
+            ) as acquired:
+                if not acquired:
+                    raise SubmissionConflict("processing_active")
+                original = Document(
+                    **document.model_dump(exclude={"id"}),
+                    id=receipt.resource_id,
+                    created_at=receipt.created_at,
+                )
+                try:
+                    await self.runtime.document_store.save(original)
+                except DocumentAlreadyExistsError:
+                    original = await self.runtime.document_store.get(receipt.resource_id)
+                    if (
+                        document_identity(original) != receipt.request_hash
+                        or original.created_at != receipt.created_at
+                    ):
+                        raise SubmissionConflict("resource_already_exists") from None
+                await self.runtime.graph_store.persist_document(original)
+                record = await self.submissions.accept(receipt)
+                return original, record
         except BaseException:
-            # Preserve both original and receipt if SQL fails after the file write.
+            # Preserve original and receipt on graph/SQL failure, including ambiguous commits.
             # Reconciliation can also reclaim after the receipt lease expires.
             try:
                 await asyncio.shield(self.submissions.release(receipt))
@@ -234,33 +243,42 @@ async def recover_submissions(submissions, runtime_factory):
         try:
             async with runtime_factory(receipt.user_id) as runtime:
                 if receipt.resource_kind == "document":
-                    original = await runtime.document_store.get(receipt.resource_id)
-                    identity = (
-                        (
-                            imported_document_identity(original)
-                            if receipt.manifest.get("archive_identity") == "original/1"
-                            else fingerprint(original.model_dump(mode="json"))
-                        )
-                        if receipt.operation == "import_document"
-                        else document_identity(original)
-                    )
-                    if identity != receipt.request_hash:
-                        raise SubmissionConflict("document_artifact_mismatch")
-                else:
-                    await verify_audio_original(runtime, receipt)
-                    await runtime.audio_note_store.restore_metadata(audio_metadata(receipt))
-                if receipt.operation == "import_document":
                     async with submissions.processing.lock_resource(
                         receipt.user_id, receipt.resource_id
                     ) as acquired:
                         if not acquired:
                             continue
-                        await submissions.processing.assert_inactive(
-                            receipt.user_id, receipt.resource_id
+                        # Read under the same guard as deletion; never recreate a deleted note.
+                        original = await runtime.document_store.get(receipt.resource_id)
+                        identity = (
+                            (
+                                imported_document_identity(original)
+                                if receipt.manifest.get("archive_identity") == "original/1"
+                                else fingerprint(original.model_dump(mode="json"))
+                            )
+                            if receipt.operation == "import_document"
+                            else document_identity(original)
                         )
+                        if identity != receipt.request_hash:
+                            raise SubmissionConflict("document_artifact_mismatch")
+                        if receipt.operation == "import_document":
+                            await submissions.processing.assert_inactive(
+                                receipt.user_id, receipt.resource_id
+                            )
+                        await runtime.graph_store.persist_document(original)
                         await submissions.accept(receipt)
                 else:
+                    await verify_audio_original(runtime, receipt)
+                    await runtime.audio_note_store.restore_metadata(audio_metadata(receipt))
                     await submissions.accept(receipt)
-        except (OSError, DocumentNotFoundError, ValueError, WorkflowFailure, WorkspaceSecretError):
+        except GraphPersistenceError as error:
+            report_issue(
+                "submission_graph_persistence_failed", error, resource_id=str(receipt.resource_id)
+            )
+            continue
+        except (
+            OSError, DocumentNotFoundError, ValueError, WorkflowFailure,
+            WorkspaceSecretError,
+        ):
             # Incomplete uploads remain reserved and retryable with the same key.
             continue

@@ -27,6 +27,8 @@ from src.exteriorization.models import (
 from src.exteriorization.repository import InvitationError, InvitationRepository
 from src.exteriorization.web_push import PushResult
 from src.main import app
+from src.notifications.models import Notification
+from src.notifications.repository import NotificationRepository
 from src.processing.execution import ExecuteProcessing, WorkflowRegistry
 from src.processing.models import (
     ProcessingEvent,
@@ -200,6 +202,7 @@ async def test_scheduler_rolls_back_everything_if_job_creation_fails(store, monk
         await ScheduleInvitations(repo).execute(now)
     assert await rows(repo, Invitation, owner) == []
     assert await rows(repo, InvitationDelivery, owner) == []
+    assert await rows(repo, Notification, owner) == []
     assert await rows(repo, ProcessingRecord, owner) == []
     assert (await ConfigureInvitations(repo).preferences(owner)).next_due_at < now
 
@@ -211,6 +214,16 @@ async def test_test_request_is_idempotent_rate_limited_and_does_not_consume_rota
     invitation = await service.test(owner, "session-0", subscriptions[0].id, key)
     replay = await service.test(owner, "session-0", subscriptions[0].id, key)
     assert invitation.id == replay.id
+    inbox = NotificationRepository(repo.sessions)
+    page = await inbox.list(owner)
+    assert len(page.items) == 1
+    assert page.items[0].title == "Pregunta diaria de prueba"
+    assert page.items[0].action.invitation_id == invitation.id
+    assert page.items[0].body == invitation.question
+    assert page.items[0].expires_at - page.items[0].published_at == timedelta(days=15)
+    await inbox.mutate(owner, page.items[0].id, dismiss=True)
+    await service.test(owner, "session-0", subscriptions[0].id, key)
+    assert (await inbox.list(owner)).items == []
     with pytest.raises(InvitationError, match="test_rate_limited"):
         await service.test(owner, "session-0", subscriptions[0].id, uuid4())
     transport = Transport()
@@ -221,6 +234,24 @@ async def test_test_request_is_idempotent_rate_limited_and_does_not_consume_rota
     assert await ScheduleInvitations(repo).execute(now) == 1
     scheduled = [item for item in await rows(repo, Invitation, owner) if item.kind == "scheduled"]
     assert scheduled[0].candidate_id == "daily_01"
+
+
+async def test_replay_of_test_created_before_inbox_restores_only_its_missing_notification(store):
+    repo, owner, service, subscriptions = await setup(store)
+    key = uuid4()
+    invitation = await service.test(owner, "session-0", subscriptions[0].id, key)
+    async with repo.sessions.begin() as session:
+        await session.execute(delete(Notification).where(Notification.user_id == owner))
+    await service.open_invitation(owner, invitation.id)
+    replay = await service.test(owner, "session-0", subscriptions[0].id, key)
+    assert replay.id == invitation.id
+    page = await NotificationRepository(repo.sessions).list(owner)
+    assert len(page.items) == 1
+    assert page.items[0].action.invitation_id == invitation.id
+    assert page.items[0].read_at is not None
+    assert page.unread_count == 0
+    assert len(await rows(repo, Invitation, owner)) == 1
+    assert len(await rows(repo, InvitationDelivery, owner)) == 1
 
 
 async def test_retry_keeps_question_and_skips_devices_already_accepted(store):
@@ -313,7 +344,7 @@ async def test_expired_occurrence_and_delivery_are_never_sent(store):
     assert (await rows(repo, InvitationDelivery, owner))[0].status == "expired"
 
 
-async def test_suspended_workspace_and_no_subscriptions_do_not_generate(store):
+async def test_no_subscriptions_generates_inbox_but_suspended_workspace_does_not(store):
     repo, owners = store
     async with repo.sessions.begin() as session:
         session.add(
@@ -325,7 +356,7 @@ async def test_suspended_workspace_and_no_subscriptions_do_not_generate(store):
                 next_due_at=datetime.now(UTC) - timedelta(seconds=1),
             )
         )
-    assert await ScheduleInvitations(repo).execute() == 0
+    assert await ScheduleInvitations(repo).execute() == 1
     repo, owner, _, _ = await setup(store)
     await due_now(repo, owner)
     async with repo.sessions.begin() as session:
@@ -363,7 +394,8 @@ async def test_answer_link_recovers_after_original_write_and_preserves_content(
     invitation = await service.test(owner, "session-0", subscriptions[0].id, uuid4())
     monkeypatch.setattr("src.exteriorization.dependencies.get_invitation_repository", lambda: repo)
     runtime = SimpleNamespace(
-        context=SimpleNamespace(user_id=owner), document_store=FileDocumentStore(tmp_path),
+        context=SimpleNamespace(user_id=owner),
+        document_store=FileDocumentStore(tmp_path),
         graph_store=SimpleNamespace(persist_document=AsyncMock()),
     )
     submissions = SubmissionRepository(ProcessingRepository(repo.sessions))
@@ -671,7 +703,8 @@ async def test_http_document_upload_preserves_typed_invitation_contract(
     repo, owner, service, subscriptions = await setup(store)
     invitation = await service.test(owner, "session-0", subscriptions[0].id, uuid4())
     runtime = SimpleNamespace(
-        context=SimpleNamespace(user_id=owner), document_store=FileDocumentStore(tmp_path),
+        context=SimpleNamespace(user_id=owner),
+        document_store=FileDocumentStore(tmp_path),
         graph_store=SimpleNamespace(persist_document=AsyncMock()),
     )
     app.dependency_overrides[require_authenticated] = lambda: SimpleNamespace(id=owner)

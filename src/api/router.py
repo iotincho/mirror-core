@@ -9,6 +9,7 @@ from src.api.routes import (
     events,
     exteriorization,
     graph,
+    notifications,
     processing,
     retired,
     system,
@@ -25,6 +26,7 @@ api_router.include_router(workspace_router)
 api_router.include_router(events.router)
 protected_router = APIRouter(dependencies=[Depends(require_authenticated)])
 protected_router.include_router(exteriorization.router)
+protected_router.include_router(notifications.router)
 protected_router.include_router(document_archive.router)
 protected_router.include_router(documents.router)
 protected_router.include_router(audio_notes.router)

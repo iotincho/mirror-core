@@ -5,6 +5,7 @@ import logging
 import signal
 
 from src.exteriorization.dependencies import get_invitation_repository
+from src.notifications.dependencies import get_notifications
 from src.observability import initialize_sentry, report_issue, trace_operation
 from src.processing.broker import broker
 from src.processing.repository import ProcessingRepository
@@ -50,6 +51,7 @@ async def main():
                 repository = get_repository()
                 await get_recovery_repository().cleanup()
                 await ScheduleInvitations(get_invitation_repository()).execute()
+                await get_notifications().distribute()
                 await repository.recover()
                 await repository.recover_parents()
                 await recover_submissions(SubmissionRepository(repository), worker_runtime)

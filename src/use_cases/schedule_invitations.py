@@ -71,8 +71,6 @@ class ScheduleInvitations:
                         )
                     ).all()
                 )
-                if not subscriptions:
-                    continue
                 day = due.astimezone(ZoneInfo(preference.timezone)).date()
                 existing = await session.scalar(
                     select(Invitation.id).where(

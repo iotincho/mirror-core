@@ -68,8 +68,6 @@ async def configure(
     user: User,
     service: Service,
 ) -> InvitationPreference:
-    if payload.enabled:
-        require_push_configuration()
     return await service.configure(user.id, payload.enabled, payload.local_time, payload.timezone)
 
 

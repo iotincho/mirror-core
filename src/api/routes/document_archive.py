@@ -10,6 +10,7 @@ from src.config import get_settings
 from src.processing.runtime import get_repository
 from src.processing.submissions import SubmissionConflict
 from src.services.document_store import FileDocumentStore
+from src.services.graph_store import GraphPersistenceError
 from src.use_cases.document_archive import ArchiveConflict, DocumentArchive, DocumentArchiveTransfer
 from src.user_management.database import get_async_session
 from src.user_management.dependencies import get_authenticated_user
@@ -80,10 +81,15 @@ async def import_documents(
             runtime.document_store,
             processing,
             runtime.context.user_id,
+            graph=runtime.graph_store,
         ).import_archive(archive)
     except (ArchiveConflict, SubmissionConflict) as error:
         raise HTTPException(409, str(error)) from error
     except SQLAlchemyError as error:
         raise HTTPException(
             503, "No se pudo encolar la extracción. Reintentá el mismo archivo."
+        ) from error
+    except GraphPersistenceError as error:
+        raise HTTPException(
+            503, "No se pudo confirmar el documento en el grafo. Reintentá el mismo archivo."
         ) from error

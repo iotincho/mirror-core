@@ -23,6 +23,7 @@ from src.processing.models import ProcessingReceipt, ProcessingRecord
 from src.processing.submissions import SubmissionConflict, SubmissionRepository
 from src.services.audio_note_store import FileAudioNoteStore
 from src.services.document_store import FileDocumentStore
+from src.services.graph_store import GraphPersistenceError
 from src.use_cases.delete_document import DeleteDocument
 from src.use_cases.process_audio_note import ProcessAudioNote
 from src.use_cases.process_document import ProcessDocument
@@ -71,7 +72,7 @@ class FakeGraph:
         self.documents[str(document.id)] = document
         if self.failure == "graph":
             self.failure = None
-            raise httpx.ReadTimeout("commit response lost")
+            raise GraphPersistenceError("commit response lost") from httpx.ReadTimeout("lost")
 
     async def delete_document(self, document_id):
         self.documents.pop(document_id, None)
@@ -152,13 +153,14 @@ async def run_current(env, record):
     return await env.repo.get(record.id, env.owner)
 
 
-async def test_upload_does_not_call_models_or_graph_and_is_idempotent(ingestion):
+async def test_upload_commits_base_graph_without_models_and_is_idempotent(ingestion):
     env = ingestion
     key = uuid4()
     original, record = await submit(env, key)
     repeated, same = await submit(env, key)
     assert original.id == repeated.id and record.id == same.id
     assert (record.status, env.providers.extractions, env.providers.embeddings) == ("queued", 0, 0)
+    assert env.graph.documents[str(original.id)] == original
     assert not env.graph.runs
     different_key, original_job = await submit(env, uuid4(), original.id)
     assert different_key.id == original.id and original_job.id == record.id
@@ -166,6 +168,141 @@ async def test_upload_does_not_call_models_or_graph_and_is_idempotent(ingestion)
         await SubmitDocument(env.submissions, env.runtime).execute(
             NewDocument(content="Otra nota"), key
         )
+
+
+async def test_upload_waits_for_graph_commit_and_excludes_deletion(ingestion, monkeypatch):
+    env = ingestion
+    started, release = asyncio.Event(), asyncio.Event()
+    persist = env.graph.persist_document
+
+    async def slow_commit(document):
+        started.set()
+        await release.wait()
+        await persist(document)
+
+    monkeypatch.setattr(env.graph, "persist_document", slow_commit)
+    upload = asyncio.create_task(submit(env))
+    try:
+        await asyncio.wait_for(started.wait(), 5)
+        original = (await env.runtime.document_store.list())[0]
+        assert not upload.done()
+        assert not await env.repo.list_for_owner(env.owner)
+        delete = DeleteDocument(env.runtime.document_store, env.graph, env.repo, env.owner)
+        with pytest.raises(SubmissionConflict, match="processing_active"):
+            await delete.execute(original.id)
+    finally:
+        release.set()
+        accepted, record = await upload
+    assert env.graph.documents[str(accepted.id)] == accepted
+    assert record.status == "queued"
+    assert env.providers.extractions == env.providers.embeddings == 0
+
+
+async def test_upload_ambiguous_graph_commit_retains_original_and_retries_once(ingestion):
+    env = ingestion
+    key = uuid4()
+    env.graph.failure = "graph"
+    with pytest.raises(GraphPersistenceError):
+        await submit(env, key)
+    original = (await env.runtime.document_store.list())[0]
+    assert str(original.id) in env.graph.documents
+    assert not await env.repo.list_for_owner(env.owner)
+    repeated, record = await submit(env, key)
+    assert repeated == original and record.status == "queued"
+    assert len(await env.repo.list_for_owner(env.owner)) == 1
+    assert len(env.graph.documents) == 1
+    assert len(await env.runtime.document_store.list()) == 1
+
+
+async def test_recovery_requires_graph_commit_before_accepting_pending_originals(
+    ingestion, monkeypatch
+):
+    env = ingestion
+    persist = env.graph.persist_document
+    monkeypatch.setattr(
+        env.graph, "persist_document", AsyncMock(side_effect=GraphPersistenceError("unavailable"))
+    )
+    with pytest.raises(GraphPersistenceError):
+        await submit(env)
+    original = (await env.runtime.document_store.list())[0]
+    await recover_submissions(env.submissions, env.factory)
+    assert not await env.repo.list_for_owner(env.owner)
+    assert not env.graph.documents
+    async with env.repo.sessions.begin() as session:
+        await session.execute(
+            update(ProcessingReceipt)
+            .where(ProcessingReceipt.user_id == env.owner)
+            .values(lease_expires_at=func.clock_timestamp())
+        )
+    monkeypatch.setattr(env.graph, "persist_document", persist)
+    await recover_submissions(env.submissions, env.factory)
+    assert env.graph.documents[str(original.id)] == original
+    assert len(await env.repo.list_for_owner(env.owner)) == 1
+
+
+async def test_cancelled_upload_can_recover_without_losing_the_original(ingestion, monkeypatch):
+    env = ingestion
+    started = asyncio.Event()
+    persist = env.graph.persist_document
+
+    async def interrupted(document):
+        started.set()
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(env.graph, "persist_document", interrupted)
+    key = uuid4()
+    upload = asyncio.create_task(submit(env, key))
+    await asyncio.wait_for(started.wait(), 5)
+    upload.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await upload
+    original = (await env.runtime.document_store.list())[0]
+    assert not await env.repo.list_for_owner(env.owner)
+    monkeypatch.setattr(env.graph, "persist_document", persist)
+    await recover_submissions(env.submissions, env.factory)
+    repeated, record = await submit(env, key)
+    assert repeated == original and env.graph.documents[str(original.id)] == original
+    assert len(await env.repo.list_for_owner(env.owner)) == 1
+    assert record.status == "queued"
+
+
+async def test_pending_recovery_reads_original_under_the_deletion_guard(ingestion, monkeypatch):
+    env = ingestion
+    env.graph.failure = "graph"
+    with pytest.raises(GraphPersistenceError):
+        await submit(env)
+    original = (await env.runtime.document_store.list())[0]
+    started, release = asyncio.Event(), asyncio.Event()
+    get = env.runtime.document_store.get
+
+    async def slow_get(identifier):
+        started.set()
+        await release.wait()
+        return await get(identifier)
+
+    monkeypatch.setattr(env.runtime.document_store, "get", slow_get)
+    recovery = asyncio.create_task(recover_submissions(env.submissions, env.factory))
+    try:
+        await asyncio.wait_for(started.wait(), 5)
+        delete = DeleteDocument(env.runtime.document_store, env.graph, env.repo, env.owner)
+        with pytest.raises(SubmissionConflict, match="processing_active"):
+            await delete.execute(original.id)
+    finally:
+        release.set()
+        await recovery
+    assert len(await env.repo.list_for_owner(env.owner)) == 1
+    assert env.graph.documents[str(original.id)] == original
+
+
+async def test_accepted_upload_replay_does_not_rewrite_the_graph(ingestion, monkeypatch):
+    env = ingestion
+    key = uuid4()
+    original, record = await submit(env, key)
+    persist = AsyncMock(side_effect=GraphPersistenceError("graph unavailable after acceptance"))
+    monkeypatch.setattr(env.graph, "persist_document", persist)
+    repeated, same = await submit(env, key)
+    assert repeated == original and same.id == record.id
+    persist.assert_not_awaited()
 
 
 async def test_document_completes_without_models_or_extractions(ingestion):
@@ -201,8 +338,33 @@ async def test_audio_hands_off_to_child_and_reuses_transcript(ingestion):
     assert waiting.status == "waiting" and waiting.child_processing_id
     updated = await env.runtime.audio_note_store.get(note.id)
     assert updated.status == "completed" and updated.document_id == note.id
+    assert str(note.id) in env.graph.documents
     child = await env.repo.child(waiting)
     assert child.document_id == note.id and child.parent_processing_id == parent.id
+    await run_current(env, child)
+    complete = await run_current(env, parent)
+    assert complete.status == "completed"
+    assert env.providers.transcriptions == 1
+    assert (await env.runtime.document_store.get(note.id)).source == "pwa_audio"
+
+
+async def test_audio_graph_failure_defers_document_link_without_retranscribing(ingestion):
+    env = ingestion
+    note, parent = await SubmitAudioNote(env.submissions, env.runtime, 1024).execute(
+        "voice.webm", "audio/webm", b"audio", None, uuid4()
+    )
+    env.graph.failure = "graph"
+    retrying = await run_current(env, parent)
+    assert retrying.status == "retrying" and retrying.error_code == "graph_unavailable"
+    assert (await env.runtime.audio_note_store.get(note.id)).document_id is None
+    assert await env.repo.child(retrying) is None
+    original = await env.runtime.document_store.get(note.id)
+    waiting = await run_current(env, retrying)
+    assert waiting.status == "waiting"
+    assert (await env.runtime.audio_note_store.get(note.id)).document_id == note.id
+    assert env.graph.documents[str(note.id)] == original
+    assert env.providers.transcriptions == 1
+    child = await env.repo.child(waiting)
     await run_current(env, child)
     complete = await run_current(env, parent)
     assert complete.status == "completed"
@@ -360,10 +522,45 @@ async def test_http_accepted_location_status_owner_and_size_limits(ingestion, mo
         app.dependency_overrides.clear()
 
 
+@pytest.mark.parametrize("file_upload", [False, True])
+async def test_http_graph_failure_returns_503_and_replays_the_same_original(
+    ingestion, monkeypatch, file_upload
+):
+    env = ingestion
+    app.dependency_overrides[get_workspace_runtime] = lambda: env.runtime
+    app.dependency_overrides[require_authenticated] = lambda: "test-user"
+    monkeypatch.setattr(routes, "get_repository", lambda: env.repo)
+    key = str(uuid4())
+    path = "/v2/documents/files" if file_upload else "/v2/documents"
+    payload = (
+        {"files": {"file": ("note.txt", b"Synthetic test note", "text/plain")}}
+        if file_upload else {"json": {"content": "Synthetic test note"}}
+    )
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app), base_url="http://test"
+        ) as client:
+            env.graph.failure = "graph"
+            failed = await client.post(path, headers={"Idempotency-Key": key}, **payload)
+            assert failed.status_code == 503
+            assert "same Idempotency-Key" in failed.json()["detail"]
+            assert not await env.repo.list_for_owner(env.owner)
+            original = (await env.runtime.document_store.list())[0]
+            retried = await client.post(path, headers={"Idempotency-Key": key}, **payload)
+            assert retried.status_code == 202, retried.text
+            assert retried.json()["document"]["id"] == str(original.id)
+            assert env.graph.documents[str(original.id)] == original
+            assert len(await env.repo.list_for_owner(env.owner)) == 1
+            assert env.providers.extractions == env.providers.embeddings == 0
+    finally:
+        app.dependency_overrides.clear()
+
+
 @pytest.mark.skipif(
     not os.getenv("PROCESSING_TEST_ARCADEDB_URL"), reason="requires isolated ArcadeDB"
 )
-async def test_real_arcadedb_document_write_and_replay(ingestion):
+async def test_real_arcadedb_document_write_and_replay(ingestion, monkeypatch):
+    from src.dependencies import get_document_store, get_graph_store
     from src.graph.arcadedb.store import ArcadeDBGraphStore
 
     env = ingestion
@@ -375,7 +572,28 @@ async def test_real_arcadedb_document_write_and_replay(ingestion):
     )
     env.runtime.graph_store = graph
     try:
-        original, record = await submit(env)
+        app.dependency_overrides[get_workspace_runtime] = lambda: env.runtime
+        app.dependency_overrides[require_authenticated] = lambda: "test-user"
+        app.dependency_overrides[get_document_store] = lambda: env.runtime.document_store
+        app.dependency_overrides[get_graph_store] = lambda: graph
+        monkeypatch.setattr(routes, "get_repository", lambda: env.repo)
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app), base_url="http://test"
+        ) as client:
+            accepted = await client.post(
+                "/v2/documents", json={"content": "Synthetic graph availability test"},
+                headers={"Idempotency-Key": str(uuid4())},
+            )
+            assert accepted.status_code == 202, accepted.text
+            identifier = accepted.json()["document"]["id"]
+            # No worker has run yet: the original's graph must already be readable.
+            immediate = await client.get(f"/documents/{identifier}/emotions/graph")
+            assert immediate.status_code == 200, immediate.text
+            assert immediate.json()["root_id"] == f"Document:{identifier}"
+            assert len(immediate.json()["nodes"]) == 1 and not immediate.json()["edges"]
+        records = await env.repo.list_for_owner(env.owner)
+        record = records[0]
+        original = await env.runtime.document_store.get(record.resource_id)
         current = await run_current(env, record)
         assert current.status == "completed", (current.stage, current.error_code)
         await graph.persist_document(original)
@@ -385,6 +603,7 @@ async def test_real_arcadedb_document_write_and_replay(ingestion):
         assert response["result"] == [{"id": str(original.id), "content": original.content}]
         assert env.providers.extractions == env.providers.embeddings == 0
     finally:
+        app.dependency_overrides.clear()
         await graph.close()
 
 
@@ -683,7 +902,9 @@ async def test_archive_import_queues_v4_children_and_replays_without_duplicates(
     archive = DocumentArchive(
         exported_at=datetime.now(UTC), documents=[doc.model_dump() for doc in originals]
     )
-    transfer = DocumentArchiveTransfer(env.runtime.document_store, env.repo, env.owner)
+    transfer = DocumentArchiveTransfer(
+        env.runtime.document_store, env.repo, env.owner, graph=env.runtime.graph_store
+    )
     assert await transfer.import_archive(archive) == {"imported": 2, "existing": 0, "total": 2}
     records = await env.repo.list_for_owner(env.owner)
     assert len(records) == 2
@@ -696,9 +917,11 @@ async def test_archive_import_queues_v4_children_and_replays_without_duplicates(
         current = await env.repo.get(record.id, env.owner)
         assert current.status == "waiting"
         children = await env.repo.extractor_children(record.id, env.owner)
-        assert {child.extractor_name for child in children} == {"emotions", "document_embeddings"}
+        assert {child.extractor_name for child in children} == {
+            "emotions", "document_embeddings", "document_title"
+        }
     assert await transfer.import_archive(archive) == {"imported": 0, "existing": 2, "total": 2}
-    assert len(await env.repo.list_for_owner(env.owner)) == 6
+    assert len(await env.repo.list_for_owner(env.owner)) == 8
     for original in originals:
         assert await env.runtime.document_store.get(original.id) == original
 
@@ -720,7 +943,9 @@ async def test_archive_pending_receipt_recovers_after_accept_failure(ingestion, 
         created_at=datetime(2024, 1, 1, tzinfo=UTC),
     )
     archive = DocumentArchive(exported_at=datetime.now(UTC), documents=[original.model_dump()])
-    transfer = DocumentArchiveTransfer(env.runtime.document_store, env.repo, env.owner)
+    transfer = DocumentArchiveTransfer(
+        env.runtime.document_store, env.repo, env.owner, graph=env.runtime.graph_store
+    )
     accept = SubmissionRepository.accept
 
     async def failed(*args):

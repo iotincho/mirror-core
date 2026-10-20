@@ -131,6 +131,11 @@ class ProcessAudioNote:
                         existing = await runtime.document_store.get(note.id)
                         if document_identity(existing) != document_identity(original):
                             raise WorkflowFailure("derived_document_conflict") from None
+                        original = existing
+                    service = "graph"
+                    await context.assert_lease()
+                    await runtime.graph_store.persist_document(original)
+                    service = "document"
                     await runtime.audio_note_store.save(
                         note.model_copy(
                             update={

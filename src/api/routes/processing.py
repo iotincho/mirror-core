@@ -37,6 +37,7 @@ from src.processing.runtime import get_repository
 from src.processing.submissions import SubmissionConflict, SubmissionRepository
 from src.services.audio_note_store import AudioNoteNotFoundError
 from src.services.document_store import DocumentNotFoundError
+from src.services.graph_store import GraphPersistenceError
 from src.use_cases.create_audio_note import AudioFileTooLargeError, UnsupportedAudioFileError
 from src.use_cases.ensure_document_titles import EnsureDocumentTitles
 from src.use_cases.ingest_document_file import (
@@ -74,6 +75,10 @@ def http_error(error):
     if isinstance(error, SQLAlchemyError):
         return HTTPException(
             503, "Processing storage unavailable; retry with the same Idempotency-Key"
+        )
+    if isinstance(error, GraphPersistenceError):
+        return HTTPException(
+            503, "Document graph storage unavailable; retry with the same Idempotency-Key"
         )
     raise error
 

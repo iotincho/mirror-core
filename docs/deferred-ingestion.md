@@ -1,8 +1,9 @@
 # Etapa 4: uploads y workflows diferidos
 
-La API acepta el original después de guardarlo y confirmar el procesamiento y
-su outbox en PostgreSQL. No ejecuta modelos ni llamadas al grafo durante esos
-requests. El dispatcher y los workers del Compose habitual completan el flujo,
+La API acepta una nota de texto/archivo después de guardar su original, confirmar
+su vértice `Document` en ArcadeDB y confirmar el procesamiento y su outbox en
+PostgreSQL. No ejecuta modelos durante esos requests. El dispatcher y los workers
+del Compose habitual completan las extracciones,
 aunque el cliente cierre la app y nunca consulte el estado.
 
 ## Transición de clientes
@@ -54,7 +55,10 @@ La respuesta real incluye todos los campos de `DocumentResponse` y
 `ProcessingResponse`. La proyección pública omite configuración, credenciales,
 lease y tokens internos. `processing.status` describe el flujo completo;
 `audio_note.status` sigue describiendo transcripción. `document_id` del audio se
-publica al guardar el derivado, antes de que terminen grafo y embeddings.
+publica después de guardar el derivado y confirmar su `Document` en ArcadeDB,
+antes de que terminen las extracciones. El upload de audio sigue aceptándose
+sin esperar transcripción; la persistencia del documento ocurre en el worker
+cuando ya existe la transcripción.
 
 ## Aceptación durable
 
@@ -64,11 +68,27 @@ hash/manifiesto, sin texto completo ni audio. La reserva vence a los 90 segundos
 una petición simultánea recibe `409 upload_in_progress` y puede repetir la clave.
 
 El original se publica de forma exclusiva y se sincroniza el archivo y su
-directorio. Una transacción posterior acepta el recibo y crea registro, evento
-y outbox juntos. Un fallo SQL después de escribir devuelve `503`: el original
+directorio. Para documentos, bajo el lock del recurso se confirma también el
+`MERGE` transaccional del vértice base en ArcadeDB antes de aceptar la recepción.
+Se conserva `GRAPH_TIMEOUT_SECONDS` (30 segundos por defecto), sin un timeout
+total adicional más corto. Emociones, embeddings y título siguen diferidos.
+Una transacción posterior acepta el recibo y crea registro, evento
+y outbox juntos. Un fallo de ArcadeDB o SQL después de escribir devuelve `503`: el original
 permanece guardado. Repetir la clave recupera la aceptación; el dispatcher puede
 completar reservas vencidas cuyo original íntegro coincide con el hash. También
 repara metadatos de audio si sobrevivió el raw antes de escribir el JSON.
+
+La recuperación de documentos pendientes valida el original bajo el mismo lock
+que el borrado y confirma el vértice antes de aceptar la recepción. Un fallo de
+grafo conserva el recibo para otro intento y se reporta como
+`submission_graph_persistence_failed`. Los workers conservan su paso idempotente
+de persistencia para recuperación. Un replay de una recepción ya aceptada no
+reescribe el vértice ni los títulos que pudieron generar los extractores.
+
+Esta garantía se aplica a nuevas aceptaciones. No espera resultados de extracción
+ni repara automáticamente documentos históricos con una proyección faltante.
+Un listado concurrente aún puede ver el archivo mientras el alta está en curso;
+la confirmación HTTP ocurre después del commit del documento base.
 
 La misma clave con contenido/metadatos/ID distintos devuelve `409`. Una clave
 nueva con ID explícito de un documento ya aceptado puede devolver su ejecución

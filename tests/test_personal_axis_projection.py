@@ -1,0 +1,50 @@
+from uuid import uuid4
+
+from src.extractors.personal_axes.preview_projection import project_preview
+from src.extractors.personal_axes.schemas import PreviewGraph
+
+
+def test_preview_has_one_relation_per_quote_and_no_evidence_on_finding_nodes():
+    preview_id, document_id, finding_id = uuid4(), str(uuid4()), f"AxisFinding:{uuid4()}"
+    content = "Más ideas. Una propuesta."
+    evidence = [
+        {
+            "quote": quote,
+            "start_char": content.index(quote),
+            "end_char": content.index(quote) + len(quote),
+        }
+        for quote in ["Más ideas.", "Una propuesta."]
+    ]
+    documents = [
+        {
+            "document_id": document_id,
+            "title": "Nota",
+            "findings": [
+                {
+                    "id": finding_id,
+                    "title": "Un proyecto",
+                    "content": "Desarrollo de la idea",
+                    "tags": ["creación"],
+                    "evidence": evidence,
+                }
+            ],
+        }
+    ]
+    raw = project_preview(preview_id, documents)
+    # Exercise the API schema too: evidence must survive response serialization.
+    graph = PreviewGraph.model_validate(raw).model_dump(mode="json")
+    finding = next(node for node in graph["nodes"] if node["type"] == "AxisFinding")
+    assert not {"evidence", "evidence_json", "quote", "start_char", "end_char"} & finding.keys()
+    edges = [edge for edge in graph["edges"] if edge["type"] == "HAS_FINDING"]
+    assert len(edges) == len({edge["id"] for edge in edges}) == 2
+    assert {edge["source"] for edge in edges} == {f"Document:{document_id}"}
+    assert {edge["target"] for edge in edges} == {finding_id}
+    assert [
+        {key: edge[key] for key in ("quote", "start_char", "end_char")} for edge in edges
+    ] == evidence
+    assert all(edge["quote"] is None for edge in graph["edges"] if edge["type"] != "HAS_FINDING")
+    assert project_preview(preview_id, documents) == raw
+    another = project_preview(uuid4(), documents)
+    assert not {edge["id"] for edge in edges} & {
+        edge["id"] for edge in another["edges"] if edge["type"] == "HAS_FINDING"
+    }

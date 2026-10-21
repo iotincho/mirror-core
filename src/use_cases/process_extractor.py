@@ -24,6 +24,8 @@ class ProcessExtractor:
             spec = record.config["extractor"]
             if spec["name"] != record.extractor_name or record.extraction_run_id is None:
                 raise WorkflowFailure("extractor_configuration")
+            if spec.get("key", spec["name"]) != record.extractor_key:
+                raise WorkflowFailure("extractor_configuration")
             async with self.runtime_factory(record.user_id) as runtime:
                 document = await runtime.document_store.get(record.resource_id)
                 if record.stage == "extraction":
@@ -48,4 +50,11 @@ class ProcessExtractor:
         except (WorkflowFailure, LeaseLost, SQLAlchemyError):
             raise
         except Exception as error:
+            if record.extractor_name == "personal_axis":
+                # As in previews, provider/validation errors may contain private
+                # source text. Preserve retry classification without logging it.
+                failure = failure_for(error, record.stage_attempts, service)
+                if "axis_correction_interrupted" in str(error):
+                    failure = WorkflowFailure("axis_correction_interrupted")
+                raise failure from None
             raise failure_for(error, record.stage_attempts, service) from error

@@ -71,6 +71,7 @@ class SubmissionRepository:
         resource_id: UUID | None,
         config: dict,
         manifest: dict,
+        config_factory=None,
     ) -> ProcessingReceipt:
         async with self.sessions.begin() as session:
             now = await session.scalar(select(func.clock_timestamp()))
@@ -117,6 +118,10 @@ class SubmissionRepository:
                 )
             if receipt is None:
                 raise SubmissionConflict("resource_already_exists")
+            if inserted is not None and config_factory is not None:
+                # Resolve only for the new reservation, never for replays or aliases.
+                # The snapshot and receipt become durable in this same transaction.
+                receipt.config = await config_factory(session, user_id, config)
             if receipt.request_hash != request_hash or (
                 resource_id is not None and receipt.resource_id != resource_id
             ):

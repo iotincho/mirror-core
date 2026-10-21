@@ -25,6 +25,7 @@ def processing_projection(record):
     result = {name: getattr(record, name) for name in names}
     result.update(
         extractor_name=getattr(record, "extractor_name", None),
+        extractor_key=getattr(record, "extractor_key", None),
         stage_attempt=record.stage_attempts,
         error={
             "code": record.error_code,

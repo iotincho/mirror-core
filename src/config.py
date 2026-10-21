@@ -92,6 +92,22 @@ class Settings(BaseSettings):
         validation_alias="WORKSPACES_PATH",
     )
     llm_provider: str = Field(default="openai", validation_alias="LLM_PROVIDER")
+    personal_axes_enabled: bool = Field(default=False, validation_alias="PERSONAL_AXES_ENABLED")
+    personal_axes_preview_hours: int = Field(
+        default=72, ge=1, le=720, validation_alias="PERSONAL_AXES_PREVIEW_HOURS"
+    )
+    personal_axes_max_input_chars: int = Field(
+        default=100000, ge=1000, le=1000000, validation_alias="PERSONAL_AXES_MAX_INPUT_CHARS"
+    )
+    personal_axes_max_output_tokens: int = Field(
+        default=6000, ge=256, le=32000, validation_alias="PERSONAL_AXES_MAX_OUTPUT_TOKENS"
+    )
+    personal_axes_preview_concurrency: int = Field(
+        default=2, ge=1, le=5, validation_alias="PERSONAL_AXES_PREVIEW_CONCURRENCY"
+    )
+    personal_axes_max_pending_previews: int = Field(
+        default=10, ge=1, le=100, validation_alias="PERSONAL_AXES_MAX_PENDING_PREVIEWS"
+    )
     document_title_read_limit: int = Field(
         default=5, ge=0, le=100, validation_alias="DOCUMENT_TITLE_READ_LIMIT"
     )

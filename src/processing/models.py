@@ -37,7 +37,7 @@ class ProcessingRecord(Base):
         Index(
             "uq_processing_extractor_child",
             "parent_processing_id",
-            "extractor_name",
+            "extractor_key",
             unique=True,
             postgresql_where=text("workflow = 'extractor'"),
         ),
@@ -46,6 +46,10 @@ class ProcessingRecord(Base):
             "extractor_name IS NOT NULL AND extraction_run_id IS NOT NULL "
             "AND resource_kind = 'document')",
             name="ck_processing_extractor_identity",
+        ),
+        CheckConstraint(
+            "workflow <> 'extractor' OR (extractor_key IS NOT NULL AND extractor_key <> '')",
+            name="ck_processing_extractor_key",
         ),
     )
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
@@ -72,8 +76,10 @@ class ProcessingRecord(Base):
     parent_processing_id: Mapped[UUID | None] = mapped_column(ForeignKey("processing_records.id"))
     child_processing_id: Mapped[UUID | None] = mapped_column(ForeignKey("processing_records.id"))
     extractor_name: Mapped[str | None] = mapped_column(String(80))
+    extractor_key: Mapped[str | None] = mapped_column(String(80))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     resource_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
@@ -147,3 +153,4 @@ class ProcessingReceipt(Base):
     lease_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

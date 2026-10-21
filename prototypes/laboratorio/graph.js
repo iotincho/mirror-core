@@ -5,7 +5,9 @@
   const noteId = id => `note:${id}`;
   const findingId = id => `finding:${id}`;
   const documentFor = id => window.LAB_DATA.notes.find(n => n.id === id);
-  function project(findings, { mode = 'labels', expanded = false, focusTag = '' } = {}) {
+  function project(findings, { visibility = {}, expanded = false, focusTag = '' } = {}) {
+    const shown = { note: true, finding: true, label: true, ...visibility };
+    if (!Object.values(shown).some(Boolean)) shown.label = true;
     const labels = new Map();
     for (const f of findings) for (const text of f.tags) {
       const k = key(text);
@@ -15,61 +17,81 @@
     const ranked = [...labels.values()].sort((a, b) => b.notes.size - a.notes.size || a.label.localeCompare(b.label));
     const rootTag = labels.get(key(focusTag))?.label || ranked[0]?.label || '';
     const visible = expanded ? findings : findings.filter(f => f.tags.some(t => key(t) === key(rootTag)));
-    const nodes = new Map(), edges = new Map();
-    function addNote(id) {
-      const n = documentFor(id);
-      nodes.set(noteId(id), { data: { id: noteId(id), kind: 'note', noteId: id, label: n.title, accessible: `Nota: ${n.title}` } });
-    }
-    if (mode === 'labels') {
-      for (const f of visible) {
-        addNote(f.note);
-        for (const tag of f.tags.filter(t => expanded || key(t) === key(rootTag))) {
-          const id = labelId(tag);
-          nodes.set(id, { data: { id, kind: 'label', tag, label: tag, accessible: `Etiqueta: ${tag}` } });
+    const nodes = new Map(), baseEdges = new Map(), edges = new Map();
+    const addEdge = (target, data) => target.set(data.id, { data });
+    for (const f of visible) {
+      const n = documentFor(f.note);
+      nodes.set(noteId(f.note), { data: { id: noteId(f.note), kind: 'note', noteId: f.note, label: n.title, accessible: `Nota: ${n.title}` } });
+      nodes.set(findingId(f.id), { data: { id: findingId(f.id), kind: 'finding', findingId: f.id, label: f.title, accessible: `Hallazgo: ${f.title}` } });
+      addEdge(baseEdges, {
+        id: `evidence:${f.id}`, source: noteId(f.note), target: findingId(f.id),
+        kind: 'evidence', noteId: f.note, findingIds: [f.id], caption: '',
+        accessible: `Cita de origen: ${f.title}`,
+      });
+      for (const text of f.tags) {
+        const tag = labels.get(key(text)).label, id = labelId(tag);
+        if (!nodes.has(id)) nodes.set(id, { data: { id, kind: 'label', tag, label: tag, accessible: `Etiqueta: ${tag}` } });
+        addEdge(baseEdges, {
+          id: `tagging:${f.id}:${id}`, source: findingId(f.id), target: id, kind: 'tagging',
+          findingIds: [f.id], tag, caption: '', accessible: `Etiqueta ${tag} del hallazgo ${f.title}`,
+        });
+        if (shown.note && shown.label && !shown.finding) {
           const edgeId = `membership:${f.note}:${id}`;
-          if (!edges.has(edgeId)) edges.set(edgeId, { data: {
-            id: edgeId, source: noteId(f.note), target: id, kind: 'membership',
+          if (!edges.has(edgeId)) addEdge(edges, {
+            id: edgeId, source: noteId(f.note), target: id, kind: 'membership', projected: true,
             noteId: f.note, tag, findingIds: [], caption: '',
-            accessible: `Conexión: ${documentFor(f.note).title} con ${tag}`,
-          } });
+            accessible: `Conexión resumida: ${n.title} con ${tag}`,
+          });
           if (!edges.get(edgeId).data.findingIds.includes(f.id)) edges.get(edgeId).data.findingIds.push(f.id);
         }
       }
-    } else {
-      for (const f of visible) {
-        addNote(f.note);
-        nodes.set(findingId(f.id), { data: { id: findingId(f.id), kind: 'finding', findingId: f.id, label: f.title, accessible: `Hallazgo: ${f.title}` } });
-        edges.set(`evidence:${f.id}`, { data: {
-          id: `evidence:${f.id}`, source: noteId(f.note), target: findingId(f.id),
-          kind: 'evidence', noteId: f.note, findingIds: [f.id], caption: '',
-          accessible: `Cita de origen: ${f.title}`,
-        } });
-        if (mode === 'both') for (const tag of f.tags) {
-          const id = labelId(tag);
-          if (!nodes.has(id)) nodes.set(id, { data: { id, kind: 'label', tag, label: tag, accessible: `Etiqueta: ${tag}` } });
-          const edgeId = `tagging:${f.id}:${id}`;
-          edges.set(edgeId, { data: {
-            id: edgeId, source: findingId(f.id), target: id, kind: 'tagging',
-            findingIds: [f.id], tag: nodes.get(id).data.tag, caption: '',
-            accessible: `Etiqueta ${nodes.get(id).data.tag} del hallazgo ${f.title}`,
-          } });
-        }
-      }
-      if (mode === 'findings') for (let i = 0; i < visible.length; i++) for (let j = i + 1; j < visible.length; j++) {
+    }
+    for (const { data: e } of baseEdges.values()) if (shown[nodes.get(e.source).data.kind] && shown[nodes.get(e.target).data.kind]) addEdge(edges, e);
+    // Only summarize paths with a known meaning. Hiding a layer never invents equivalence.
+    if (shown.finding && !shown.label) {
+      for (let i = 0; i < visible.length; i++) for (let j = i + 1; j < visible.length; j++) {
         const a = visible[i], b = visible[j];
-        const shared = [...new Map(a.tags.filter(t => b.tags.some(other => key(t) === key(other))).map(t => [key(t), t])).values()];
-        if (!shared.length) continue;
-        const id = `shared:${[a.id, b.id].sort().join(':')}`;
-        edges.set(id, { data: {
-          id, source: findingId(a.id), target: findingId(b.id), kind: 'shared',
-          tags: shared, findingIds: [a.id, b.id], caption: shared.join(' · '),
+        const shared = [...new Map(a.tags.filter(t => b.tags.some(other => key(t) === key(other))).map(t => [key(t), labels.get(key(t)).label])).values()];
+        if (shared.length) addEdge(edges, {
+          id: `shared:${[a.id, b.id].sort().join(':')}`, source: findingId(a.id), target: findingId(b.id),
+          kind: 'shared', projected: true, tags: shared, findingIds: [a.id, b.id], caption: shared.join(' · '),
           accessible: `Comparten ${shared.join(' y ')}: ${a.title} y ${b.title}`,
-        } });
+        });
       }
     }
+    if (shown.note && !shown.finding && !shown.label) {
+      const noteIds = [...new Set(visible.map(f => f.note))];
+      for (let i = 0; i < noteIds.length; i++) for (let j = i + 1; j < noteIds.length; j++) {
+        const a = noteIds[i], b = noteIds[j];
+        const own = visible.filter(f => f.note === a), other = visible.filter(f => f.note === b);
+        const shared = [...new Map(own.flatMap(f => f.tags).filter(t => other.some(f => f.tags.some(u => key(u) === key(t)))).map(t => [key(t), labels.get(key(t)).label])).values()];
+        const matches = [...own, ...other].filter(f => f.tags.some(t => shared.some(u => key(u) === key(t))));
+        if (shared.length) addEdge(edges, {
+          id: `note-shared:${a}:${b}`, source: noteId(a), target: noteId(b), kind: 'note-shared', projected: true,
+          tags: shared, findingIds: matches.map(f => f.id), caption: shared.join(' · '),
+          accessible: `Notas que comparten ${shared.join(' y ')}: ${documentFor(a).title} y ${documentFor(b).title}`,
+        });
+      }
+    }
+    if (shown.label && !shown.note && !shown.finding) for (const f of visible) {
+      const ids = [...new Set(f.tags.map(labelId))].sort();
+      for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) {
+        const a = nodes.get(ids[i]).data, b = nodes.get(ids[j]).data;
+        const id = `label-shared:${a.id}:${b.id}`;
+        if (!edges.has(id)) addEdge(edges, {
+          id, source: a.id, target: b.id, kind: 'label-shared', projected: true,
+          tags: [a.tag, b.tag], findingIds: [], caption: '',
+          accessible: `Etiquetas que coinciden en un hallazgo: ${a.tag} y ${b.tag}`,
+        });
+        if (!edges.get(id).data.findingIds.includes(f.id)) edges.get(id).data.findingIds.push(f.id);
+      }
+    }
+    const allNodes = [...nodes.values()], shownNodes = allNodes.filter(n => shown[n.data.kind]);
     return {
-      mode, rootTag, expanded, nodes: [...nodes.values()], edges: [...edges.values()],
-      rootId: mode === 'findings' ? (visible[0] ? findingId(visible[0].id) : '') : labelId(rootTag),
+      visibility: shown, rootTag, expanded, nodes: shownNodes, edges: [...edges.values()],
+      allNodes, baseEdges: [...baseEdges.values()], layoutRootId: labelId(rootTag),
+      rootId: shown.label ? labelId(rootTag) : shownNodes.find(n => n.data.kind === 'finding')?.data.id || shownNodes[0]?.data.id || '',
+      counts: Object.fromEntries(['note', 'finding', 'label'].map(kind => [kind, allNodes.filter(n => n.data.kind === kind).length])),
       visibleFindingIds: visible.map(f => f.id), allFindingIds: findings.map(f => f.id),
     };
   }
@@ -99,7 +121,8 @@
       'target-arrow-color': '#617a73', 'target-arrow-shape': 'triangle', 'arrow-scale': .65,
       opacity: .75, 'overlay-opacity': 0, 'text-events': 'yes',
     } },
-    { selector: 'edge[kind = "shared"]', style: {
+    { selector: 'edge[?projected]', style: { 'line-style': 'dashed', 'target-arrow-shape': 'none' } },
+    { selector: 'edge[kind = "shared"], edge[kind = "note-shared"]', style: {
       'target-arrow-shape': 'none', 'line-style': 'dashed', 'line-color': '#ae9c6f',
       'curve-style': 'unbundled-bezier', 'control-point-distances': 35, 'control-point-weights': .5,
       label: 'data(caption)', 'font-size': 13, color: '#d8c793', 'text-wrap': 'wrap',
@@ -107,34 +130,25 @@
       'text-background-opacity': 1, 'text-background-padding': 4,
       'text-background-shape': 'roundrectangle', 'text-margin-y': -12, 'text-rotation': 'autorotate',
     } },
+    { selector: '.layer-hidden', style: { display: 'none' } },
     { selector: 'node.picked', style: { 'border-width': 1, 'border-color': '#b8d6ce', 'overlay-color': '#b8d6ce', 'overlay-padding': 7, 'overlay-opacity': .12, 'font-weight': 'bold', 'z-index': 5 } },
     { selector: 'edge.picked', style: { width: 2.8, 'line-color': '#b8d6ce', 'target-arrow-color': '#b8d6ce', opacity: 1, 'z-index': 4 } },
   ];
   function initialPositions(model) {
-    const findingNodes = model.nodes.filter(n => n.data.kind === 'finding');
-    if (model.mode === 'findings' && findingNodes.length <= 3) {
-      const positions = {}, anchors = [{x:0,y:-60},{x:-120,y:90},{x:120,y:90}];
-      findingNodes.forEach((n, i) => { positions[n.data.id] = anchors[i]; });
-      for (const {data:n} of model.nodes.filter(n => n.data.kind === 'note')) {
-        const related = model.edges.filter(e => e.data.kind === 'evidence' && e.data.source === n.id).map(e => positions[e.data.target]);
-        const x = related.reduce((sum,p) => sum+p.x,0)/related.length;
-        const y = related.reduce((sum,p) => sum+p.y,0)/related.length;
-        positions[n.id] = { x: x*1.25, y: y+(y<0 ? -120 : 120) };
+    const ids = model.allNodes.map(n => n.data.id), depth = new Map([[model.layoutRootId, 0]]), queue = [model.layoutRootId];
+    while (queue.length) {
+      const id = queue.shift();
+      for (const {data:e} of model.baseEdges) {
+        const next = e.source === id ? e.target : e.target === id ? e.source : null;
+        if (next && !depth.has(next)) { depth.set(next, depth.get(id) + 1); queue.push(next); }
       }
-      return positions;
     }
-    const ids = model.nodes.map(n => n.data.id), depth = new Map([[model.rootId, 0]]);
-    for (let pass = 0; pass < ids.length; pass++) for (const { data: e } of model.edges) {
-      if (depth.has(e.source) && !depth.has(e.target)) depth.set(e.target, depth.get(e.source) + 1);
-      if (depth.has(e.target) && !depth.has(e.source)) depth.set(e.source, depth.get(e.target) + 1);
-    }
-    const positions = { [model.rootId]: { x: 0, y: 0 } };
-    for (const level of [...new Set(ids.filter(id => id !== model.rootId).map(id => depth.get(id) || 3))].sort()) {
-      const ring = ids.filter(id => id !== model.rootId && (depth.get(id) || 3) === level);
+    const positions = { [model.layoutRootId]: { x: 0, y: 0 } };
+    for (const level of [...new Set(ids.filter(id => id !== model.layoutRootId).map(id => depth.get(id) || 3))].sort()) {
+      const ring = ids.filter(id => id !== model.layoutRootId && (depth.get(id) || 3) === level);
       ring.forEach((id, i) => {
         const angle = -Math.PI / 2 + i * Math.PI * 2 / ring.length + (level === 1 ? .23 : .66);
-        const radius = level * 155;
-        positions[id] = { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius };
+        positions[id] = { x: Math.cos(angle) * level * 155, y: Math.sin(angle) * level * 155 };
       });
     }
     return positions;
@@ -143,11 +157,21 @@
     const positions = initialPositions(model);
     const combinedLayout = { name: 'cose', animate: false, randomize: false, fit: true, padding: 38, nodeDimensionsIncludeLabels: true, nodeRepulsion: () => 12000, idealEdgeLength: () => 65, nodeOverlap: 20, gravity: 1 };
     const cy = window.cytoscape({
-      container: host, elements: [...model.nodes.map(n => ({ ...n, classes: model.mode === 'both' ? 'combined' : '', position: positions[n.data.id] })), ...model.edges],
-      style: styles, layout: model.mode === 'both' ? combinedLayout : { name: 'preset' }, minZoom: .15, maxZoom: 2.5,
+      container: host, elements: [...model.allNodes.map(n => ({ ...n, classes: 'combined', position: positions[n.data.id] })), ...model.baseEdges],
+      style: styles, layout: combinedLayout, minZoom: .15, maxZoom: 2.5,
       wheelSensitivity: .2, boxSelectionEnabled: false, autounselectify: true,
     });
-    cy.getElementById(model.rootId).addClass('root');
+    cy.getElementById(model.layoutRootId).addClass('root');
+    function update(next) {
+      model = next;
+      const shown = new Set(model.nodes.map(n => n.data.id));
+      cy.batch(() => {
+        cy.nodes().forEach(n => n.toggleClass('layer-hidden', !shown.has(n.id())));
+        cy.edges().remove();
+        cy.add(model.edges);
+      });
+    }
+    update(model);
     cy.on('tap', 'node, edge', event => onSelect(event.target.data()));
     let destroyed = false;
     let width = host.clientWidth, height = host.clientHeight;
@@ -156,21 +180,22 @@
       const resized = host.clientWidth !== width || host.clientHeight !== height;
       width = host.clientWidth; height = host.clientHeight;
       cy.resize();
-      if (resized) cy.fit(undefined, 38);
+      if (resized) cy.fit(cy.elements(':visible'), 38);
     });
     observer.observe(host);
-    const frame = requestAnimationFrame(() => { if (!destroyed) { cy.resize(); cy.fit(undefined, 38); } });
+    const frame = requestAnimationFrame(() => { if (!destroyed) { cy.resize(); cy.fit(cy.elements(':visible'), 38); } });
     return {
+      update,
       destroy() { destroyed = true; cancelAnimationFrame(frame); observer.disconnect(); cy.destroy(); },
       select(id) {
         cy.elements().removeClass('picked');
         const element = cy.getElementById(id);
-        if (element.length) element.addClass('picked');
+        if (element.length && element.visible()) element.addClass('picked');
         else if (id.startsWith('finding:')) cy.edges().filter(e => e.data('findingIds')?.includes(id.slice(8))).addClass('picked');
       },
       zoom(factor) { const position = { x: cy.width() / 2, y: cy.height() / 2 }; cy.zoom({ level: Math.min(2.5, Math.max(.15, cy.zoom() * factor)), renderedPosition: position }); },
-      fit() { cy.fit(undefined, 38); },
-      arrange() { cy.layout(model.mode === 'both' ? combinedLayout : { name: 'cose', animate: false, randomize: false, fit: true, padding: 40, nodeDimensionsIncludeLabels: true, nodeRepulsion: () => 180000, idealEdgeLength: () => 160, componentSpacing: 100 }).run(); },
+      fit() { cy.fit(cy.elements(':visible'), 38); },
+      arrange() { cy.elements(':visible').layout(combinedLayout).run(); },
       exportPng() { return cy.png({ full: false, scale: 2, bg: '#152326' }); },
     };
   }

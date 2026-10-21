@@ -161,10 +161,14 @@ textarea { min-height: 185px; resize: vertical; }
 .result-toolbar .text-button { font-size: 11px; }
 .results-layout { display: grid; gap: 18px; align-items: start; }
 .results-layout > * { min-width: 0; }
-.projection-switch { display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap; margin: 8px 0 10px; }
-.projection-switch > .meta { font-size: 9px; letter-spacing: 1.2px; }
-.projection-switch .segmented { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; max-width: 490px; }
-.projection-switch .segmented button { min-width: 0; padding: 10px 8px; text-wrap: balance; }
+.layer-controls { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.layer-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 44px; min-width: 44px; padding: 6px; border: 0; border-radius: 6px; background: transparent; color: var(--accent); font-size: 11px; font-weight: 400; }
+.layer-toggle[aria-pressed="false"] { color: #82918c; }
+.layer-toggle .legend-shape { flex: 0 0 6px; width: 6px; height: 6px; border: 1px solid transparent; }
+.layer-toggle[aria-pressed="false"] .legend-shape { background: transparent; border-color: currentColor; }
+.layer-toggle:disabled { opacity: 1; cursor: default; }
+.layer-toggle:hover:not(:disabled) { background: #223632; }
+.selection-hidden { border-bottom: 1px solid var(--line); padding-bottom: 12px; color: var(--muted); font-size: 11px !important; }
 .projection-description { font-size: 12px; max-width: 690px; margin: 0 0 19px; }
 .graph-canvas { position: relative; width: 100%; height: 440px; overflow: hidden; background: radial-gradient(ellipse at center, #1a2b2c 0, #152326 75%); }
 .graph-canvas canvas { display: block; }
@@ -173,7 +177,7 @@ textarea { min-height: 185px; resize: vertical; }
 .graph-accessibility > p { margin: 0; padding: 0 16px; font-size: 11px; }
 .graph-element-list { padding: 8px 12px 13px; display: grid; gap: 4px; }
 .graph-element-list button { text-align: left; justify-content: space-between; border-bottom: 1px solid var(--line); font-size: 11px; border-radius: 0; }
-.graph-legend button { font-size: 11px; margin-left: auto; padding-block: 5px; margin-block: -9px; }
+.graph-legend > .icon-button { margin-left: auto; color: var(--muted); }
 .connection-finding { padding-block: 16px; border-top: 1px solid var(--line); }
 .connection-finding h3 { margin: 0 0 12px; font: 22px/1.4 var(--font-editorial); }
 .connection-finding:last-child { padding-bottom: 0; }
@@ -194,8 +198,7 @@ textarea { min-height: 185px; resize: vertical; }
 .graph-tools { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 10px; border-top: 1px solid var(--line); }
 .graph-tools > div { display: flex; margin-left: auto; }
 .graph-tools .icon-button { width: 44px; }
-.graph-legend { padding: 14px 16px; display: flex; gap: 14px; flex-wrap: wrap; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }
-.graph-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.graph-legend { padding: 3px 8px; display: flex; align-items: center; gap: 4px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; }
 .legend-shape { height: 7px; width: 7px; background: #8cafa4; border-radius: 2px; }
 .legend-shape.finding { border-radius: 50%; background: #bea878; }
 .legend-shape.label { border-radius: 50%; background: #9daa7e; }

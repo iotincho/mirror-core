@@ -25,8 +25,8 @@ prototipo existente de `app-refresh`.
 - **Tus notas:** búsqueda, lectura y selección de exactamente cinco notas. La
   selección no cambia al refinar, salvo una acción explícita del usuario.
 - **Prueba:** preparación y avance por nota, sin porcentajes inventados.
-- **Resultados:** selector «Por etiquetas / Por hallazgos / Etiquetas y hallazgos» sobre los mismos
-  resultados; expansión, zoom, detalle, citas y lectura del original resaltado. La vista
+- **Resultados:** un grafo con interruptores independientes para notas, hallazgos
+  y etiquetas sobre los mismos resultados; expansión, zoom, detalle, citas y lectura del original resaltado. La vista
   Lista permite recorrer todos los resultados, incluyendo notas sin hallazgos.
 - **Refinamiento:** comentario, nueva prueba, comparación con la anterior y
   bloqueo de aceptación si cambió la finalidad o la muestra sin volver a probar.
@@ -35,31 +35,43 @@ prototipo existente de `app-refresh`.
 - **Eje aceptado:** exploración de resultados de ejemplo, pausa/activación y
   edición mediante un nuevo circuito de prueba y aprobación.
 
-## Comparar los tres grafos
+## Un grafo con tipos de nodo que se pueden encender y apagar
 
-Entrar en **Explorar** del eje de ejemplo o completar una prueba. En la vista
-**Grafo**, el selector permite alternar entre estas tres proyecciones:
+Entrar en **Explorar** del eje de ejemplo o completar una prueba. La vista
+**Grafo** empieza con los tres tipos encendidos. Los controles **Notas**,
+**Hallazgos** y **Etiquetas** permiten combinar las capas sobre el mismo mapa.
+Las referencias debajo del gráfico también son los controles: punto de color y
+nombre, sin tarjetas ni contadores. El punto lleno indica un tipo visible; el
+punto vacío y el texto atenuado indican un tipo oculto. Mantienen una zona táctil
+de 44 px y siempre queda al menos un tipo encendido.
 
-- **Por etiquetas:** nodos de nota y etiqueta. Cada conexión guarda la colección
-  de hallazgos de esa nota bajo esa etiqueta. Al tocarla se muestran por separado
-  los títulos, contenidos y citas; el hallazgo completo no desaparece al agrupar.
-- **Por hallazgos:** nodos de nota y hallazgo. La conexión nota–hallazgo contiene
-  la cita de origen. Las conexiones entre hallazgos muestran las etiquetas que
-  comparten; no se introducen nodos de etiqueta en esta vista ni se afirma que
-  compartir una etiqueta signifique expresar la misma idea.
-- **Etiquetas y hallazgos:** nodos de nota, hallazgo y etiqueta. El recorrido
-  nota → hallazgo → etiqueta conserva la cita en la primera conexión. Cada etiqueta
-  es un nodo compartido por sus hallazgos; al tocarla se puede explorar el grupo.
-  Tocar la conexión hallazgo–etiqueta permite leer el hallazgo y su evidencia.
+Los interruptores conservan la instancia de Cytoscape, las posiciones (también
+las modificadas por arrastre), el zoom y el desplazamiento. El detalle de una
+selección que se oculta sigue disponible, con una indicación breve. **Ordenar**
+y **Ajustar a la pantalla** son acciones explícitas.
 
-Las tres usan la misma muestra y los mismos hallazgos. Cambiar la vista no genera
-otra prueba, no modifica el borrador y no acepta el eje. Se empieza por un grupo
-para mantener legibilidad; **Más conexiones** permite abrir el conjunto.
+- **Todos encendidos:** nota → hallazgo → etiqueta; la primera conexión guarda
+  la cita de origen y las etiquetas reúnen hallazgos de distintas notas.
+- **Sin hallazgos:** las conexiones nota–etiqueta agrupan los hallazgos ocultos,
+  conservando sus títulos, contenidos y citas en el detalle.
+- **Sin etiquetas:** se conservan las citas entre nota y hallazgo; las conexiones
+  entre hallazgos muestran las etiquetas compartidas.
+- **Sin notas:** hallazgos conectados a sus etiquetas, con citas y nota de origen
+  disponibles al seleccionar cada hallazgo.
+- **Sólo hallazgos:** conexiones por etiquetas compartidas.
+- **Sólo notas:** conexiones por etiquetas compartidas en sus hallazgos, con las
+  evidencias separadas por nota.
+- **Sólo etiquetas:** conexiones entre etiquetas que aparecen juntas en un mismo
+  hallazgo, con acceso a ese hallazgo y su cita.
 
-Se reutilizan Cytoscape y la iluminación vectorial de nodos de la constelación
-existente, con arrastre de nodos, desplazamiento y zoom reales. Seleccionar una
-conexión actualiza el detalle sin reconstruir el grafo ni cambiar su cámara.
-**Elementos y conexiones** ofrece las mismas selecciones con controles de teclado.
+Las conexiones resumidas se dibujan con líneas punteadas y conservan referencias
+exactas a los hallazgos que las justifican. Compartir una etiqueta no implica
+expresar la misma idea. Cambiar lo visible no genera otra prueba, no modifica el
+borrador y no acepta el eje. **Más conexiones** abre el resto de los resultados.
+
+Se reutilizan Cytoscape y la iluminación vectorial de la constelación existente.
+**Elementos y conexiones** ofrece las mismas selecciones con teclado; la vista
+**Lista** conserva el acceso a los resultados y a las notas sin hallazgos.
 
 El botón de escenarios, junto a «PROTOTIPO», permite abrir el espacio vacío,
 simular una nota pendiente recuperable, vencer una prueba y restablecer el ejemplo.
@@ -112,9 +124,10 @@ JavaScript. También comprueba overflow y tamaño de controles en varios anchos.
 
 Las capturas se inspeccionan visualmente y se guardan en `screenshots/`, junto con
 los reportes `validation.json` y `graph-validation.json`. La revisión de grafos
-comprueba tipos de nodos, agrupación sin perder hallazgos, citas en las conexiones,
-etiquetas compartidas, recorrido nota–hallazgo–etiqueta, cambio de vista sin modificar datos, selección por canvas,
-conservación de cámara y controles de al menos 44 px entre 320 y 1440 px.
+comprueba las siete combinaciones, procedencia de cada relación, citas literales,
+lectura del original, protección del último tipo activo, teclado, arrastre y
+conservación de posiciones y cámara sobre una misma instancia del grafo. También
+verifica controles de al menos 44 px entre 320 y 1440 px.
 No se verificó en un teléfono físico ni como PWA
 instalada; no se afirma una integración con el backend.
 
@@ -127,12 +140,10 @@ instalada; no se afirma una integración con el backend.
 - [Resultados · escritorio](screenshots/resultados-desktop.png)
 - [Resultados · móvil](screenshots/resultados-mobile.png)
 - [Ideas de podcast · escritorio](screenshots/podcast-desktop.png)
-- [Grafo por etiquetas](screenshots/grafo-etiquetas-desktop.png)
-- [Grafo por hallazgos](screenshots/grafo-hallazgos-desktop.png)
-- [Grafo con etiquetas y hallazgos](screenshots/grafo-completo-desktop.png)
-- [Grafo por etiquetas · móvil](screenshots/grafo-etiquetas-mobile.png)
-- [Grafo por hallazgos · móvil](screenshots/grafo-hallazgos-mobile.png)
-- [Grafo con etiquetas y hallazgos · móvil](screenshots/grafo-completo-mobile.png)
+- [Grafo con controles de tipos · escritorio](screenshots/grafo-capas-desktop.png)
+- [Grafo con controles de tipos · móvil](screenshots/grafo-capas-mobile.png)
+- [Hallazgos ocultos · escritorio](screenshots/grafo-capas-sin-hallazgos-desktop.png)
+- [Hallazgos ocultos · móvil](screenshots/grafo-capas-sin-hallazgos-mobile.png)
 
 El alcance funcional de referencia está en el
 [diseño del backend](../../docs/personal-axes-backend-design.md) y el

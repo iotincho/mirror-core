@@ -1,78 +1,178 @@
 {
-  "projections": "passed: three projections, typed nodes and edges, normalized shared label nodes, complete evidence paths, no source mutation",
+  "projections": "passed: seven combinations for both datasets, no dangling edges, exact provenance, normalized labels, aggregation, no source mutation",
   "layouts": [
     {
-      "name": "labels",
+      "name": "all-layers",
       "width": 320,
       "overflow": false
     },
     {
-      "name": "labels",
+      "name": "all-layers",
       "width": 390,
       "overflow": false
     },
     {
-      "name": "labels",
+      "name": "all-layers",
       "width": 768,
       "overflow": false
     },
     {
-      "name": "labels",
+      "name": "all-layers",
       "width": 1440,
       "overflow": false
     },
     {
-      "name": "findings",
+      "name": "note",
       "width": 320,
       "overflow": false
     },
     {
-      "name": "findings",
+      "name": "note",
       "width": 390,
       "overflow": false
     },
     {
-      "name": "findings",
+      "name": "note",
       "width": 768,
       "overflow": false
     },
     {
-      "name": "findings",
+      "name": "note",
       "width": 1440,
       "overflow": false
     },
     {
-      "name": "both",
+      "name": "finding",
       "width": 320,
       "overflow": false
     },
     {
-      "name": "both",
+      "name": "finding",
       "width": 390,
       "overflow": false
     },
     {
-      "name": "both",
+      "name": "finding",
       "width": 768,
       "overflow": false
     },
     {
-      "name": "both",
+      "name": "finding",
       "width": 1440,
       "overflow": false
     },
     {
-      "name": "both-expanded",
+      "name": "finding+note",
       "width": 320,
       "overflow": false
     },
     {
-      "name": "both-expanded",
+      "name": "finding+note",
       "width": 390,
       "overflow": false
     },
     {
-      "name": "both-expanded",
+      "name": "finding+note",
+      "width": 768,
+      "overflow": false
+    },
+    {
+      "name": "finding+note",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "label",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "label",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "label",
+      "width": 768,
+      "overflow": false
+    },
+    {
+      "name": "label",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "label+note",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "label+note",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "label+note",
+      "width": 768,
+      "overflow": false
+    },
+    {
+      "name": "label+note",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "finding+label",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "finding+label",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "finding+label",
+      "width": 768,
+      "overflow": false
+    },
+    {
+      "name": "finding+label",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "finding+label+note",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "finding+label+note",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "finding+label+note",
+      "width": 768,
+      "overflow": false
+    },
+    {
+      "name": "finding+label+note",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "expanded",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "expanded",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "expanded",
       "width": 1440,
       "overflow": false
     }
@@ -82,5 +182,5 @@
     "external": 0,
     "backend": 0
   },
-  "interactions": "passed: three-view switch, membership evidence, shared labels, finding-label edge, label grouping, quote edge, full-source reading, canvas edge tap, camera preservation, expansion, local state unchanged"
+  "interactions": "passed: seven layer combinations, one graph instance, camera and dragged positions preserved, hidden selection detail retained, exact citations, full-source reading, single-layer provenance, keyboard, last-layer protection, expansion, storage unchanged"
 }

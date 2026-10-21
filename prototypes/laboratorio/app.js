@@ -40,7 +40,7 @@
     axes: Array.isArray(stored?.axes) ? stored.axes : [demoAxis()],
     page: 'inicio', preview: null, history: [], historyIndex: -1, resultMode: 'graph',
     selected: '', selectedTag: '', expanded: false, zoom: 1, search: '',
-    graphView: 'labels', graphModel: null, graphEntity: null, graphFocusTag: '',
+    graphVisibility: { note: true, finding: true, label: true }, graphModel: null, graphEntity: null, graphFocusTag: '',
     busy: false, doneCount: 0, compiling: false, scenario: '', returnToResults: false,
     axisId: 'valores', savedAxisId: '', feedback: '',
   };
@@ -147,17 +147,34 @@
     if (state.resultMode === 'list') return list(p);
     const fs = findings(p);
     if (!fs.length) return `<div class="empty"><h2>No aparecieron hallazgos.</h2><p>Eso también puede tener sentido. Podés revisar las notas o ajustar tu intención sin forzar un resultado.</p><button class="secondary" data-action="mode" data-mode="list">Ver las notas revisadas</button></div>`;
-    const descriptions = {
-      labels: 'Las etiquetas conectan tus notas. Cada relación conserva sus hallazgos y las citas que los sustentan.',
-      findings: 'Cada hallazgo tiene su lugar. Su cita lo conecta con la nota; las etiquetas compartidas lo conectan con otros hallazgos.',
-      both: 'Seguí el recorrido de una nota a sus hallazgos y de cada hallazgo a sus etiquetas. Las etiquetas reúnen lo que aparece en distintas notas.',
-    };
-    const hints = {
-      labels: 'Tocá una conexión para leer sus hallazgos y citas.',
-      findings: 'Tocá una conexión con una nota para ver su cita, o una conexión entre hallazgos para ver qué comparten.',
-      both: 'Tocá la conexión con una nota para leer la cita. Tocá una etiqueta para explorar los hallazgos que reúne.',
-    };
-    return `<div class="graph-projection"><div class="projection-switch"><span class="meta">EXPLORAR LAS CONEXIONES</span><div class="segmented" role="group" aria-label="Modelo del grafo"><button data-action="graph-view" data-view="labels" aria-pressed="${state.graphView === 'labels'}">Por etiquetas</button><button data-action="graph-view" data-view="findings" aria-pressed="${state.graphView === 'findings'}">Por hallazgos</button><button data-action="graph-view" data-view="both" aria-pressed="${state.graphView === 'both'}">Etiquetas y hallazgos</button></div></div><p class="projection-description">${descriptions[state.graphView]}</p><div class="results-layout"><div>${graph(p)}<p class="footnote">${icon('eye')}${hints[state.graphView]}</p></div><aside id="finding-detail" class="finding-detail" aria-label="Detalle de la selección" tabindex="-1">${graphDetail(p, active)}</aside></div></div>`;
+    const graphMarkup = graph(p);
+    return `<div class="graph-projection"><p id="graph-description" class="projection-description" aria-live="polite">${graphDescription()}</p><div class="results-layout"><div>${graphMarkup}<p class="footnote">${icon('eye')}Las líneas punteadas resumen conexiones. Tocá cualquier relación para recuperar sus hallazgos y citas.</p></div><aside id="finding-detail" class="finding-detail" aria-label="Detalle de la selección" tabindex="-1">${graphDetail(p, active)}</aside></div></div>`;
+  }
+  function graphLayerControls() {
+    const last = Object.values(state.graphVisibility).filter(Boolean).length === 1;
+    return [['note', 'Notas'], ['finding', 'Hallazgos'], ['label', 'Etiquetas']].map(([kind, label]) => {
+      const on = state.graphVisibility[kind];
+      return `<button class="layer-toggle" data-action="graph-layer" data-kind="${kind}" aria-label="${label}" aria-pressed="${on}" aria-describedby="graph-layer-help" title="${on ? 'Ocultar' : 'Mostrar'} ${label.toLocaleLowerCase('es')}" ${last && on ? 'disabled' : ''}><i class="legend-shape ${kind}" aria-hidden="true"></i><span>${label}</span></button>`;
+    }).join('');
+  }
+  function graphDescription() {
+    const {note:n, finding:f, label:l} = state.graphVisibility;
+    if (n && f && l) return 'Seguí el recorrido nota → hallazgo → etiqueta. Apagá un tipo para concentrarte en lo que querés mirar.';
+    if (n && l) return 'Los hallazgos están ocultos. Las líneas punteadas conectan notas y etiquetas; cada conexión conserva sus hallazgos y citas.';
+    if (n && f) return 'Las etiquetas están ocultas. Las citas unen notas y hallazgos; las líneas punteadas muestran qué etiquetas comparten los hallazgos.';
+    if (f && l) return 'Las notas están ocultas. Explorá los hallazgos y sus etiquetas; la nota de origen y la cita siguen disponibles en el detalle.';
+    if (f) return 'Sólo hallazgos. Las líneas punteadas muestran las etiquetas que comparten; cada hallazgo conserva su cita y su nota de origen.';
+    if (n) return 'Sólo notas. Las líneas punteadas reúnen notas cuyos hallazgos comparten etiquetas. Tocá una conexión para ver de dónde surge.';
+    return 'Sólo etiquetas. Una línea punteada indica que dos etiquetas coinciden en un mismo hallazgo. Tocala para leerlo con su cita.';
+  }
+  function graphElements() {
+    return [...state.graphModel.nodes, ...state.graphModel.edges].map(x => x.data);
+  }
+  function graphElementList() {
+    return graphElements().map(e => `<button data-action="graph-select" data-id="${escape(e.id)}" aria-label="${escape(e.accessible)}"><span>${escape(e.accessible)}</span>${icon('chevron')}</button>`).join('');
+  }
+  function graphLegend() {
+    return `<div id="graph-layer-controls" class="layer-controls" role="group" aria-label="Tipos de nodo">${graphLayerControls()}</div><span id="graph-layer-help" class="sr-only">Tocá cada referencia para mostrar u ocultar ese tipo de nodo. Debe quedar al menos uno visible.</span><button class="quiet icon-button" data-action="arrange" aria-label="Ordenar" title="Ordenar grafo">${icon('graph')}</button>`;
   }
 
   function list(p) {
@@ -173,12 +190,12 @@
   }
   function graph(p) {
     const fs = findings(p);
-    state.graphModel = window.LabGraph.project(fs, { mode: state.graphView, expanded: state.expanded, focusTag: state.graphFocusTag });
+    state.graphModel = window.LabGraph.project(fs, { visibility: state.graphVisibility, expanded: state.expanded, focusTag: state.graphFocusTag });
     state.graphFocusTag = state.graphModel.rootTag;
-    const elements = [...state.graphModel.nodes, ...state.graphModel.edges].map(x => x.data);
+    const elements = graphElements();
     state.graphEntity = elements.find(e => e.id === state.graphEntity?.id) || state.graphModel.nodes.find(n => n.data.id === state.graphModel.rootId)?.data;
     const canExpand = state.graphModel.visibleFindingIds.length < fs.length || state.expanded;
-    return `<section class="graph-panel" aria-label="Conexiones de los hallazgos"><div class="graph-top"><span>${escape(p.title)}</span><span class="graph-caption">${state.graphModel.visibleFindingIds.length} de ${fs.length} hallazgos</span></div><div class="graph-canvas" id="lab-graph" role="img" tabindex="0" aria-label="Grafo por ${state.graphView === 'both' ? 'etiquetas y hallazgos' : state.graphView === 'labels' ? 'etiquetas' : 'hallazgos'}. Podés arrastrar nodos y tocar conexiones. Para navegar con teclado, abrí Elementos y conexiones."></div><div class="graph-tools"><button class="quiet" data-action="expand" ${canExpand ? '' : 'disabled'}>${icon(state.expanded ? 'minus' : 'plus')}${state.expanded ? 'Menos conexiones' : 'Más conexiones'}</button><div><button class="icon-button quiet" data-action="zoom-out" aria-label="Alejar grafo">${icon('minus')}</button><button class="icon-button quiet" data-action="zoom-in" aria-label="Acercar grafo">${icon('plus')}</button><button class="icon-button quiet" data-action="fit-graph" aria-label="Ajustar grafo a la pantalla">${icon('reset')}</button></div></div><div class="graph-legend"><span><i class="legend-shape"></i>Nota</span>${state.graphView !== 'labels' ? '<span><i class="legend-shape finding"></i>Hallazgo</span>' : ''}${state.graphView !== 'findings' ? '<span><i class="legend-shape label"></i>Etiqueta</span>' : ''}<button class="quiet" data-action="arrange">Ordenar</button></div><p class="graph-help">Arrastrá para moverte. Usá dos dedos o los botones para acercar.</p><details class="graph-accessibility"><summary>Elementos y conexiones</summary><p>La misma exploración, disponible con teclado.</p><div class="graph-element-list">${elements.map(e => `<button data-action="graph-select" data-id="${escape(e.id)}" aria-label="${escape(e.accessible)}"><span>${escape(e.accessible)}</span>${icon('chevron')}</button>`).join('')}</div></details></section>`;
+    return `<section class="graph-panel" aria-label="Conexiones de los hallazgos"><div class="graph-top"><span>${escape(p.title)}</span><span class="graph-caption">${state.graphModel.visibleFindingIds.length} de ${fs.length} hallazgos</span></div><div class="graph-canvas" id="lab-graph" role="img" tabindex="0" aria-label="Grafo de notas, hallazgos y etiquetas. Podés arrastrar nodos y tocar conexiones. Para navegar con teclado, abrí Elementos y conexiones."></div><div class="graph-tools"><button class="quiet" data-action="expand" ${canExpand ? '' : 'disabled'}>${icon(state.expanded ? 'minus' : 'plus')}${state.expanded ? 'Menos conexiones' : 'Más conexiones'}</button><div><button class="icon-button quiet" data-action="zoom-out" aria-label="Alejar grafo">${icon('minus')}</button><button class="icon-button quiet" data-action="zoom-in" aria-label="Acercar grafo">${icon('plus')}</button><button class="icon-button quiet" data-action="fit-graph" aria-label="Ajustar grafo a la pantalla">${icon('reset')}</button></div></div><div class="graph-legend">${graphLegend()}</div><p class="graph-help">Arrastrá para moverte. Usá dos dedos o los botones para acercar.</p><details class="graph-accessibility"><summary>Elementos y conexiones</summary><p>La misma exploración, disponible con teclado.</p><div class="graph-element-list">${graphElementList()}</div></details></section>`;
   }
   function graphDetail(p, active = false) {
     const fs = findings(p), e = state.graphEntity;
@@ -193,6 +210,9 @@
     } else if (e.kind === 'shared') {
       const matches = fs.filter(f => e.findingIds.includes(f.id));
       body = `<p class="kicker">ENTRE DOS HALLAZGOS</p><h2>Un hilo compartido.</h2>${tags(e.tags)}<p class="shared-explanation">Comparten estas etiquetas. Cada hallazgo conserva su propia idea y su nota de origen.</p>${matches.map(f => `<button class="finding-item" data-action="graph-finding" data-id="${f.id}"><span><strong>${escape(f.title)}</strong><small>${escape(note(f.note).title)}</small></span>${icon('chevron')}</button>`).join('')}`;
+    } else if (e.kind === 'note-shared' || e.kind === 'label-shared') {
+      const matches = fs.filter(f => e.findingIds.includes(f.id));
+      body = `<p class="kicker">UNA CONEXIÓN RESUMIDA</p><h2>${e.kind === 'note-shared' ? 'Un hilo entre tus notas.' : 'Juntas en un hallazgo.'}</h2>${tags(e.tags)}<p>${e.kind === 'note-shared' ? 'Estas notas tienen hallazgos con etiquetas compartidas. Cada idea conserva su propio contexto.' : 'Estas etiquetas aparecen juntas en los siguientes hallazgos. Cada cita permite recuperar el contexto.'}</p>${matches.map(f => `<article class="connection-finding"><h3>${escape(f.title)}</h3><p>${escape(f.content)}</p><p class="evidence-label">${escape(note(f.note).title)}</p><blockquote>“${escape(f.quote)}”</blockquote><button class="text-button" data-action="read" data-id="${f.note}" data-finding="${f.id}">Leer en la nota completa${icon('arrow')}</button></article>`).join('')}`;
     } else if (e.kind === 'note') {
       const matches = fs.filter(f => f.note === e.noteId);
       body = `<p class="kicker">UNA NOTA · ${matches.length} HALLAZGOS</p><h2>${escape(note(e.noteId).title)}</h2><p>Elegí un hallazgo para recuperar su desarrollo y sus citas.</p>${matches.map(f => `<button class="finding-item" data-action="graph-finding" data-id="${f.id}"><span><strong>${escape(f.title)}</strong>${f.tags.map(t => `<span class="tag">${escape(t)}</span>`).join('')}</span>${icon('chevron')}</button>`).join('')}<button class="text-button" data-action="read" data-id="${e.noteId}">Leer nota completa${icon('arrow')}</button>`;
@@ -200,7 +220,8 @@
       const f = fs.find(f => f.id === (e.findingId || e.findingIds?.[0]));
       body = f ? `${e.kind === 'evidence' ? '<p class="relation-caption">RELACIÓN CON SU NOTA · CITA DE ORIGEN</p>' : e.kind === 'tagging' ? `<p class="relation-caption">RELACIÓN CON LA ETIQUETA · ${escape(e.tag)}</p>` : ''}${detail(f, active)}` : '<p>Esta selección ya no está disponible en la prueba actual.</p>';
     }
-    return `<button class="text-button back-to-graph" data-action="back-to-graph">${icon('back')}Volver al grafo</button>${body}`;
+    const hiddenSelection = !graphElements().some(item => item.id === e.id);
+    return `${hiddenSelection ? '<p class="selection-hidden">Este elemento está oculto en el mapa. Su detalle sigue disponible.</p>' : ''}<button class="text-button back-to-graph" data-action="back-to-graph">${icon('back')}Volver al grafo</button>${body}`;
   }
   function selectGraphEntity(entity, moveFocus = true) {
     const p = graphContext(); if (!p || !entity) return;
@@ -343,10 +364,17 @@
     else if (action === 'preview') beginPreview();
     else if (action === 'mode') { state.resultMode = button.dataset.mode; render({ focus: false, scroll: false }); $(`[data-action="mode"][data-mode="${state.resultMode}"]`).focus({ preventScroll: true }); }
     else if (action === 'finding') { const f = findings(state.page.startsWith('eje-') ? { ...state.axes.find(x => x.id === state.axisId), sample: D.notes.map(n => n.id) } : activePreview()).find(x => x.id === button.dataset.id); if (f) showModal('Un hallazgo', detail(f)); }
-    else if (action === 'graph-view') {
-      state.graphView = button.dataset.view; state.graphEntity = null; state.selectedTag = '';
-      render({ focus: false, scroll: false });
-      $(`[data-action="graph-view"][data-view="${state.graphView}"]`).focus({ preventScroll: true });
+    else if (action === 'graph-layer') {
+      const kind = button.dataset.kind;
+      if (state.graphVisibility[kind] && Object.values(state.graphVisibility).filter(Boolean).length === 1) return;
+      state.graphVisibility[kind] = !state.graphVisibility[kind];
+      state.graphModel = window.LabGraph.project(findings(graphContext()), { visibility: state.graphVisibility, expanded: state.expanded, focusTag: state.graphFocusTag });
+      graphController?.update(state.graphModel);
+      $('#graph-layer-controls').innerHTML = graphLayerControls();
+      $('#graph-description').textContent = graphDescription();
+      $('.graph-element-list').innerHTML = graphElementList();
+      if (state.graphEntity) selectGraphEntity(state.graphEntity, false);
+      $(`[data-action="graph-layer"][data-kind="${kind}"]`).focus({ preventScroll: true });
     } else if (action === 'graph-select') {
       const e = [...state.graphModel.nodes, ...state.graphModel.edges].find(x => x.data.id === button.dataset.id)?.data;
       selectGraphEntity(e);

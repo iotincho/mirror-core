@@ -5,6 +5,7 @@
   const $ = (selector) => document.querySelector(selector);
   const escape = (value = '') => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const paths = {
+    info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7h.01"/>',
     capture: '<path d="m15 4 5 5M4 20l5-1L20 8a2 2 0 0 0-5-5L4 14Z"/>',
     notes: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/>',
     graph: '<circle cx="12" cy="12" r="3"/><circle cx="4" cy="5" r="2"/><circle cx="20" cy="6" r="2"/><circle cx="18" cy="20" r="2"/><path d="m6 7 4 3m4 0 4-3m-5 8 4 3"/>',
@@ -38,6 +39,7 @@
   const state = {
     draft: stored?.draft?.sample ? stored.draft : stored?.initialized ? null : draftDemo(),
     axes: Array.isArray(stored?.axes) ? stored.axes : [demoAxis()],
+    welcomeDismissed: stored?.welcomeDismissed === true,
     page: 'inicio', preview: null, history: [], historyIndex: -1, resultMode: 'graph',
     selected: '', selectedTag: '', graphRevealed: null, zoom: 1, search: '',
     graphVisibility: { note: true, finding: true, label: true }, graphModel: null, graphEntity: null, graphFocusTag: '',
@@ -51,7 +53,7 @@
 
   function save() {
     try {
-      localStorage.setItem(STORE, JSON.stringify({ initialized: true, draft: state.draft, axes: state.axes }));
+      localStorage.setItem(STORE, JSON.stringify({ initialized: true, draft: state.draft, axes: state.axes, welcomeDismissed: state.welcomeDismissed }));
       storageAvailable = true;
     } catch { storageAvailable = false; }
   }
@@ -73,16 +75,16 @@
   function shell(content) {
     return `<div class="layout"><aside class="sidebar" aria-label="Tu espacio"><a class="brand" href="../app-refresh/#capture">${brand}</a><p class="tagline">Un espacio para escucharte.</p><nav aria-label="Secciones principales">${navigation()}</nav><footer><a class="button" href="../app-refresh/#settings">${icon('settings')}Ajustes</a><p>Un lugar para probar, a tu ritmo.</p></footer></aside><div class="workspace"><header class="topbar"><a class="brand" href="../app-refresh/#capture">${brand}</a><span class="top-context">TU ESPACIO PERSONAL / LABORATORIO</span><div class="top-actions"><span class="prototype-label">PROTOTIPO</span><button class="icon-button quiet" data-action="scenarios" aria-label="Probar escenarios de la demostración" title="Probar escenarios">${icon('settings')}</button><button class="avatar" data-action="about" aria-label="Información de esta demostración">M</button></div></header><main id="main" tabindex="-1">${content}</main><nav class="bottom-nav" aria-label="Secciones principales, móvil">${navigation(true)}</nav></div></div>`;
   }
-  function sketch() {
-    return `<svg class="hero-sketch" viewBox="0 0 310 230" fill="none" aria-hidden="true"><ellipse cx="166" cy="115" rx="105" ry="86" stroke="#4f6657" stroke-dasharray="2 7" transform="rotate(-18 166 115)"/><path d="m53 92 93 34 70-76m-70 76 104 42m-104-42 20 76m-20-76 117-25m-117 25-58 58" stroke="#6c8270"/><circle cx="146" cy="126" r="28" fill="#354a3b" stroke="#b5cbb0"/><circle cx="146" cy="126" r="8" stroke="#d7d5ac"/><circle cx="53" cy="92" r="9" fill="#749385"/><circle cx="216" cy="50" r="6" fill="#b5a47a"/><circle cx="250" cy="168" r="12" stroke="#b3c89e"/><circle cx="166" cy="202" r="5" fill="#819b84"/><circle cx="263" cy="101" r="7" fill="#8eaa97"/><circle cx="88" cy="184" r="10" stroke="#9eb293"/><path d="M281 43v12m-6-6h12M80 31v8m-4-4h8" stroke="#c5ba8f"/></svg>`;
-  }
   function home() {
     const draft = state.draft;
-    return `<div class="intro"><div class="heading-row"><p class="kicker">LABORATORIO</p>${pill('Un espacio para experimentar', 'warm')}</div><h1>Dale otra mirada<br>a tus notas.</h1><p>Hay cosas que aparecen cuando elegís qué mirar.<br class="desktop-break"> Creá un eje y descubrí qué hilos encuentra en lo que escribís.</p></div>
-      <section class="hero" aria-labelledby="new-axis-title">${sketch()}<span class="pill">${icon('spark')}UNA MIRADA PROPIA</span><h2 class="hero-title" id="new-axis-title">¿Qué te gustaría<br>encontrar?</h2><p>Lo que te importa. Ideas para algo que querés crear. Una pregunta que te acompaña.</p><button class="primary" data-action="new">${icon('plus')}Crear un eje</button></section>
-      <div class="how-it-works" aria-label="Cómo funciona"><div><span>01</span><p><strong>Contá qué querés mirar.</strong><br>Con tus palabras, sin preparar nada.</p></div><div><span>02</span><p><strong>Probalo en cinco notas.</strong><br>Revisá lo que aparece y de dónde surge.</p></div><div><span>03</span><p><strong>Ajustalo hasta que te sirva.</strong><br>Después, elegí si querés activarlo.</p></div></div>
-      ${draft ? `<div class="section-heading"><h2>Tu mirada en construcción</h2><span class="meta">Sólo en este dispositivo</span></div><article class="axis-card draft"><div class="card-top"><span class="axis-symbol">${icon('edit')}</span>${pill('Borrador', 'warm')}</div><h3>${escape(draft.title || 'Un eje por descubrir')}</h3><p>${escape(draft.purpose || 'Todavía estás encontrando las palabras para esta mirada.')}</p><div class="card-footer"><span class="meta">${draft.sample.length} de 5 notas elegidas</span><button class="text-button" data-action="resume">Continuar${icon('arrow')}</button></div></article>` : ''}
-      <div class="section-heading"><h2>Tus ejes</h2><span class="meta">${state.axes.length} ${state.axes.length === 1 ? 'mirada' : 'miradas'}</span></div><div class="axes-grid">${state.axes.length ? state.axes.map(axisCard).join('') : `<div class="empty"><h2>Tu primera mirada empieza acá.</h2><p>No necesitás tener todo claro. Podés probar y ajustar antes de activar un eje.</p><button class="secondary" data-action="new">Crear mi primer eje${icon('arrow')}</button></div>`}</div><p class="footnote">${icon('lock')}Este prototipo usa notas ficticias. No modifica tus notas ni se conecta a tu cuenta.</p>`;
+    const showWelcome = !state.welcomeDismissed && !draft && !state.axes.length;
+    return `<header class="home-header"><h1>Laboratorio</h1><button class="text-button home-help" data-action="lab-help">${icon('info')}Cómo funciona</button></header>
+      ${draft ? `<section class="draft-resume" aria-labelledby="resume-title"><div><p class="kicker">EN CONSTRUCCIÓN</p><h2 id="resume-title">${escape(draft.title || 'Tu próxima mirada')}</h2><span class="meta">${draft.sample.length ? `${draft.sample.length} de 5 notas elegidas` : 'Tu borrador está listo para continuar'}</span></div><button class="text-button" data-action="resume">Continuar${icon('arrow')}</button></section>` : ''}
+      ${showWelcome ? `<section class="welcome-card" aria-labelledby="welcome-title"><span class="welcome-symbol" aria-hidden="true">${icon('spark')}</span><h2 id="welcome-title">Una mirada nueva sobre tus notas</h2><p>Un eje busca lo que te interesa observar. Podés probarlo en cinco notas y ajustarlo antes de activarlo.</p><div class="welcome-actions"><button class="primary" data-action="new">Crear mi primer eje${icon('arrow')}</button><button class="quiet" data-action="dismiss-welcome">Ahora no</button></div></section>` : `<div class="section-heading axes-heading"><div><h2>Tus ejes</h2>${state.axes.length ? `<span class="meta">${state.axes.length} ${state.axes.length === 1 ? 'mirada' : 'miradas'}</span>` : ''}</div><button class="text-button" data-action="new">${icon('plus')}Crear un eje</button></div><div class="axes-grid">${state.axes.length ? state.axes.map(axisCard).join('') : `<div class="empty"><h2>Tu primera mirada empieza acá.</h2><p>Creá un eje cuando quieras. La ayuda sigue disponible en «Cómo funciona».</p><button class="secondary" data-action="new">Crear mi primer eje${icon('arrow')}</button></div>`}</div>`}
+      <p class="footnote">${icon('lock')}Este prototipo usa notas ficticias. No modifica tus notas ni se conecta a tu cuenta.</p>`;
+  }
+  function laboratoryHelp() {
+    showModal('Cómo funciona Laboratorio', `<p class="help-intro">Una mirada para encontrar nuevos hilos en lo que escribís, a tu ritmo.</p><div class="help-topics"><details><summary>Qué es un eje</summary><p>Es una mirada sobre tus notas: lo que te importa, ideas para un proyecto o una pregunta que te acompaña. Contá qué querés encontrar con tus palabras.</p></details><details><summary>Probar y ajustar</summary><ol><li><strong>Contá qué querés mirar.</strong> Podés partir de un ejemplo.</li><li><strong>Elegí cinco notas.</strong> Revisá los hallazgos y las citas que los sustentan.</li><li><strong>Ajustá hasta que te sirva.</strong> Después, elegí si querés activar el eje para notas nuevas.</li></ol><p>Las notas de la prueba quedan aparte de los resultados del eje activo.</p></details><details><summary>Explorar los resultados</summary><p>Tocá notas o etiquetas para abrir sus conexiones en el grafo. Las referencias de abajo permiten mostrar u ocultar tipos de nodo.</p><p>Cada hallazgo conserva su cita y el acceso a la nota completa. También podés recorrer todo desde la vista Lista.</p></details></div><div class="modal-actions"><button class="secondary" data-action="close-modal">Entendido</button></div>`, 'help-sheet');
   }
   function axisCard(a) {
     return `<article class="axis-card"><div class="card-top"><span class="axis-symbol sage">${icon(a.kind === 'podcast' ? 'audio' : 'leaf')}</span>${pill(a.enabled ? 'Activo' : 'En pausa', a.enabled ? '' : 'neutral')}</div><h3>${escape(a.title)}</h3><p>${a.kind === 'podcast' ? 'Ideas que merecen un espacio para volver a pensarlas.' : 'Una mirada sobre las maneras de vivir y relacionarte que querés cultivar.'}</p>${a.hasResults ? tags(a.kind === 'podcast' ? ['Relatos cotidianos', 'Conversaciones'] : ['Presencia', 'Autonomía', 'Vínculos']) : '<span class="meta">Esperando tus próximas notas</span>'}<div class="card-footer"><span class="meta">Versión ${a.version}${a.hasResults ? ' · 4 notas conectadas' : ''}</span><button class="text-button" data-action="open-axis" data-id="${escape(a.id)}">${a.hasResults ? 'Explorar' : 'Ver eje'}${icon('arrow')}</button></div></article>`;
@@ -280,15 +282,15 @@
     else location.hash = page;
   }
   function freshDraft() {
-    jobGeneration++; state.busy = false; state.scenario = '';
+    jobGeneration++; state.busy = false; state.scenario = ''; state.welcomeDismissed = true;
     state.draft = { title: '', purpose: '', sample: [], kind: '', step: 1, revision: 1, comments: [] };
     state.preview = null; state.history = []; state.historyIndex = -1; state.returnToResults = false;
     state.search = ''; state.feedback = ''; save(); go('crear');
   }
-  function showModal(title, body) {
+  function showModal(title, body, variant = '') {
     if (!$('.modal')) previousFocus = document.activeElement;
     $('#app').inert = true; document.body.style.overflow = 'hidden';
-    $('#modal-root').innerHTML = `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><header class="modal-header"><h2 id="modal-title">${title}</h2><button class="icon-button" data-action="close-modal" aria-label="Cerrar diálogo">${icon('close')}</button></header><div class="modal-body">${body}</div></section></div>`;
+    $('#modal-root').innerHTML = `<div class="modal-backdrop"><section class="modal ${variant}" role="dialog" aria-modal="true" aria-labelledby="modal-title"><header class="modal-header"><h2 id="modal-title">${title}</h2><button class="icon-button" data-action="close-modal" aria-label="Cerrar diálogo">${icon('close')}</button></header><div class="modal-body">${body}</div></section></div>`;
     $('#modal-title').tabIndex = -1; $('#modal-title').focus();
   }
   function closeModal() {
@@ -346,8 +348,8 @@
   }
   function startScenario(name) {
     closeModal(); jobGeneration++; state.busy = false;
-    if (name === 'empty') { state.axes = []; state.draft = null; state.preview = null; state.history = []; save(); go('inicio'); return; }
-    if (name === 'reset') { state.axes = [demoAxis()]; state.draft = draftDemo(); state.preview = null; state.history = []; state.historyIndex = -1; state.returnToResults = false; save(); go('inicio'); toast('Ejemplo inicial restablecido.'); return; }
+    if (name === 'first-visit' || name === 'empty') { state.welcomeDismissed = name !== 'first-visit'; state.axes = []; state.draft = null; state.preview = null; state.history = []; save(); go('inicio'); return; }
+    if (name === 'reset') { state.welcomeDismissed = true; state.axes = [demoAxis()]; state.draft = draftDemo(); state.preview = null; state.history = []; state.historyIndex = -1; state.returnToResults = false; save(); go('inicio'); toast('Ejemplo inicial restablecido.'); return; }
     state.draft = { ...structuredClone(D.examples.values), kind: 'values', revision: 1, comments: [], step: 3 };
     state.history = []; state.historyIndex = -1; state.scenario = name; save(); beginPreview();
   }
@@ -357,6 +359,8 @@
     const action = button.dataset.action;
     if (button.disabled) return;
     if (action === 'close-modal') { closeModal(); return; }
+    if (action === 'lab-help') { laboratoryHelp(); return; }
+    if (action === 'dismiss-welcome') { state.welcomeDismissed = true; save(); render({ scroll: false }); return; }
     if (action === 'home') { save(); go('inicio'); return; }
     if (action === 'new') {
       if (state.draft) showModal('Tenés una mirada en construcción.', '<p>Podés continuar donde la dejaste o empezar otra. Si empezás de nuevo, reemplazás el borrador de esta demostración.</p><div class="modal-actions"><button class="primary" data-action="resume">Continuar mi borrador</button><button class="secondary" data-action="new-confirm">Empezar otro eje</button></div>');
@@ -418,7 +422,7 @@
       state.preview = null; state.history = []; state.historyIndex = -1; state.returnToResults = false; save(); go('crear');
     } else if (action === 'demo-explore') { if (!state.axes.some(a => a.id === 'valores')) state.axes.push(demoAxis()); state.axisId = 'valores'; save(); go('eje-valores'); }
     else if (action === 'about') showModal('Un lugar para experimentar.', '<p>Laboratorio es una propuesta visual de El Espejo. Todo lo que aparece acá —notas, hallazgos y pruebas— es de ejemplo.</p><p>Podés recorrer el flujo completo. El borrador y los ejes de esta demo se conservan en este dispositivo, cuando el navegador lo permite.</p><p>No se llama a la API, no se usa inteligencia artificial y no se modifica tu cuenta.</p><button class="primary" data-action="close-modal">Seguir explorando</button>');
-    else if (action === 'scenarios') showModal('Probar otros momentos.', '<p>Estos escenarios permiten revisar estados del recorrido con datos ficticios.</p><div class="scenario-list"><button data-action="scenario" data-name="empty"><span>Un Laboratorio vacío<small>La primera visita, sin ejes ni borradores.</small></span></button><button data-action="scenario" data-name="failure"><span>Una nota pendiente<small>Conservar resultados y reintentar sólo lo que falta.</small></span></button><button data-action="scenario" data-name="expired"><span>Una prueba vencida<small>Retomar la intención y volver a probar.</small></span></button><button data-action="scenario" data-name="reset"><span>Restablecer la demostración<small>Volver al borrador y eje del inicio.</small></span></button></div>');
+    else if (action === 'scenarios') showModal('Probar otros momentos.', '<p>Estos escenarios permiten revisar estados del recorrido con datos ficticios.</p><div class="scenario-list"><button data-action="scenario" data-name="first-visit"><span>Primera visita<small>Bienvenida breve, sin ejes ni borradores.</small></span></button><button data-action="scenario" data-name="empty"><span>Un Laboratorio vacío<small>Sin ejes ni borradores, con la bienvenida ya vista.</small></span></button><button data-action="scenario" data-name="failure"><span>Una nota pendiente<small>Conservar resultados y reintentar sólo lo que falta.</small></span></button><button data-action="scenario" data-name="expired"><span>Una prueba vencida<small>Retomar la intención y volver a probar.</small></span></button><button data-action="scenario" data-name="reset"><span>Restablecer la demostración<small>Volver al borrador y eje del inicio.</small></span></button></div>');
     else if (action === 'scenario') startScenario(button.dataset.name);
   });
   function updateSelection() {
@@ -448,7 +452,7 @@
     const modal = $('.modal'); if (!modal) return;
     if (event.key === 'Escape') { event.preventDefault(); closeModal(); }
     if (event.key === 'Tab') {
-      const focusable = [...modal.querySelectorAll('button:not(:disabled), a[href], input, textarea, select')];
+      const focusable = [...modal.querySelectorAll('button:not(:disabled), a[href], input, textarea, select, summary')];
       const first = focusable[0], last = focusable.at(-1);
       if (event.shiftKey && (document.activeElement === first || document.activeElement.id === 'modal-title')) { event.preventDefault(); last?.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }

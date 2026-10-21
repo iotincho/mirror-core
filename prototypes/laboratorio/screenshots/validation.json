@@ -31,6 +31,51 @@
       "overflow": false
     },
     {
+      "name": "ayuda",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "ayuda",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "ayuda",
+      "width": 844,
+      "overflow": false
+    },
+    {
+      "name": "ayuda",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "bienvenida",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "bienvenida",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "bienvenida",
+      "width": 768,
+      "overflow": false
+    },
+    {
+      "name": "bienvenida",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "regreso-vacio",
+      "width": 390,
+      "overflow": false
+    },
+    {
       "name": "intencion",
       "width": 390,
       "overflow": false
@@ -103,6 +148,6 @@
   ],
   "errors": [],
   "failed": [],
-  "flows": "creation, five-note limit, reading, graph/list, literal evidence, refinement, stale-trial guard, prior trial, acceptance, no sample promotion, pause, reload, edit, retry, expiry, empty, long podcast ideas, landscape, in-flight draft replacement, blocked storage",
+  "flows": "compact home, first-visit welcome, dismiss/start persistence, optional help, accordion keyboard and focus restoration, blocked welcome storage, creation, five-note limit, reading, graph/list, literal evidence, refinement, stale-trial guard, prior trial, acceptance, no sample promotion, pause, reload, edit, retry, expiry, empty, long podcast ideas, landscape, in-flight draft replacement, blocked storage",
   "externalRequests": 0
 }

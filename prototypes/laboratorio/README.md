@@ -19,7 +19,8 @@ prototipo existente de `app-refresh`.
 
 ## Recorridos
 
-- **Inicio:** crear un eje, continuar un borrador local y explorar un eje aceptado.
+- **Inicio:** encabezado compacto, ayuda a demanda, borrador resumido y ejes
+  existentes. «Crear un eje» permanece accesible junto a «Tus ejes».
 - **Tu mirada:** título y finalidad, con ejemplos de valores personales e ideas
   para podcast. No se expone ni se edita un prompt técnico.
 - **Tus notas:** búsqueda, lectura y selección de exactamente cinco notas. La
@@ -34,6 +35,29 @@ prototipo existente de `app-refresh`.
   notas nuevas. Las notas de muestra no se incorporan a los resultados activos.
 - **Eje aceptado:** exploración de resultados de ejemplo, pausa/activación y
   edición mediante un nuevo circuito de prueba y aprobación.
+
+## Bienvenida y ayuda
+
+La pantalla habitual empieza con «Laboratorio» y el acceso «Cómo funciona».
+Se retiraron la presentación grande, la ilustración y los tres pasos permanentes.
+Si hay un borrador, una tarjeta compacta permite continuarlo antes de los ejes.
+
+Sólo si no hay ejes ni borradores y la bienvenida no se descartó, aparece una
+introducción breve con «Crear mi primer eje» y «Ahora no». Empezar la creación o
+posponerla guarda la decisión. Consultar ayuda no la descarta. Una visita sin
+acciones tampoco la marca como completada. En este prototipo se recuerda en
+`localStorage` del dispositivo; con almacenamiento bloqueado, sólo en la pestaña.
+La implementación real deberá recordar la decisión por usuario.
+
+«Cómo funciona» abre un panel desde abajo en móvil y un diálogo centrado en
+escritorio. Tiene tres apartados desplegables: «Qué es un eje», «Probar y ajustar»
+y «Explorar los resultados». Se puede abrir en cualquier visita y cerrar con
+Escape, el botón de cierre o «Entendido», restaurando el foco al acceso de ayuda.
+
+Para comparar los estados, abrir el botón de escenarios junto a «PROTOTIPO»:
+**Primera visita** restablece la bienvenida sin ejes ni borradores;
+**Un Laboratorio vacío** muestra el regreso con la bienvenida ya descartada;
+**Restablecer la demostración** recupera el eje y el borrador del ejemplo.
 
 ## Un grafo con tipos de nodo que se pueden encender y apagar
 
@@ -141,6 +165,10 @@ instalada; no se afirma una integración con el backend.
 
 - [Inicio · escritorio](screenshots/inicio-desktop.png)
 - [Inicio · móvil](screenshots/inicio-mobile-viewport.png)
+- [Bienvenida · móvil](screenshots/bienvenida-mobile.png)
+- [Bienvenida · escritorio](screenshots/bienvenida-desktop.png)
+- [Ayuda desplegable · móvil](screenshots/ayuda-mobile.png)
+- [Regreso sin ejes · móvil](screenshots/regreso-vacio-mobile.png)
 - [Describir la mirada · móvil](screenshots/intencion-mobile.png)
 - [Elegir las notas · móvil](screenshots/muestra-mobile.png)
 - [Resultados · escritorio](screenshots/resultados-desktop.png)

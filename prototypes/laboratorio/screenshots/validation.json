@@ -1,0 +1,108 @@
+{
+  "layouts": [
+    {
+      "name": "inicio",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "inicio",
+      "width": 375,
+      "overflow": false
+    },
+    {
+      "name": "inicio",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "inicio",
+      "width": 768,
+      "overflow": false
+    },
+    {
+      "name": "inicio",
+      "width": 1024,
+      "overflow": false
+    },
+    {
+      "name": "inicio",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "intencion",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "muestra",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "resultados-grafo",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "resultados-grafo-desktop",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "Una nota pendiente",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "Una nota pendiente",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "Una nota pendiente",
+      "width": 768,
+      "overflow": false
+    },
+    {
+      "name": "Una prueba vencida",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "Una prueba vencida",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "Una prueba vencida",
+      "width": 768,
+      "overflow": false
+    },
+    {
+      "name": "vacio",
+      "width": 768,
+      "overflow": false
+    },
+    {
+      "name": "podcast-lista",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "podcast-lista",
+      "width": 844,
+      "overflow": false
+    },
+    {
+      "name": "podcast-lista",
+      "width": 1440,
+      "overflow": false
+    }
+  ],
+  "errors": [],
+  "failed": [],
+  "flows": "creation, five-note limit, reading, graph/list, literal evidence, refinement, stale-trial guard, prior trial, acceptance, no sample promotion, pause, reload, edit, retry, expiry, empty, long podcast ideas, landscape, in-flight draft replacement, blocked storage",
+  "externalRequests": 0
+}

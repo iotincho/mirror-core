@@ -1,0 +1,86 @@
+{
+  "projections": "passed: three projections, typed nodes and edges, normalized shared label nodes, complete evidence paths, no source mutation",
+  "layouts": [
+    {
+      "name": "labels",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "labels",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "labels",
+      "width": 768,
+      "overflow": false
+    },
+    {
+      "name": "labels",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "findings",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "findings",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "findings",
+      "width": 768,
+      "overflow": false
+    },
+    {
+      "name": "findings",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "both",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "both",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "both",
+      "width": 768,
+      "overflow": false
+    },
+    {
+      "name": "both",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "both-expanded",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "both-expanded",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "both-expanded",
+      "width": 1440,
+      "overflow": false
+    }
+  ],
+  "errors": [],
+  "requests": {
+    "external": 0,
+    "backend": 0
+  },
+  "interactions": "passed: three-view switch, membership evidence, shared labels, finding-label edge, label grouping, quote edge, full-source reading, canvas edge tap, camera preservation, expansion, local state unchanged"
+}

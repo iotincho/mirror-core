@@ -26,7 +26,7 @@ prototipo existente de `app-refresh`.
   selección no cambia al refinar, salvo una acción explícita del usuario.
 - **Prueba:** preparación y avance por nota, sin porcentajes inventados.
 - **Resultados:** un grafo con interruptores independientes para notas, hallazgos
-  y etiquetas sobre los mismos resultados; expansión, zoom, detalle, citas y lectura del original resaltado. La vista
+  y etiquetas sobre los mismos resultados; exploración progresiva al tocar nodos, zoom, detalle, citas y lectura del original resaltado. La vista
   Lista permite recorrer todos los resultados, incluyendo notas sin hallazgos.
 - **Refinamiento:** comentario, nueva prueba, comparación con la anterior y
   bloqueo de aceptación si cambió la finalidad o la muestra sin volver a probar.
@@ -67,11 +67,15 @@ y **Ajustar a la pantalla** son acciones explícitas.
 Las conexiones resumidas se dibujan con líneas punteadas y conservan referencias
 exactas a los hallazgos que las justifican. Compartir una etiqueta no implica
 expresar la misma idea. Cambiar lo visible no genera otra prueba, no modifica el
-borrador y no acepta el eje. **Más conexiones** abre el resto de los resultados.
+borrador y no acepta el eje. Tocar una nota agrega sus hallazgos; tocar una
+etiqueta agrega los hallazgos asociados a ella. Las ramas abiertas se conservan,
+sin duplicar nodos ni mover los existentes ni cambiar la cámara. No hay un botón
+para expandir todo. En este prototipo la expansión usa los datos de ejemplo.
 
 Se reutilizan Cytoscape y la iluminación vectorial de la constelación existente.
-**Elementos y conexiones** ofrece las mismas selecciones con teclado; la vista
-**Lista** conserva el acceso a los resultados y a las notas sin hallazgos.
+La vista **Lista** permite leer con teclado todos los hallazgos y las citas,
+incluidas las notas sin resultados. Se retiró el listado auxiliar «Elementos y
+conexiones» del pie del grafo.
 
 El botón de escenarios, junto a «PROTOTIPO», permite abrir el espacio vacío,
 simular una nota pendiente recuperable, vencer una prueba y restablecer el ejemplo.
@@ -95,7 +99,9 @@ variaciones predeterminadas de los hallazgos para evaluar el recorrido visual.
 - Diseño desde 320 px: navegación inferior con cuatro secciones, columnas
   apiladas, campos de 16 px y controles de al menos 44 px. En escritorio utiliza
   barra lateral, formularios con ayuda lateral y grafo con detalle al costado.
-- La intención completa se consulta a demanda para dar espacio a los resultados.
+- En un eje aceptado, «Sobre este eje» empieza cerrado y despliega la finalidad
+  y los datos de aplicación; el título sigue siempre visible. La intención
+  completa se consulta a demanda para dar espacio a los resultados.
   Los detalles técnicos del backend quedan fuera del recorrido.
 - Diálogos con altura restringida y scroll propio, cierre con Escape, foco
   contenido y restauración al cerrar; evidencia disponible sin depender del grafo.

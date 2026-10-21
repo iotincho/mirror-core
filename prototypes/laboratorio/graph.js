@@ -5,7 +5,7 @@
   const noteId = id => `note:${id}`;
   const findingId = id => `finding:${id}`;
   const documentFor = id => window.LAB_DATA.notes.find(n => n.id === id);
-  function project(findings, { visibility = {}, expanded = false, focusTag = '' } = {}) {
+  function project(findings, { visibility = {}, expanded = false, focusTag = '', revealedFindingIds = null } = {}) {
     const shown = { note: true, finding: true, label: true, ...visibility };
     if (!Object.values(shown).some(Boolean)) shown.label = true;
     const labels = new Map();
@@ -16,7 +16,8 @@
     }
     const ranked = [...labels.values()].sort((a, b) => b.notes.size - a.notes.size || a.label.localeCompare(b.label));
     const rootTag = labels.get(key(focusTag))?.label || ranked[0]?.label || '';
-    const visible = expanded ? findings : findings.filter(f => f.tags.some(t => key(t) === key(rootTag)));
+    const revealed = revealedFindingIds ? new Set(revealedFindingIds) : null;
+    const visible = revealed ? findings.filter(f => revealed.has(f.id)) : expanded ? findings : findings.filter(f => f.tags.some(t => key(t) === key(rootTag)));
     const nodes = new Map(), baseEdges = new Map(), edges = new Map();
     const addEdge = (target, data) => target.set(data.id, { data });
     for (const f of visible) {
@@ -162,10 +163,22 @@
       wheelSensitivity: .2, boxSelectionEnabled: false, autounselectify: true,
     });
     cy.getElementById(model.layoutRootId).addClass('root');
-    function update(next) {
+    function update(next, anchorId) {
       model = next;
       const shown = new Set(model.nodes.map(n => n.data.id));
+      const anchor = cy.getElementById(anchorId || model.layoutRootId).position() || { x: 0, y: 0 };
+      const occupied = cy.nodes().map(n => n.position());
       cy.batch(() => {
+        for (const node of model.allNodes) if (!cy.getElementById(node.data.id).length) {
+          let position;
+          for (let attempt = 0; attempt < 200; attempt++) {
+            const angle = attempt * 2.399963, radius = 130 + Math.floor(attempt / 12) * 80;
+            position = { x: anchor.x + Math.cos(angle) * radius, y: anchor.y + Math.sin(angle) * radius };
+            if (occupied.every(p => Math.hypot(p.x-position.x, p.y-position.y) > 115)) break;
+          }
+          occupied.push(position);
+          cy.add({ ...node, classes: 'combined', position });
+        }
         cy.nodes().forEach(n => n.toggleClass('layer-hidden', !shown.has(n.id())));
         cy.edges().remove();
         cy.add(model.edges);

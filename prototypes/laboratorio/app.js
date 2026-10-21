@@ -39,7 +39,7 @@
     draft: stored?.draft?.sample ? stored.draft : stored?.initialized ? null : draftDemo(),
     axes: Array.isArray(stored?.axes) ? stored.axes : [demoAxis()],
     page: 'inicio', preview: null, history: [], historyIndex: -1, resultMode: 'graph',
-    selected: '', selectedTag: '', expanded: false, zoom: 1, search: '',
+    selected: '', selectedTag: '', graphRevealed: null, zoom: 1, search: '',
     graphVisibility: { note: true, finding: true, label: true }, graphModel: null, graphEntity: null, graphFocusTag: '',
     busy: false, doneCount: 0, compiling: false, scenario: '', returnToResults: false,
     axisId: 'valores', savedAxisId: '', feedback: '',
@@ -170,9 +170,6 @@
   function graphElements() {
     return [...state.graphModel.nodes, ...state.graphModel.edges].map(x => x.data);
   }
-  function graphElementList() {
-    return graphElements().map(e => `<button data-action="graph-select" data-id="${escape(e.id)}" aria-label="${escape(e.accessible)}"><span>${escape(e.accessible)}</span>${icon('chevron')}</button>`).join('');
-  }
   function graphLegend() {
     return `<div id="graph-layer-controls" class="layer-controls" role="group" aria-label="Tipos de nodo">${graphLayerControls()}</div><span id="graph-layer-help" class="sr-only">Tocá cada referencia para mostrar u ocultar ese tipo de nodo. Debe quedar al menos uno visible.</span><button class="quiet icon-button" data-action="arrange" aria-label="Ordenar" title="Ordenar grafo">${icon('graph')}</button>`;
   }
@@ -190,12 +187,11 @@
   }
   function graph(p) {
     const fs = findings(p);
-    state.graphModel = window.LabGraph.project(fs, { visibility: state.graphVisibility, expanded: state.expanded, focusTag: state.graphFocusTag });
+    state.graphModel = window.LabGraph.project(fs, { visibility: state.graphVisibility, revealedFindingIds: state.graphRevealed, focusTag: state.graphFocusTag });
     state.graphFocusTag = state.graphModel.rootTag;
     const elements = graphElements();
     state.graphEntity = elements.find(e => e.id === state.graphEntity?.id) || state.graphModel.nodes.find(n => n.data.id === state.graphModel.rootId)?.data;
-    const canExpand = state.graphModel.visibleFindingIds.length < fs.length || state.expanded;
-    return `<section class="graph-panel" aria-label="Conexiones de los hallazgos"><div class="graph-top"><span>${escape(p.title)}</span><span class="graph-caption">${state.graphModel.visibleFindingIds.length} de ${fs.length} hallazgos</span></div><div class="graph-canvas" id="lab-graph" role="img" tabindex="0" aria-label="Grafo de notas, hallazgos y etiquetas. Podés arrastrar nodos y tocar conexiones. Para navegar con teclado, abrí Elementos y conexiones."></div><div class="graph-tools"><button class="quiet" data-action="expand" ${canExpand ? '' : 'disabled'}>${icon(state.expanded ? 'minus' : 'plus')}${state.expanded ? 'Menos conexiones' : 'Más conexiones'}</button><div><button class="icon-button quiet" data-action="zoom-out" aria-label="Alejar grafo">${icon('minus')}</button><button class="icon-button quiet" data-action="zoom-in" aria-label="Acercar grafo">${icon('plus')}</button><button class="icon-button quiet" data-action="fit-graph" aria-label="Ajustar grafo a la pantalla">${icon('reset')}</button></div></div><div class="graph-legend">${graphLegend()}</div><p class="graph-help">Arrastrá para moverte. Usá dos dedos o los botones para acercar.</p><details class="graph-accessibility"><summary>Elementos y conexiones</summary><p>La misma exploración, disponible con teclado.</p><div class="graph-element-list">${graphElementList()}</div></details></section>`;
+    return `<section class="graph-panel" aria-label="Conexiones de los hallazgos"><div class="graph-top"><span>${escape(p.title)}</span><span class="graph-caption">${state.graphModel.visibleFindingIds.length} de ${fs.length} hallazgos</span></div><div class="graph-canvas" id="lab-graph" role="img" tabindex="0" aria-label="Grafo de notas, hallazgos y etiquetas. Podés arrastrar nodos y tocar conexiones. Para leer con teclado, usá la vista Lista."></div><div class="graph-tools"><div><button class="icon-button quiet" data-action="zoom-out" aria-label="Alejar grafo">${icon('minus')}</button><button class="icon-button quiet" data-action="zoom-in" aria-label="Acercar grafo">${icon('plus')}</button><button class="icon-button quiet" data-action="fit-graph" aria-label="Ajustar grafo a la pantalla">${icon('reset')}</button></div></div><div class="graph-legend">${graphLegend()}</div><p class="graph-help">Tocá un nodo para seguir el hilo. Arrastrá para moverte.</p></section>`;
   }
   function graphDetail(p, active = false) {
     const fs = findings(p), e = state.graphEntity;
@@ -223,17 +219,29 @@
     const hiddenSelection = !graphElements().some(item => item.id === e.id);
     return `${hiddenSelection ? '<p class="selection-hidden">Este elemento está oculto en el mapa. Su detalle sigue disponible.</p>' : ''}<button class="text-button back-to-graph" data-action="back-to-graph">${icon('back')}Volver al grafo</button>${body}`;
   }
-  function selectGraphEntity(entity, moveFocus = true) {
+  function selectGraphEntity(entity, moveFocus = true, expandNeighbors = true) {
     const p = graphContext(); if (!p || !entity) return;
     state.graphEntity = entity;
-    if (entity.kind === 'label') state.graphFocusTag = entity.tag;
+    let grew = false;
+    if (expandNeighbors && ['note', 'finding', 'label'].includes(entity.kind)) {
+      const fs = findings(p), revealed = new Set(state.graphModel.visibleFindingIds);
+      const neighbors = fs.filter(f => entity.kind === 'note' ? f.note === entity.noteId : entity.kind === 'finding' ? f.id === entity.findingId : f.tags.some(t => t.toLocaleLowerCase('es').trim() === entity.tag.toLocaleLowerCase('es').trim()));
+      neighbors.forEach(f => revealed.add(f.id));
+      if (revealed.size > state.graphModel.visibleFindingIds.length) {
+        grew = true;
+        state.graphRevealed = [...revealed];
+        state.graphModel = window.LabGraph.project(fs, { visibility: state.graphVisibility, revealedFindingIds: state.graphRevealed, focusTag: state.graphFocusTag });
+        graphController?.update(state.graphModel, entity.id);
+        $('.graph-caption').textContent = `${revealed.size} de ${fs.length} hallazgos`;
+      }
+    }
     if (entity.kind === 'finding') state.selected = entity.findingId;
     graphController?.select(entity.id);
     const target = $('#finding-detail');
     target.innerHTML = graphDetail(p, state.page.startsWith('eje-'));
     if (moveFocus) {
       target.focus({ preventScroll: true });
-      if (innerWidth < 1150) target.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
+      if (innerWidth < 1150 && !grew) target.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'start' });
     }
   }
   function mountGraph() {
@@ -252,7 +260,7 @@
   function axisPage() {
     const a = state.axes.find(x => x.id === state.axisId); if (!a) return home();
     const p = { ...a, comments: [], sample: a.hasResults ? [...new Set(D.findings[a.kind].map(f => f.note))] : [] };
-    return `${backHome()}<section class="workflow"><div class="axis-header"><p class="kicker">TU EJE · VERSIÓN ${a.version}</p><div class="switch-control"><span>${a.enabled ? 'Activo' : 'En pausa'}</span><button class="switch" role="switch" aria-checked="${a.enabled}" aria-label="Activar ${escape(a.title)}" data-action="toggle-axis"><span class="switch-track"><span class="switch-knob"></span></span></button></div></div><div class="intro"><h1>${escape(a.title)}</h1><p>${escape(a.purpose)}</p></div><div class="version-info"><span>${a.hasResults ? '4 notas · 5 hallazgos de ejemplo' : 'Todavía sin notas procesadas'}</span><span>${a.enabled ? 'Se aplica a notas nuevas' : 'Las próximas notas no usarán este eje'}</span></div><div class="section-heading"><h2>Seguí un hilo</h2><button class="text-button" data-action="edit-axis">Ajustar esta mirada${icon('edit')}</button></div>${a.hasResults ? `<div class="result-toolbar"><div class="segmented" role="group" aria-label="Vista de resultados"><button data-action="mode" data-mode="graph" aria-pressed="${state.resultMode === 'graph'}">${icon('graph')}Grafo</button><button data-action="mode" data-mode="list" aria-pressed="${state.resultMode === 'list'}">${icon('list')}Lista</button></div><span class="meta">Resultados conservados · versión ${a.resultsVersion || 1}</span></div>${resultsBody(p, true)}` : `<div class="empty"><span class="axis-symbol sage">${icon('leaf')}</span><h2>Una mirada lista para crecer.</h2><p>Los hallazgos aparecerán con tus próximas notas.<br>Las cinco notas de prueba no se incorporaron.</p><button class="secondary" data-action="demo-explore">Ver una exploración de ejemplo${icon('arrow')}</button></div>`}<p class="footnote">${icon('lock')}Esta es una demostración. Activar o pausar sólo cambia este prototipo.</p></section>`;
+    return `${backHome()}<section class="workflow"><div class="axis-header"><p class="kicker">TU EJE · VERSIÓN ${a.version}</p><div class="switch-control"><span>${a.enabled ? 'Activo' : 'En pausa'}</span><button class="switch" role="switch" aria-checked="${a.enabled}" aria-label="Activar ${escape(a.title)}" data-action="toggle-axis"><span class="switch-track"><span class="switch-knob"></span></span></button></div></div><div class="intro axis-intro"><h1>${escape(a.title)}</h1></div><details class="axis-description"><summary>Sobre este eje</summary><p>${escape(a.purpose)}</p><div class="version-info"><span>${a.hasResults ? '4 notas · 5 hallazgos de ejemplo' : 'Todavía sin notas procesadas'}</span><span>${a.enabled ? 'Se aplica a notas nuevas' : 'Las próximas notas no usarán este eje'}</span></div></details><div class="section-heading"><h2>Seguí un hilo</h2><button class="text-button" data-action="edit-axis">Ajustar esta mirada${icon('edit')}</button></div>${a.hasResults ? `<div class="result-toolbar"><div class="segmented" role="group" aria-label="Vista de resultados"><button data-action="mode" data-mode="graph" aria-pressed="${state.resultMode === 'graph'}">${icon('graph')}Grafo</button><button data-action="mode" data-mode="list" aria-pressed="${state.resultMode === 'list'}">${icon('list')}Lista</button></div><span class="meta">Resultados conservados · versión ${a.resultsVersion || 1}</span></div>${resultsBody(p, true)}` : `<div class="empty"><span class="axis-symbol sage">${icon('leaf')}</span><h2>Una mirada lista para crecer.</h2><p>Los hallazgos aparecerán con tus próximas notas.<br>Las cinco notas de prueba no se incorporaron.</p><button class="secondary" data-action="demo-explore">Ver una exploración de ejemplo${icon('arrow')}</button></div>`}<p class="footnote">${icon('lock')}Esta es una demostración. Activar o pausar sólo cambia este prototipo.</p></section>`;
   }
   function success() {
     const a = state.axes.find(x => x.id === state.savedAxisId); if (!a) return home();
@@ -300,7 +308,7 @@
     const kind = d.kind || (/podcast|episodio|propuesta|producto/i.test(d.purpose) ? 'podcast' : 'values');
     state.preview = { ...d, kind, number: state.history.length + 1, expired: false, failedNote: '', comments: [...(d.comments || [])] };
     state.busy = true; state.compiling = true; state.doneCount = 0; state.selectedTag = '';
-    state.selected = ''; state.expanded = false; state.zoom = 1; state.feedback = '';
+    state.selected = ''; state.graphRevealed = null; state.zoom = 1; state.feedback = '';
     const job = ++jobGeneration;
     go('resultados');
     setTimeout(() => {
@@ -368,16 +376,12 @@
       const kind = button.dataset.kind;
       if (state.graphVisibility[kind] && Object.values(state.graphVisibility).filter(Boolean).length === 1) return;
       state.graphVisibility[kind] = !state.graphVisibility[kind];
-      state.graphModel = window.LabGraph.project(findings(graphContext()), { visibility: state.graphVisibility, expanded: state.expanded, focusTag: state.graphFocusTag });
+      state.graphModel = window.LabGraph.project(findings(graphContext()), { visibility: state.graphVisibility, revealedFindingIds: state.graphRevealed, focusTag: state.graphFocusTag });
       graphController?.update(state.graphModel);
       $('#graph-layer-controls').innerHTML = graphLayerControls();
       $('#graph-description').textContent = graphDescription();
-      $('.graph-element-list').innerHTML = graphElementList();
-      if (state.graphEntity) selectGraphEntity(state.graphEntity, false);
+      if (state.graphEntity) selectGraphEntity(state.graphEntity, false, false);
       $(`[data-action="graph-layer"][data-kind="${kind}"]`).focus({ preventScroll: true });
-    } else if (action === 'graph-select') {
-      const e = [...state.graphModel.nodes, ...state.graphModel.edges].find(x => x.data.id === button.dataset.id)?.data;
-      selectGraphEntity(e);
     } else if (action === 'graph-finding' || action === 'graph-tag' || action === 'graph-note') {
       const p = graphContext(), fs = findings(p), id = button.dataset.id;
       let e = state.graphModel.nodes.find(x => x.data.findingId === id)?.data;
@@ -394,9 +398,6 @@
       else if (action === 'zoom-out') graphController?.zoom(.8);
       else if (action === 'arrange') graphController?.arrange();
       else graphController?.fit();
-    } else if (action === 'expand') {
-      state.expanded = !state.expanded; state.graphEntity = null;
-      render({ focus: false, scroll: false }); $('[data-action="expand"]')?.focus({ preventScroll: true });
     } else if (action === 'edit-purpose') { state.returnToResults = true; go('crear'); }
     else if (action === 'view-purpose') showModal('La mirada de esta prueba', `<p class="kicker">${escape(activePreview().title)}</p><p>${escape(activePreview().purpose)}</p><div class="modal-actions"><button class="secondary" data-action="close-modal">Volver a los hallazgos</button><button class="primary" data-action="edit-purpose-modal">Editar mi intención${icon('edit')}</button></div>`);
     else if (action === 'edit-purpose-modal') { closeModal(); state.returnToResults = true; go('crear'); }
@@ -407,7 +408,7 @@
     else if (action === 'retry') { const retried = state.preview, generation = jobGeneration; button.disabled = true; button.innerHTML = '<span class="spinner" aria-hidden="true"></span>Revisando la nota pendiente…'; setTimeout(() => { if (state.preview === retried && generation === jobGeneration) { retried.failedNote = ''; render({ scroll: false }); toast('La nota pendiente ya está revisada. Conservamos los otros resultados.'); } }, 1000); }
     else if (action === 'accept-dialog') showModal(state.draft?.axisId ? '¿Guardar esta nueva versión?' : '¿Activar esta mirada?', `<p>Vas a conservar exactamente la mirada de la prueba que acabás de revisar.</p><div class="success-card"><p class="kicker">${escape(activePreview().title)}</p><p>Se aplicará a las próximas notas. Las cinco notas de prueba quedan aparte.</p></div><div class="modal-actions"><button class="secondary" data-action="close-modal">Seguir revisando</button><button class="primary" data-action="accept">${icon('check')}${state.draft?.axisId ? 'Guardar versión' : 'Activar eje'}</button></div>`);
     else if (action === 'accept') acceptPreview();
-    else if (action === 'open-axis') { state.axisId = button.dataset.id; state.selected = ''; state.selectedTag = ''; state.zoom = 1; state.expanded = false; go(`eje-${state.axisId}`); }
+    else if (action === 'open-axis') { state.axisId = button.dataset.id; state.selected = ''; state.selectedTag = ''; state.zoom = 1; state.graphRevealed = null; go(`eje-${state.axisId}`); }
     else if (action === 'toggle-axis') { const a = state.axes.find(x => x.id === state.axisId); a.enabled = !a.enabled; save(); render({ focus: false, scroll: false }); $('[data-action="toggle-axis"]').focus({ preventScroll: true }); toast(a.enabled ? 'Eje activo en la demostración.' : 'Eje en pausa. Los hallazgos anteriores se conservan.'); }
     else if (action === 'edit-axis' || action === 'edit-axis-confirm') {
       const a = state.axes.find(x => x.id === state.axisId);

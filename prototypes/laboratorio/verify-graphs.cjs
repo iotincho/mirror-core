@@ -53,11 +53,16 @@ assert(project(D.findings.values,{visibility:{note:false,finding:false,label:fal
   await page.getByRole('button',{name:'Explorar',exact:true}).click();
   const controls=page.getByRole('group',{name:'Tipos de nodo'});
   await controls.waitFor();
+  assert.equal(await page.locator('.axis-description').evaluate(el=>el.open),false);
+  assert.equal(await page.locator('.axis-description > p').isVisible(),false);
+  await page.locator('.axis-description summary').click();assert.equal(await page.locator('.axis-description > p').isVisible(),true);
+  await page.locator('.axis-description summary').click();
+  assert.equal(await page.getByRole('button',{name:'Más conexiones',exact:true}).count(),0);
+  assert.equal(await page.getByText('Elementos y conexiones',{exact:true}).count(),0);
   const stored=await page.evaluate(()=>localStorage.getItem('el-espejo:laboratorio:prototype:demo:v1'));
   async function graphReady(){await page.waitForFunction(()=>document.querySelector('#lab-graph')?._cyreg?.cy?.nodes().length>0);await page.waitForTimeout(150)}
   async function select(id){
-   if(!await page.locator('.graph-accessibility').evaluate(el=>el.open))await page.locator('.graph-accessibility summary').click();
-   await page.locator('[data-action="graph-select"]').evaluateAll((els,key)=>{const el=els.find(e=>e.dataset.id===key);if(!el)throw new Error(`Missing ${key}`);el.click()},id);
+   await page.evaluate(key=>{const c=document.querySelector('#lab-graph')._cyreg.cy;const e=c.getElementById(key);if(!e.length)throw new Error(`Missing ${key}`);e.emit('tap')},id);
   }
   const camera=()=>page.evaluate(()=>{const c=document.querySelector('#lab-graph')._cyreg.cy;return {zoom:c.zoom(),pan:c.pan()}});
   const positions=()=>page.evaluate(()=>document.querySelector('#lab-graph')._cyreg.cy.nodes().map(n=>({id:n.id(),position:n.position()})));
@@ -77,7 +82,6 @@ assert(project(D.findings.values,{visibility:{note:false,finding:false,label:fal
    report.layouts.push({name,width,overflow:false});
   }
   async function snapshot(name){
-   await page.locator('.graph-accessibility').evaluate(el=>el.open=false);
    await page.evaluate(()=>document.activeElement?.blur());await graphReady();
    await page.locator('.graph-projection').screenshot({path:path.join(root,name+'.png')});
   }
@@ -86,6 +90,7 @@ assert(project(D.findings.values,{visibility:{note:false,finding:false,label:fal
   await select('evidence:v1');await page.locator('#finding-detail blockquote').getByText(/Quiero estar más presente/).waitFor();
   for(const width of [320,390,768,1440])await check('all-layers',width);
   await snapshot('grafo-capas-desktop');
+  await page.screenshot({path:path.join(root,'eje-descripcion-cerrada-desktop.png'),fullPage:true});
   await page.setViewportSize({width:390,height:844});await snapshot('grafo-capas-mobile');
   await page.setViewportSize({width:1440,height:1050});await graphReady();
   // Drag a real canvas node; restoring a layer must also restore its manual position.
@@ -131,12 +136,35 @@ assert(project(D.findings.values,{visibility:{note:false,finding:false,label:fal
   // Keyboard toggle and focus remain usable.
   const notes=controls.getByRole('button',{name:'Notas',exact:true});await notes.focus();await page.keyboard.press('Space');assert.equal(await notes.getAttribute('aria-pressed'),'false');
   await page.keyboard.press('Space');assert.equal(await notes.getAttribute('aria-pressed'),'true');
-  await page.getByRole('button',{name:'Más conexiones',exact:true}).click();await graphReady();
+  const beforeExpansion=await positions(), beforeCamera=await camera();
+  await page.locator('#lab-graph').scrollIntoViewIfNeeded();
+  const canvasBox=await page.locator('#lab-graph').boundingBox();
+  const notePoint=await page.evaluate(()=>document.querySelector('#lab-graph')._cyreg.cy.getElementById('note:n1').renderedPosition());
+  await page.mouse.click(canvasBox.x+notePoint.x,canvasBox.y+notePoint.y);await graphReady();
+  assert.equal(await page.evaluate(()=>document.querySelector('#lab-graph')._cyreg.cy.nodes('[kind="finding"]:visible').length),4);
+  assert.deepEqual(await camera(),beforeCamera);
+  const expandedPositions=await positions();
+  for(const n of beforeExpansion) assert.deepEqual(expandedPositions.find(x=>x.id===n.id),n);
+  await select('label:ritmo%20propio');await graphReady();
   assert.equal(await page.evaluate(()=>document.querySelector('#lab-graph')._cyreg.cy.nodes('[kind="finding"]:visible').length),5);
+  assert.deepEqual(await camera(),beforeCamera);
+  const allCount=await page.evaluate(()=>document.querySelector('#lab-graph')._cyreg.cy.nodes().length);
+  await select('label:ritmo%20propio');assert.equal(await page.evaluate(()=>document.querySelector('#lab-graph')._cyreg.cy.nodes().length),allCount);
+  await page.getByRole('button',{name:'Ajustar grafo a la pantalla'}).click();
   for(const width of [320,390,1440])await check('expanded',width);
+  await snapshot('grafo-progresivo-desktop');
+  await page.setViewportSize({width:390,height:844});await page.reload();await graphReady();
+  assert.equal(await page.locator('.axis-description').evaluate(el=>el.open),false);
+  await page.locator('#lab-graph').scrollIntoViewIfNeeded();
+  const mobileScroll=await page.evaluate(()=>scrollY), mobileCamera=await camera();
+  await select('note:n1');await graphReady();
+  assert.equal(await page.evaluate(()=>scrollY),mobileScroll,'Mobile expansion must keep the graph in view');
+  assert.deepEqual(await camera(),mobileCamera);
+  assert.equal(await page.evaluate(()=>document.querySelector('#lab-graph')._cyreg.cy.nodes('[kind="finding"]:visible').length),4);
+  await page.screenshot({path:path.join(root,'eje-exploracion-mobile.png'),fullPage:true});
   assert.equal(await page.evaluate(()=>localStorage.getItem('el-espejo:laboratorio:prototype:demo:v1')),stored);
   assert.deepEqual(report.errors,[]);assert(report.requests.every(u=>new URL(u).origin===new URL(base).origin));assert(!report.requests.some(u=>u.includes('/api/')));
-  report.requests={external:0,backend:0};report.interactions='passed: seven layer combinations, one graph instance, camera and dragged positions preserved, hidden selection detail retained, exact citations, full-source reading, single-layer provenance, keyboard, last-layer protection, expansion, storage unchanged';
+  report.requests={external:0,backend:0};report.interactions='passed: seven layer combinations, one graph instance, camera and dragged positions preserved, hidden selection detail retained, exact citations, full-source reading, single-layer provenance, keyboard, last-layer protection, collapsed purpose, progressive canvas expansion with stable positions and camera, no global expansion button, storage unchanged';
   fs.writeFileSync(path.join(root,'graph-validation.json'),JSON.stringify(report,null,2));
   console.log(JSON.stringify(report,null,2));
  }finally{await browser.close()}

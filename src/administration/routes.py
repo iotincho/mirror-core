@@ -1,16 +1,36 @@
 from typing import Annotated, Literal
+from urllib.parse import urlsplit
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.administration.config import get_admin_settings
-from src.administration.database import admin_session
+from src.administration.database import admin_session, admin_write_session
 from src.administration.repository import AdministrationRepository
-from src.administration.schemas import ActivitySeries, DashboardSummary, UserList, UserRead
+from src.administration.schemas import (
+    ActivitySeries,
+    DashboardSummary,
+    LaboratoryAccessUpdate,
+    UserList,
+    UserRead,
+)
 
 router = APIRouter(prefix="/api/admin", tags=["administration"])
 Session = Annotated[AsyncSession, Depends(admin_session)]
+WriteSession = Annotated[AsyncSession, Depends(admin_write_session)]
+
+
+async def require_admin_same_origin(request: Request):
+    # LAN administration has no public-app cookies. Restrict browser mutations
+    # to this exact origin; never allow the public application's origin list.
+    origin = request.headers.get("origin")
+    if request.headers.get("sec-fetch-site") == "cross-site" or (
+        origin
+        and (urlsplit(origin).scheme, urlsplit(origin).netloc)
+        != (request.url.scheme, request.url.netloc)
+    ):
+        raise HTTPException(403, "cross_origin_request")
 
 
 def repository(session):
@@ -43,6 +63,21 @@ async def user(user_id: UUID, session: Session):
     result = await repository(session).user(user_id)
     if result is None:
         raise HTTPException(404, "user_not_found")
+    return result
+
+
+@router.patch(
+    "/users/{user_id}/laboratory",
+    response_model=UserRead,
+    dependencies=[Depends(require_admin_same_origin)],
+)
+async def laboratory_access(user_id: UUID, body: LaboratoryAccessUpdate, session: WriteSession):
+    result = await repository(session).set_laboratory_access(user_id, body.laboratory_enabled)
+    if result is None:
+        raise HTTPException(404, "user_not_found")
+    # A success response must acknowledge a durable grant, not a pending commit
+    # in the request-scoped dependency's teardown.
+    await session.commit()
     return result
 
 

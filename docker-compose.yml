@@ -153,6 +153,7 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
       ADMIN_INVENTORY_MAX_AGE_SECONDS: ${ADMIN_INVENTORY_MAX_AGE_SECONDS:?}
+      PERSONAL_AXES_ENABLED: ${PERSONAL_AXES_ENABLED:-false}
     networks: [administration, admin-database]
     healthcheck:
       interval: 5s

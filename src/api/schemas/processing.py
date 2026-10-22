@@ -27,6 +27,7 @@ class ProcessingResponse(BaseModel):
     parent_processing_id: UUID | None
     child_processing_id: UUID | None
     extractor_name: str | None = None
+    extractor_key: str | None = None
     status: str
     stage: str
     version: int

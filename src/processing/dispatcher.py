@@ -4,6 +4,7 @@ import asyncio
 import logging
 import signal
 
+from src.config import get_settings
 from src.exteriorization.dependencies import get_invitation_repository
 from src.notifications.dependencies import get_notifications
 from src.observability import initialize_sentry, report_issue, trace_operation
@@ -13,6 +14,7 @@ from src.processing.runtime import get_repository
 from src.processing.submissions import SubmissionRepository
 from src.processing.tasks import execute_processing
 from src.processing.workflows import worker_runtime
+from src.use_cases.expire_axis_previews import expire_axis_previews
 from src.use_cases.schedule_invitations import ScheduleInvitations
 from src.use_cases.submit_processing import recover_submissions
 from src.user_management.database import close_database
@@ -49,6 +51,11 @@ async def main():
         while not stop.is_set():
             try:
                 repository = get_repository()
+                try:
+                    await expire_axis_previews(repository, get_settings())
+                except Exception as error:
+                    report_issue("axis_preview_cleanup_failed", error)
+                    logger.warning("Axis preview cleanup deferred")
                 await get_recovery_repository().cleanup()
                 await ScheduleInvitations(get_invitation_repository()).execute()
                 await get_notifications().distribute()

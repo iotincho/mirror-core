@@ -1,0 +1,186 @@
+{
+  "projections": "passed: seven combinations for both datasets, no dangling edges, exact provenance, normalized labels, aggregation, no source mutation",
+  "layouts": [
+    {
+      "name": "all-layers",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "all-layers",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "all-layers",
+      "width": 768,
+      "overflow": false
+    },
+    {
+      "name": "all-layers",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "note",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "note",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "note",
+      "width": 768,
+      "overflow": false
+    },
+    {
+      "name": "note",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "finding",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "finding",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "finding",
+      "width": 768,
+      "overflow": false
+    },
+    {
+      "name": "finding",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "finding+note",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "finding+note",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "finding+note",
+      "width": 768,
+      "overflow": false
+    },
+    {
+      "name": "finding+note",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "label",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "label",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "label",
+      "width": 768,
+      "overflow": false
+    },
+    {
+      "name": "label",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "label+note",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "label+note",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "label+note",
+      "width": 768,
+      "overflow": false
+    },
+    {
+      "name": "label+note",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "finding+label",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "finding+label",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "finding+label",
+      "width": 768,
+      "overflow": false
+    },
+    {
+      "name": "finding+label",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "finding+label+note",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "finding+label+note",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "finding+label+note",
+      "width": 768,
+      "overflow": false
+    },
+    {
+      "name": "finding+label+note",
+      "width": 1440,
+      "overflow": false
+    },
+    {
+      "name": "expanded",
+      "width": 320,
+      "overflow": false
+    },
+    {
+      "name": "expanded",
+      "width": 390,
+      "overflow": false
+    },
+    {
+      "name": "expanded",
+      "width": 1440,
+      "overflow": false
+    }
+  ],
+  "errors": [],
+  "requests": {
+    "external": 0,
+    "backend": 0
+  },
+  "interactions": "passed: seven layer combinations, one graph instance, camera and dragged positions preserved, hidden selection detail retained, exact citations, full-source reading, single-layer provenance, keyboard, last-layer protection, collapsed purpose, progressive canvas expansion with stable positions and camera, no global expansion button, storage unchanged"
+}

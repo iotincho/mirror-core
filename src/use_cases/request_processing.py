@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 
+from src.extractors.personal_axes.configuration import user_workflow_config
 from src.processing.configuration import document_workflow_version
 from src.processing.models import ProcessingReceipt, ProcessingRecord
 from src.processing.submissions import SubmissionConflict, fingerprint
@@ -122,10 +123,15 @@ class RequestProcessing:
 
     async def reprocess_document(self, document_id: UUID, key: UUID):
         document = await self.runtime.document_store.get(document_id)
-        config = self.reprocessing_config(document)
 
         async def action(session, now):
             await self.repository.assert_inactive(self.runtime.context.user_id, document_id)
+            config = self.reprocessing_config(
+                document,
+                await user_workflow_config(
+                    session, self.runtime.context.user_id, workflow_config()
+                ),
+            )
             record = ProcessingRecord(
                 id=uuid4(),
                 user_id=self.runtime.context.user_id,
@@ -165,8 +171,11 @@ class RequestProcessing:
                 documents.append(await self.runtime.document_store.get(identifier))
                 await self.repository.assert_inactive(self.runtime.context.user_id, identifier)
             records = []
+            baseline = await user_workflow_config(
+                session, self.runtime.context.user_id, workflow_config()
+            )
             for document in documents:
-                config = self.reprocessing_config(document)
+                config = self.reprocessing_config(document, baseline)
                 record = ProcessingRecord(
                     id=uuid4(),
                     user_id=self.runtime.context.user_id,
@@ -196,8 +205,8 @@ class RequestProcessing:
         )
 
     @staticmethod
-    def reprocessing_config(document):
-        config = deepcopy(workflow_config())
+    def reprocessing_config(document, baseline=None):
+        config = deepcopy(baseline if baseline is not None else workflow_config())
         config["extractors"] = [
             spec
             for spec in config.get("extractors", [])
@@ -210,7 +219,12 @@ class RequestProcessing:
 
     async def retry(self, processing_id: UUID, key: UUID, *, require_inactive=False):
         record = await self.repository.get(processing_id, self.runtime.context.user_id)
-        if record is None or record.workflow in {"invitation_push", "password_recovery_email"}:
+        if record is None or record.workflow in {
+            "invitation_push",
+            "password_recovery_email",
+            "axis_preview",
+            "axis_history_note",
+        }:
             raise DocumentNotFoundError("Processing not found")
         lock = record.status == "failed"
 
@@ -251,7 +265,7 @@ class RequestProcessing:
             current.extraction_run_id = None
             current.retryable = True
         children = []
-        if current.workflow == "document" and current.workflow_version == 4:
+        if current.workflow == "document" and current.workflow_version in {4, 5}:
             children = list(
                 (
                     await session.scalars(

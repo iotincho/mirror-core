@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, StrictBool
 
 
 class UserRead(BaseModel):
@@ -9,6 +9,8 @@ class UserRead(BaseModel):
     id: UUID
     email: str
     is_active: bool
+    laboratory_enabled: bool
+    laboratory_global_enabled: bool
     created_at: datetime | None
     last_activity_at: datetime | None
     notes_count: int | None
@@ -17,6 +19,11 @@ class UserRead(BaseModel):
 class UserList(BaseModel):
     items: list[UserRead]
     total: int
+
+
+class LaboratoryAccessUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    laboratory_enabled: StrictBool
 
 
 class Sources(BaseModel):

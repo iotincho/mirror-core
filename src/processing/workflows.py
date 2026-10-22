@@ -15,6 +15,11 @@ from src.extractors.emotions import EmotionExtractor
 from src.extractors.openai_document_embeddings import OpenAIDocumentEmbeddingProvider
 from src.extractors.openai_document_title import OpenAIDocumentTitleProvider
 from src.extractors.openai_emotions import OpenAIEmotionProvider
+from src.extractors.personal_axes.dependencies import (
+    build_personal_axis_extractor,
+    close_axis_providers,
+    get_axis_provider,
+)
 from src.extractors.registry import ExtractorRegistry
 from src.processing.execution import WorkflowFailure
 from src.services.openai_transcription_provider import OpenAITranscriptionProvider
@@ -149,6 +154,7 @@ _extractor_registry = ExtractorRegistry()
 _extractor_registry.register("emotions", build_emotion_extractor)
 _extractor_registry.register("document_embeddings", build_document_embedding_extractor)
 _extractor_registry.register("document_title", build_document_title_extractor)
+_extractor_registry.register("personal_axis", build_personal_axis_extractor)
 
 
 def workflow_extractor(runtime, specification, *, extracting):
@@ -165,6 +171,7 @@ def workflow_extractor(runtime, specification, *, extracting):
 
 async def close_workflow_providers():
     try:
+        await close_axis_providers()
         for provider in _provider_instances:
             await provider.close()
     finally:
@@ -183,7 +190,16 @@ def register_workflows(registry):
     # Old messages cannot recreate historical extractions after the cutover.
     from src.exteriorization.dependencies import get_send_invitation
     from src.processing.execution import ExecutionContext, WorkflowDefinition
+    from src.use_cases.process_axis_history import ProcessAxisHistory
+    from src.use_cases.process_axis_preview import ProcessAxisPreview
     from src.user_management.recovery.dependencies import get_send_recovery_email
+
+    registry.register(
+        "axis_history_note", 1, ProcessAxisHistory(worker_runtime, workflow_extractor).definition
+    )
+    registry.register(
+        "axis_preview", 1, ProcessAxisPreview(worker_runtime, get_axis_provider).definition
+    )
 
     async def send_invitation(context: ExecutionContext) -> None:
         await get_send_invitation().execute(context)
@@ -204,6 +220,9 @@ def register_workflows(registry):
         "document", 3, ProcessDocumentLayers(worker_runtime, workflow_extractor).definition
     )
     registry.register("document", 4, ProcessDocumentExtractors(worker_runtime).definition)
+    registry.register(
+        "document", 5, ProcessDocumentExtractors(worker_runtime, keyed=True).definition
+    )
     registry.register(
         "extractor", 1, ProcessExtractor(worker_runtime, workflow_extractor).definition
     )

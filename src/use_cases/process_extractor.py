@@ -24,6 +24,8 @@ class ProcessExtractor:
             spec = record.config["extractor"]
             if spec["name"] != record.extractor_name or record.extraction_run_id is None:
                 raise WorkflowFailure("extractor_configuration")
+            if spec.get("key", spec["name"]) != record.extractor_key:
+                raise WorkflowFailure("extractor_configuration")
             async with self.runtime_factory(record.user_id) as runtime:
                 document = await runtime.document_store.get(record.resource_id)
                 if record.stage == "extraction":
@@ -40,6 +42,10 @@ class ProcessExtractor:
                         raise WorkflowFailure("layer_artifact_missing")
                     await context.assert_lease()
                     extractor = self.extractor_factory(runtime, spec, extracting=False)
+                    if record.extractor_name == "personal_axis":
+                        from src.extractors.personal_axes.persistence import bind_axis_write
+
+                        await bind_axis_write(extractor, context.repository.sessions, record)
                     await extractor.persist(output)
                     await context.assert_lease()
                     await context.advance("done")
@@ -48,4 +54,11 @@ class ProcessExtractor:
         except (WorkflowFailure, LeaseLost, SQLAlchemyError):
             raise
         except Exception as error:
+            if record.extractor_name == "personal_axis":
+                # As in previews, provider/validation errors may contain private
+                # source text. Preserve retry classification without logging it.
+                failure = failure_for(error, record.stage_attempts, service)
+                if "axis_correction_interrupted" in str(error):
+                    failure = WorkflowFailure("axis_correction_interrupted")
+                raise failure from None
             raise failure_for(error, record.stage_attempts, service) from error

@@ -149,6 +149,8 @@ async def test_api_is_separate_paginated_filtered_and_private(env):
         "id",
         "email",
         "is_active",
+        "laboratory_enabled",
+        "laboratory_global_enabled",
         "created_at",
         "last_activity_at",
         "notes_count",
@@ -167,6 +169,32 @@ async def test_api_is_separate_paginated_filtered_and_private(env):
 
     assert not any("admin" in route for route in public_app.openapi()["paths"])
     assert not any("documents" in route for route in app.openapi()["paths"])
+
+
+async def test_laboratory_permission_uses_writable_transaction_and_persists(env, monkeypatch):
+    from src.administration.config import get_admin_settings
+    from src.config import get_settings
+    from src.extractors.personal_axes.access import laboratory_available
+
+    sessions, owners, _, client = env
+    monkeypatch.setattr("src.administration.database.get_admin_sessions", lambda: sessions)
+    monkeypatch.setattr(get_settings(), "personal_axes_enabled", True)
+    monkeypatch.setattr(get_admin_settings(), "personal_axes_enabled", True)
+    path = f"/api/admin/users/{owners[0]}/laboratory"
+    assert (await client.get(f"/api/admin/users/{owners[0]}")).json()["laboratory_enabled"] is False
+    for _ in range(2):
+        response = await client.patch(
+            path, headers={"Origin": "http://admin.test"}, json={"laboratory_enabled": True}
+        )
+        assert response.status_code == 200
+        assert response.json()["laboratory_enabled"] is True
+    async with sessions() as session:
+        assert await laboratory_available(session, owners[0]) is True
+        assert await laboratory_available(session, owners[1]) is False
+    assert (await client.patch(path, json={"laboratory_enabled": False})).status_code == 200
+    async with sessions() as session:
+        assert await laboratory_available(session, owners[0]) is False
+        assert await session.scalar(select(User.is_active).where(User.id == owners[0])) is True
 
 
 async def test_summary_deduplicates_inventory_audio_imports_and_extractor_children(env):
@@ -330,7 +358,7 @@ async def test_migration_preserves_unknown_historical_dates_and_existing_session
             await connection.execute(
                 text(
                     'INSERT INTO "user" '
-                    '(id,email,hashed_password,is_active,is_superuser,is_verified) '
+                    "(id,email,hashed_password,is_active,is_superuser,is_verified) "
                     "VALUES (:id,'legacy@example.com','unused',true,false,false)"
                 ),
                 {"id": owner},
@@ -345,11 +373,12 @@ async def test_migration_preserves_unknown_historical_dates_and_existing_session
         migrate("head")
         async with engine.begin() as connection:
             assert await connection.scalar(text('SELECT created_at FROM "user"')) is None
+            assert await connection.scalar(text('SELECT laboratory_enabled FROM "user"')) is False
             assert await connection.scalar(text("SELECT count(*) FROM accesstoken")) == 1
             await connection.execute(
                 text(
                     'INSERT INTO "user" '
-                    '(id,email,hashed_password,is_active,is_superuser,is_verified) '
+                    "(id,email,hashed_password,is_active,is_superuser,is_verified) "
                     "VALUES (:id,'new@example.com','unused',true,false,false)"
                 ),
                 {"id": uuid4()},

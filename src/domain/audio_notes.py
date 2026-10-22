@@ -22,6 +22,7 @@ class AudioNote(BaseModel):
     storage_name: str
     created_at: datetime
     authored_at: datetime | None = None
+    invitation_id: UUID | None = None
     status: AudioNoteStatus
     transcript: str | None = None
     transcription_provider: str | None = None

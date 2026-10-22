@@ -121,6 +121,10 @@ class ProcessAudioNote:
                                 "media_type": note.media_type,
                                 "transcription_provider": note.transcription_provider or "unknown",
                                 "transcription_model": note.transcription_model or "unknown",
+                                **(
+                                    {"invitation_id": str(note.invitation_id)}
+                                    if note.invitation_id else {}
+                                ),
                             },
                         )
                     )
@@ -144,7 +148,9 @@ class ProcessAudioNote:
                             }
                         )
                     )
-                    await context.repository.child_and_wait(record, note.id)
+                    await context.repository.child_and_wait(
+                        record, note.id, invitation_id=note.invitation_id
+                    )
                     raise WorkflowWaiting()
         except WorkflowFailure as failure:
             await self.project_failure(context, failure, service)

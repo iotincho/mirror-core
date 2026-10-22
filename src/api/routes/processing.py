@@ -157,13 +157,21 @@ async def submit_audio(
     request: Request,
     response: Response,
     authored_at: Annotated[datetime | None, Form()] = None,
+    invitation_id: Annotated[UUID | None, Form()] = None,
 ):
     settings = get_settings()
     content = await read_upload(file, settings.audio_max_upload_bytes)
     try:
         note, record = await SubmitAudioNote(
             SubmissionRepository(get_repository()), runtime, settings.audio_max_upload_bytes
-        ).execute(file.filename, file.content_type, content, authored_at, key)
+        ).execute(
+            file.filename,
+            file.content_type,
+            content,
+            authored_at,
+            key,
+            invitation_id=invitation_id,
+        )
     except Exception as error:
         raise http_error(error) from error
     accepted_headers(request, response, record)

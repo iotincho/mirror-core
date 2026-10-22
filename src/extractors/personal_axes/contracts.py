@@ -61,7 +61,7 @@ class PreviewRequest(FrozenModel):
     revision: int = Field(ge=1)
     title: str = Field(min_length=1, max_length=200)
     purpose: str = Field(min_length=1, max_length=8000)
-    document_ids: list[UUID] = Field(min_length=5, max_length=5)
+    document_ids: list[UUID] = Field(min_length=1, max_length=5)
     mode: Literal["generate", "refine", "repeat"] = "generate"
     previous_preview_id: UUID | None = None
     change_sample: bool = False
@@ -73,8 +73,8 @@ class PreviewRequest(FrozenModel):
     def validate_request(self):
         if not self.title.strip() or not self.purpose.strip():
             raise ValueError("axis_description_empty")
-        if len(set(self.document_ids)) != 5:
-            raise ValueError("axis_sample_requires_five_distinct_notes")
+        if len(set(self.document_ids)) != len(self.document_ids):
+            raise ValueError("axis_sample_requires_distinct_notes")
         if any(not value.strip() or len(value) > 4000 for value in self.adjustments):
             raise ValueError("axis_adjustment_invalid")
         if (self.mode != "generate") != (self.previous_preview_id is not None):

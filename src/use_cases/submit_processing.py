@@ -106,6 +106,7 @@ def audio_metadata(receipt):
         storage_name=f"{receipt.resource_id}{Path(manifest['filename']).suffix.lower()}",
         created_at=receipt.created_at,
         authored_at=manifest["authored_at"],
+        invitation_id=manifest.get("invitation_id"),
         status="queued",
     )
 
@@ -191,12 +192,29 @@ class SubmitAudioNote:
     def __init__(self, submissions: SubmissionRepository, runtime, max_bytes: int):
         self.submissions, self.runtime, self.max_bytes = submissions, runtime, max_bytes
 
-    async def execute(self, filename, media_type, content, authored_at, key: UUID):
+    async def execute(
+        self,
+        filename,
+        media_type,
+        content,
+        authored_at,
+        key: UUID,
+        *,
+        invitation_id: UUID | None = None,
+    ):
         filename, media_type = validate_audio_upload(filename, media_type, content, self.max_bytes)
         # Validate dates before making a SQL reservation.
         if authored_at is not None and authored_at.tzinfo is None:
             raise ValueError("authored_at must include a timezone")
         manifest = audio_manifest(filename, media_type, content, authored_at)
+        if invitation_id is not None:
+            from src.exteriorization.repository import InvitationRepository
+
+            invitations = InvitationRepository(self.submissions.sessions)
+            async with invitations.sessions() as session:
+                await invitations.invitation(session, self.runtime.context.user_id, invitation_id)
+            # Keep ordinary audio fingerprints compatible with existing receipts.
+            manifest["invitation_id"] = str(invitation_id)
         receipt = await self.submissions.reserve(
             user_id=self.runtime.context.user_id,
             operation="upload_audio",

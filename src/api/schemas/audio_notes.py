@@ -15,6 +15,7 @@ class AudioNoteResponse(BaseModel):
     size_bytes: int
     created_at: datetime
     authored_at: datetime | None = None
+    invitation_id: UUID | None = None
     status: AudioNoteStatus
     transcript: str | None = None
     transcription_provider: str | None = None

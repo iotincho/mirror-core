@@ -1,4 +1,4 @@
-"""Generate a profile, then evaluate five sources through Extractor.dry_run."""
+"""Generate a profile, then evaluate up to five sources through Extractor.dry_run."""
 
 import asyncio
 

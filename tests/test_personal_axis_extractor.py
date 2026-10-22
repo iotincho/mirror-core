@@ -170,16 +170,37 @@ async def test_provider_rejects_incomplete_response_and_disables_retention():
     assert calls[0]["max_output_tokens"] == 6000
 
 
-async def test_request_requires_explicit_five_note_sample():
-    data = {
-        "draft_id": uuid4(),
-        "revision": 1,
-        "title": "Ideas",
-        "purpose": "Ideas",
-        "document_ids": [uuid4()] * 5,
-    }
-    with pytest.raises(ValueError, match="five_distinct"):
-        PreviewRequest.model_validate(data)
+@pytest.mark.parametrize("size", range(1, 6))
+async def test_request_accepts_one_to_five_distinct_notes(size):
+    ids = [uuid4() for _ in range(size)]
+    request = PreviewRequest(
+        draft_id=uuid4(), revision=1, title="Ideas", purpose="Ideas", document_ids=ids
+    )
+    assert request.document_ids == ids
+
+
+@pytest.mark.parametrize("size", [0, 6])
+async def test_request_rejects_empty_or_oversized_samples(size):
+    with pytest.raises(ValueError):
+        PreviewRequest(
+            draft_id=uuid4(),
+            revision=1,
+            title="Ideas",
+            purpose="Ideas",
+            document_ids=[uuid4() for _ in range(size)],
+        )
+
+
+@pytest.mark.parametrize("size", range(2, 6))
+async def test_request_rejects_duplicate_notes(size):
+    with pytest.raises(ValueError, match="requires_distinct_notes"):
+        PreviewRequest(
+            draft_id=uuid4(),
+            revision=1,
+            title="Ideas",
+            purpose="Ideas",
+            document_ids=[uuid4()] * size,
+        )
 
 
 @pytest.mark.parametrize(

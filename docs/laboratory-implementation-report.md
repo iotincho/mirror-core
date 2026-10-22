@@ -13,7 +13,7 @@ La bienvenida se ofrece sólo sin ejes ni borrador y mientras no se haya pospues
 o iniciado una creación. Ayuda permanece accesible y usa apartados desplegables;
 en móvil se presenta desde abajo, con foco y scroll dentro del diálogo.
 
-La creación sigue finalidad → cinco notas del servidor → prueba → ajustes →
+La creación sigue finalidad → entre una y cinco notas del servidor → prueba → ajustes →
 aceptación. Título, finalidad, muestra, ajustes acumulados y comentario sin enviar
 se guardan por cuenta en IndexedDB. Los cambios de una pantalla no se pierden al
 remontarla: las escrituras se serializan por base local y la lectura espera la
@@ -29,8 +29,8 @@ contenido requieren una decisión explícita; una prueba vencida puede reemplaza
 con `generate` sin referenciar temporales desaparecidos.
 
 El polling usa únicamente el estado del backend, se pausa en segundo plano o sin
-conexión y aplica backoff ante fallos. Las cinco notas se muestran en Lista,
-incluyendo resultados vacíos y fallidos. La aceptación exige cinco completadas,
+conexión y aplica backoff ante fallos. Las notas de la muestra se muestran en Lista,
+incluyendo resultados vacíos y fallidos. La aceptación exige todas las notas de la muestra completadas,
 revisión vigente y ausencia de cambios o comentarios sin evaluar.
 
 El eje aceptado muestra su descripción cerrada, pausa y edición mediante una

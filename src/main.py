@@ -20,6 +20,7 @@ from src.api.request_logging import RequestLoggingMiddleware
 from src.api.router import api_router
 from src.config import get_settings
 from src.exteriorization.repository import InvitationError
+from src.extractors.personal_axes.contracts import AxisError
 from src.logging import configure_logging
 from src.observability import initialize_sentry
 from src.user_management.database import close_database
@@ -62,6 +63,11 @@ app = FastAPI(
 )
 app.include_router(api_router)
 app.add_middleware(RequestLoggingMiddleware)
+
+
+@app.exception_handler(AxisError)
+async def axis_error_handler(request: Request, error: AxisError) -> JSONResponse:
+    return JSONResponse({"detail": error.code}, status_code=error.status)
 
 
 @app.exception_handler(InvitationError)

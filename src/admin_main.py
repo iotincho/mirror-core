@@ -1,4 +1,4 @@
-"""LAN-only, read-only administrative process; independent of the public application."""
+"""LAN-only administration, independent of the public application."""
 
 from contextlib import asynccontextmanager
 

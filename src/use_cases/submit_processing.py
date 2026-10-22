@@ -14,6 +14,7 @@ from src.domain.documents import Document, NewDocument
 from src.extractors.document_embeddings import EMBEDDINGS_PROFILE, EmbeddingConfiguration
 from src.extractors.document_title import TITLE_PROFILE
 from src.extractors.emotions import EMOTIONS_PROFILE
+from src.extractors.personal_axes.configuration import user_workflow_config
 from src.observability import report_issue
 from src.processing.execution import WorkflowFailure
 from src.processing.submissions import SubmissionConflict, SubmissionRepository, fingerprint
@@ -144,6 +145,7 @@ class SubmitDocument:
             resource_kind="document",
             resource_id=document.id,
             config=workflow_config(),
+            config_factory=user_workflow_config,
             manifest={"invitation_id": str(invitation_id)} if invitation_id else {},
         )
         if receipt.accepted_at:
@@ -203,6 +205,7 @@ class SubmitAudioNote:
             resource_kind="audio",
             resource_id=None,
             config=workflow_config(),
+            config_factory=user_workflow_config,
             manifest=manifest,
         )
         if receipt.accepted_at:
@@ -277,7 +280,10 @@ async def recover_submissions(submissions, runtime_factory):
             )
             continue
         except (
-            OSError, DocumentNotFoundError, ValueError, WorkflowFailure,
+            OSError,
+            DocumentNotFoundError,
+            ValueError,
+            WorkflowFailure,
             WorkspaceSecretError,
         ):
             # Incomplete uploads remain reserved and retryable with the same key.

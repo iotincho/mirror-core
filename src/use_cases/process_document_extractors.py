@@ -16,8 +16,9 @@ class ProcessDocumentExtractors:
         {("document_persistence", "extractor_processing"), ("extractor_processing", "done")}
     )
 
-    def __init__(self, runtime_factory):
+    def __init__(self, runtime_factory, *, keyed=False):
         self.runtime_factory = runtime_factory
+        self.keyed = keyed
 
     @property
     def definition(self):
@@ -29,7 +30,7 @@ class ProcessDocumentExtractors:
             specs = record.config.get("extractors")
             if not isinstance(specs, list) or not specs:
                 raise WorkflowFailure("workflow_configuration")
-            names = [spec["name"] for spec in specs]
+            names = [spec["key"] if self.keyed else spec["name"] for spec in specs]
             if any(
                 not isinstance(name, str) or not name or len(name) > 80 for name in names
             ) or len(names) != len(set(names)):
@@ -47,7 +48,11 @@ class ProcessDocumentExtractors:
                 ):
                     await context.repository.extractors_and_wait(record, specs)
                     raise WorkflowWaiting()
-                if {child.extractor_name for child in children} != set(names):
+                identities = {
+                    child.extractor_key if self.keyed else child.extractor_name
+                    for child in children
+                }
+                if identities != set(names):
                     raise WorkflowFailure("extractor_children_mismatch")
                 failed = [child for child in children if child.status == "failed"]
                 if failed:

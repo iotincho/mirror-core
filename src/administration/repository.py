@@ -3,8 +3,9 @@
 from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import Date, String, and_, case, cast, func, or_, select
+from sqlalchemy import Date, String, and_, case, cast, func, literal, or_, select, update
 
+from src.administration.config import get_admin_settings
 from src.administration.models import DocumentMetric, InventoryState, MetricCoverage, UserActivity
 from src.administration.schemas import (
     ActivityPoint,
@@ -54,6 +55,10 @@ class AdministrationRepository:
                 User.id,
                 User.email,
                 User.is_active,
+                User.laboratory_enabled,
+                literal(get_admin_settings().personal_axes_enabled).label(
+                    "laboratory_global_enabled"
+                ),
                 User.created_at,
                 activity.c.last_seen.label("last_activity_at"),
                 case((self.fresh_inventory(), func.coalesce(notes.c.notes, 0)), else_=None).label(
@@ -97,6 +102,17 @@ class AdministrationRepository:
         result = await self.session.execute(self.user_projection().where(User.id == user_id))
         row = result.mappings().one_or_none()
         return UserRead(**row) if row else None
+
+    async def set_laboratory_access(self, user_id, enabled):
+        result = await self.session.execute(
+            update(User)
+            .where(User.id == user_id)
+            .values(laboratory_enabled=enabled)
+            .returning(User.id)
+        )
+        if result.scalar_one_or_none() is None:
+            return None
+        return await self.user(user_id)
 
     async def inventory_coverage(self):
         total = await self.session.scalar(select(func.count()).select_from(User))

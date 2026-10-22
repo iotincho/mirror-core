@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from datetime import timedelta
 from uuid import UUID, uuid4, uuid5
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import aliased
 
@@ -27,7 +27,12 @@ class ProcessingRepository:
 
     @staticmethod
     def event(session, record):
-        if record.workflow in {"invitation_push", "password_recovery_email"}:
+        if record.workflow in {
+            "invitation_push",
+            "password_recovery_email",
+            "axis_preview",
+            "axis_history_note",
+        }:
             return  # Internal deliveries must not enter the document event feed.
         session.add(
             ProcessingEvent(
@@ -330,7 +335,7 @@ class ProcessingRepository:
         if parent is None or parent.user_id != child.user_id or parent.status != "waiting":
             return
         if child.workflow == "extractor":
-            if parent.workflow != "document" or parent.workflow_version != 4:
+            if parent.workflow != "document" or parent.workflow_version not in {4, 5}:
                 return
             active = await session.scalar(
                 select(ProcessingRecord.id)
@@ -364,7 +369,7 @@ class ProcessingRepository:
                             ProcessingRecord.user_id == user_id,
                             ProcessingRecord.workflow == "extractor",
                         )
-                        .order_by(ProcessingRecord.extractor_name)
+                        .order_by(ProcessingRecord.extractor_name, ProcessingRecord.extractor_key)
                     )
                 ).all()
             )
@@ -375,7 +380,8 @@ class ProcessingRepository:
             if current.version != record.version:
                 raise LeaseLost(str(record.id))
             for spec in specifications:
-                identifier = uuid5(current.id, "extractor:" + spec["name"])
+                key = spec["key"] if current.workflow_version == 5 else spec["name"]
+                identifier = uuid5(current.id, "extractor:" + key)
                 child = await session.get(ProcessingRecord, identifier)
                 if child is None:
                     child = ProcessingRecord(
@@ -388,7 +394,8 @@ class ProcessingRepository:
                         document_id=current.resource_id,
                         stage="extraction",
                         extractor_name=spec["name"],
-                        extraction_run_id=uuid5(current.id, spec["name"]),
+                        extractor_key=key,
+                        extraction_run_id=uuid5(current.id, key),
                         config={"extractor": spec},
                         parent_processing_id=current.id,
                     )
@@ -396,7 +403,11 @@ class ProcessingRepository:
                     await session.flush()
                     self.event(session, child)
                     self.schedule(session, child)
-                elif child.config != {"extractor": spec} or child.user_id != current.user_id:
+                elif (
+                    child.config != {"extractor": spec}
+                    or child.user_id != current.user_id
+                    or child.extractor_key != key
+                ):
                     raise ValueError("extractor_configuration_changed")
             current.status = "waiting"
             current.stage_attempts = 0
@@ -447,7 +458,14 @@ class ProcessingRepository:
         async with self.sessions() as session:
             query = select(ProcessingRecord).where(
                 ProcessingRecord.user_id == user_id,
-                ProcessingRecord.workflow.not_in(["invitation_push", "password_recovery_email"]),
+                ProcessingRecord.workflow.not_in(
+                    [
+                        "invitation_push",
+                        "password_recovery_email",
+                        "axis_preview",
+                        "axis_history_note",
+                    ]
+                ),
             )
             if active:
                 query = query.where(
@@ -524,11 +542,13 @@ class ProcessingRepository:
             yield await self._acquire_resource_lock(session, user_id, resource_id)
 
     @asynccontextmanager
-    async def lock_resources(self, user_id: UUID, resource_ids: list[UUID]):
+    async def lock_resources(self, user_id: UUID, resource_ids: list[UUID], *, shared=False):
         # One connection for the whole selection, including large batches.
         async with self.sessions.begin() as session:
             for identifier in sorted(resource_ids):
-                if not await self._acquire_resource_lock(session, user_id, identifier):
+                if not await self._acquire_resource_lock(
+                    session, user_id, identifier, uuid4() if shared else None
+                ):
                     yield False
                     return
             yield True
@@ -556,6 +576,15 @@ class ProcessingRepository:
 
     async def mark_deleted(self, user_id: UUID, resource_id: UUID):
         async with self.sessions.begin() as session:
+            await session.execute(
+                update(ProcessingRecord)
+                .where(
+                    ProcessingRecord.user_id == user_id,
+                    ProcessingRecord.workflow == "axis_preview",
+                    ProcessingRecord.config.contains({"document_ids": [str(resource_id)]}),
+                )
+                .values(resource_deleted=True, expires_at=func.clock_timestamp())
+            )
             rows = await session.scalars(
                 select(ProcessingRecord)
                 .where(

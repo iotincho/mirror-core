@@ -8,10 +8,12 @@ from src.extractors.artifacts import LayerArtifacts
 from src.extractors.contracts import ExtractorProfile, ProviderMetadata
 from src.extractors.personal_axes.contracts import (
     AxisSpecification,
+    Criterion,
     FindingsResponse,
     PreviewRequest,
 )
 from src.extractors.personal_axes.extractor import PersonalAxisExtractor
+from src.extractors.personal_axes.prompt_builder import VOICE_RULES, build_specification
 from src.extractors.personal_axes.provider import AxisProviderError, OpenAIAxisProvider
 from src.services.document_store import FileDocumentStore
 
@@ -178,3 +180,72 @@ async def test_request_requires_explicit_five_note_sample():
     }
     with pytest.raises(ValueError, match="five_distinct"):
         PreviewRequest.model_validate(data)
+
+
+@pytest.mark.parametrize(
+    "source,content",
+    [
+        (
+            'Me recuerdo que vos también podés descansar. Ana dijo: "tú nunca paras".',
+            "Te recordás que también podés descansar.",
+        ),
+        (
+            'Me recuerdo que tú también puedes descansar. Ana dijo: "vos no parás".',
+            "Te recuerdas que también puedes descansar.",
+        ),
+        (
+            'Me recuerdo que usted también puede descansar. Ana dijo: "tú nunca paras".',
+            "Usted también puede darse un descanso.",
+        ),
+        (
+            'No sé si me hace bien. Ana dijo: "vos podés seguir".',
+            "Todavía no está claro si te hace bien.",
+        ),
+    ],
+)
+async def test_personal_voice_reaches_initial_and_corrected_provider_requests(source, content):
+    requests = []
+    result = FindingsResponse(
+        findings=[
+            {
+                "title": "Compartir tiempo",
+                "content": content,
+                "tags": ["tiempo"],
+                "evidence": [{"quote": source}],
+            }
+        ]
+    )
+
+    async def parse(**kwargs):
+        requests.append(kwargs)
+        return SimpleNamespace(status="completed", output_parsed=result)
+
+    class Generator:
+        async def generate_criterion(self, data):
+            assert data["purpose"] == "Reconocer qué me hace bien"
+            return Criterion(
+                instructions="Observar experiencias de bienestar sin resolver dudas."
+            ), None
+
+    profile = (
+        await build_specification(
+            Generator(),
+            SimpleNamespace(purpose="Reconocer qué me hace bien", adjustments=[]),
+            {"model": "test"},
+        )
+    )[0].profile
+    provider = OpenAIAxisProvider(
+        None, "test", client=SimpleNamespace(responses=SimpleNamespace(parse=parse))
+    )
+    document = SimpleNamespace(content=source)
+    initial, _ = await provider.extract(document, profile)
+    corrected, _ = await provider.correct(document, profile, initial, [{"code": "test"}])
+    assert (
+        initial.findings[0].evidence[0].quote == corrected.findings[0].evidence[0].quote == source
+    )
+    assert initial.findings[0].content == corrected.findings[0].content == content
+    assert profile.instructions.count(VOICE_RULES) == 1
+    assert profile.instructions.endswith("Observar experiencias de bienestar sin resolver dudas.")
+    for request in requests:
+        assert VOICE_RULES in request["input"][0]["content"]
+        assert request["store"] is False

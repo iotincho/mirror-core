@@ -1,6 +1,6 @@
 """Build a version-scoped preview without persisting any graph vertices."""
 
-from uuid import uuid5
+from uuid import UUID, uuid5
 
 from src.extractors.personal_axes.contracts import label_key
 
@@ -27,6 +27,9 @@ def project_preview(preview_id, documents):
                 "type": "AxisFinding",
                 "label": finding["title"],
                 "document_id": document["document_id"],
+                "finding_id": str(UUID(finding_id.removeprefix("AxisFinding:"))),
+                "tags_complete": True,
+                "source_hash": document.get("source_hash"),
             }
             for evidence in finding["evidence"]:
                 edge_key = (

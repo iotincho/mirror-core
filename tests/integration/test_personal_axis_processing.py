@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 
 import httpx
 import pytest
+from sqlalchemy import update
 from test_emotion_layer import layer_database  # noqa: F401
 from test_emotion_processing import pipeline, run, upload  # noqa: F401
 from test_processing_postgres import store  # noqa: F401
@@ -35,6 +36,7 @@ from src.use_cases.process_document_extractors import ProcessDocumentExtractors
 from src.use_cases.process_extractor import ProcessExtractor
 from src.use_cases.request_processing import RequestProcessing
 from src.use_cases.submit_processing import SubmitAudioNote
+from src.user_management.models import User
 
 pytestmark = [
     pytest.mark.anyio,
@@ -72,6 +74,10 @@ async def approve(env, title="Valores", previous=None):
 @pytest.fixture
 async def active(pipeline, monkeypatch):
     env = pipeline
+    async with env.repo.sessions.begin() as session:
+        await session.execute(
+            update(User).where(User.id == env.owner).values(laboratory_enabled=True)
+        )
     monkeypatch.setattr(get_settings(), "personal_axes_enabled", True)
     env.axes = AxisRepository(env.repo.sessions)
     env.calls, env.fail, env.empty = Counter(), set(), set()
@@ -264,9 +270,14 @@ async def test_active_branch_pagination_quotes_tags_ownership_and_delete(active)
     )
     finding = next(n for n in branch["nodes"] if n["type"] == "AxisFinding")
     assert "quote" not in finding and "evidence" not in finding
-    detail = await env.explore.finding(axis, UUID(finding["id"].split(":")[1]))
+    assert finding["tags_complete"] and len(finding["source_hash"]) == 64
+    assert len([edge for edge in branch["edges"] if edge["type"] == "HAS_TAG"]) == 2
+    detail = await env.explore.finding(axis, UUID(finding["finding_id"]))
     assert len(detail["content"]) > 1000 and len(detail["evidence"]) == 2
     outward = await env.explore.neighbors(axis, finding["id"], limit=1)
+    assert not next(n for n in outward["nodes"] if n["id"] == finding["id"])["tags_complete"]
+    full = await env.explore.neighbors(axis, finding["id"], limit=100)
+    assert next(n for n in full["nodes"] if n["id"] == finding["id"])["tags_complete"]
     seen = set()
     quoted = []
     while True:
@@ -345,8 +356,12 @@ async def test_version_trace_zero_findings_and_http_contract(active):
                 and len([n for n in data["nodes"] if n["type"] == "AxisFinding"]) == 1
             )
             node = next(n for n in data["nodes"] if n["type"] == "AxisFinding")
-            detail = await api.get(f"/personal-axes/{axis}/findings/{node['id'].split(':')[1]}")
+            detail = await api.get(f"/personal-axes/{axis}/findings/{node['finding_id']}")
             assert detail.status_code == 200 and len(detail.json()["evidence"]) == 2
+            assert detail.json()["node_id"] == node["id"]
+            assert detail.json()["source_hash"] == node["source_hash"]
+            assert node["tags_complete"]
+            assert len([edge for edge in data["edges"] if edge["type"] == "HAS_TAG"]) == 2
             listing = await api.get(
                 f"/personal-axes/{axis}/findings",
                 params={"document_id": str(second.id), "limit": 1},
@@ -406,7 +421,7 @@ async def test_persistence_retry_uses_artifact_without_provider_and_sanitizes_er
     original = ArcadeDBAxisStore.write
     private = "PRIVATE_SYNTHETIC_NOTE_PAYLOAD"
 
-    async def failing(*args):
+    async def failing(*args, **kwargs):
         raise ConnectionError(private)
 
     monkeypatch.setattr(ArcadeDBAxisStore, "write", failing)
@@ -587,3 +602,30 @@ async def test_database_branch_keys_preserve_legacy_writers_and_reject_duplicate
             async with session.begin_nested():
                 session.add(child("personal_axis", ""))
                 await session.flush()
+
+
+async def test_account_access_stops_new_reservations_and_preserves_accepted_work(
+    active, monkeypatch
+):
+    env = active
+    axis = await approve(env)
+    _, reserved = await upload(env, uuid4())
+    assert reserved.workflow_version == 5
+    async with env.repo.sessions.begin() as session:
+        await session.execute(
+            update(User).where(User.id == env.owner).values(laboratory_enabled=False)
+        )
+    _, without_access = await upload(env, uuid4())
+    assert all(item["name"] != "personal_axis" for item in without_access.config["extractors"])
+    completed, children = await finish(env, reserved)
+    assert completed.status == "completed"
+    assert any(child.extractor_key == f"axis:{axis['id']}" for child in children)
+    async with env.repo.sessions.begin() as session:
+        await session.execute(
+            update(User).where(User.id == env.owner).values(laboratory_enabled=True)
+        )
+    _, restored = await upload(env, uuid4())
+    assert restored.workflow_version == 5
+    monkeypatch.setattr(get_settings(), "personal_axes_enabled", False)
+    _, globally_disabled = await upload(env, uuid4())
+    assert all(item["name"] != "personal_axis" for item in globally_disabled.config["extractors"])

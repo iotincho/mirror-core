@@ -68,9 +68,29 @@ La lectura de originales sucede fuera del servicio administrativo. Es una proyec
 
 - Migración desde esquema anterior: usuarios históricos siguen sin fecha inventada y las sesiones existentes sobreviven.
 - PostgreSQL aislado: conteos, filtros booleanos, búsqueda literal con `%`, idempotencia, importación con fecha antigua, extractores hijos, borrados, lectura fallida, inventario vencido y exclusión mutua.
-- API pública sin rutas administrativas; API administrativa sin rutas de contenido ni mutaciones.
+- API pública sin rutas administrativas; API administrativa sin rutas de contenido; única mutación para el permiso de Laboratorio.
 - Respuestas explícitas sin hashes, OAuth, contenido o secretos; errores SQL devuelven 503 genérico y no-store.
 - PWA: foreground, frecuencia acotada, limpieza al logout y fallo offline silencioso; suite completa, lint y build.
 - Panel: tipos, pruebas, lint, build sin fixtures y verificación por navegador contra la API.
 
 Las pruebas usan `ADMIN_TEST_DATABASE_URL`, que debe apuntar a una base desechable cuyo nombre empiece por `admin_test`. No se ejecutan migraciones ni cargas iniciales automáticamente contra una base existente de la plataforma.
+
+
+## Permiso experimental de Laboratorio
+
+Desde Usuarios → Ver cuenta → Laboratorio se habilita o quita el acceso de esa
+cuenta. Aplicar la migración `20261021_16` antes de iniciar procesos nuevos. El
+permiso inicia en `false` para todas las cuentas. El global `PERSONAL_AXES_ENABLED`
+debe ser igual en API, workers, dispatcher y admin-api; con el global apagado se
+puede guardar el permiso, pero la funcionalidad permanece inaccesible.
+
+El proceso administrativo ahora permite exclusivamente
+`PATCH /api/admin/users/{id}/laboratory` con `{"laboratory_enabled": true|false}`.
+Se comprueba el origen exacto, incluidos puerto y protocolo. El proxy de mirror-admin
+permite sólo ese PATCH y conserva el Host completo. Las demás mutaciones permanecen
+bloqueadas; no se añade autenticación al panel LAN existente.
+
+Las lecturas conservan `REPEATABLE READ READ ONLY`; la mutación usa su propia
+transacción de escritura. No se conceden privilegios administrativos al usuario de
+la PWA. Revocar bloquea nuevas pruebas y nuevas reservas de ejes, conserva los datos
+y permite terminar los trabajos ya aceptados. Ver [contrato](personal-axes-api.md).

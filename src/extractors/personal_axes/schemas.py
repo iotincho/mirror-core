@@ -1,9 +1,10 @@
 """API contracts independent of the future Laboratory UI."""
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from src.extractors.personal_axes.contracts import AxisSpecification
 
@@ -49,6 +50,7 @@ class FindingView(BaseModel):
 class PreviewDocument(BaseModel):
     document_id: UUID
     run_id: UUID
+    source_hash: str
     title: str
     status: str
     findings: list[FindingView]
@@ -60,6 +62,9 @@ class PreviewNode(BaseModel):
     type: str
     label: str
     document_id: UUID | None = None
+    finding_id: UUID | None = None
+    tags_complete: bool = False
+    source_hash: str | None = None
 
 
 class PreviewEdge(BaseModel):
@@ -115,6 +120,8 @@ class ActiveEvidence(EvidenceView):
 
 
 class ActiveFinding(BaseModel):
+    node_id: str
+    source_hash: str
     id: UUID
     document_id: UUID
     axis_id: UUID
@@ -178,3 +185,22 @@ class AxisTagsPage(BaseModel):
     version_id: UUID | None
     items: list[AxisTag]
     next_cursor: str | None
+
+
+class LaboratoryPreferences(BaseModel):
+    welcome_dismissed: bool
+
+
+class LaboratoryPreferenceUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    welcome_dismissed: Literal[True]
+
+
+class LaboratoryContext(BaseModel):
+    enabled: bool
+    welcome_dismissed: bool
+    sample_size: int = 5
+    title_limit: int = 200
+    purpose_limit: int = 8000
+    adjustment_limit: int = 4000
+    max_adjustments: int = 20

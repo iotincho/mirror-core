@@ -4,14 +4,14 @@ from copy import deepcopy
 
 from sqlalchemy import select
 
-from src.config import get_settings
+from src.extractors.personal_axes.access import laboratory_available
 from src.extractors.personal_axes.contracts import AxisSpecification
 from src.extractors.personal_axes.models import PersonalAxis, PersonalAxisVersion
 
 
 async def user_workflow_config(session, owner, baseline):
     config = deepcopy(baseline)
-    if not get_settings().personal_axes_enabled:
+    if not await laboratory_available(session, owner):
         return config
     versions = (
         await session.execute(

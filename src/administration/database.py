@@ -25,6 +25,13 @@ async def admin_session():
             yield session
 
 
+async def admin_write_session():
+    """Only explicit administrative mutations opt into a writable transaction."""
+    async with get_admin_sessions()() as session:
+        async with session.begin():
+            yield session
+
+
 async def close_admin_database():
     if get_admin_engine.cache_info().currsize:
         await get_admin_engine().dispose()

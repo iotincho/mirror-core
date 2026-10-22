@@ -42,6 +42,10 @@ class ProcessExtractor:
                         raise WorkflowFailure("layer_artifact_missing")
                     await context.assert_lease()
                     extractor = self.extractor_factory(runtime, spec, extracting=False)
+                    if record.extractor_name == "personal_axis":
+                        from src.extractors.personal_axes.persistence import bind_axis_write
+
+                        await bind_axis_write(extractor, context.repository.sessions, record)
                     await extractor.persist(output)
                     await context.assert_lease()
                     await context.advance("done")

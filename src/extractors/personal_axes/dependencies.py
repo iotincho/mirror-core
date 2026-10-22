@@ -3,10 +3,11 @@
 from functools import lru_cache
 from typing import Annotated
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends
 
 from src.config import get_settings
 from src.extractors.artifacts import LayerArtifacts
+from src.extractors.personal_axes.access import require_laboratory_access
 from src.extractors.personal_axes.contracts import AxisSpecification
 from src.extractors.personal_axes.extractor import PersonalAxisExtractor
 from src.extractors.personal_axes.provider import OpenAIAxisProvider
@@ -58,12 +59,11 @@ def build_personal_axis_extractor(runtime, specification, *, extracting, artifac
 
 
 def get_axis_previews(
+    access: Annotated[None, Depends(require_laboratory_access)],
     runtime: Annotated[WorkspaceRuntime, Depends(get_workspace_runtime)],
 ):
     from src.processing.runtime import get_repository
     from src.use_cases.axis_previews import AxisPreviews
 
     settings = get_settings()
-    if not settings.personal_axes_enabled:
-        raise HTTPException(404, "Not found")
     return AxisPreviews(get_repository(), runtime, settings)

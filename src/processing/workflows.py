@@ -190,9 +190,13 @@ def register_workflows(registry):
     # Old messages cannot recreate historical extractions after the cutover.
     from src.exteriorization.dependencies import get_send_invitation
     from src.processing.execution import ExecutionContext, WorkflowDefinition
+    from src.use_cases.process_axis_history import ProcessAxisHistory
     from src.use_cases.process_axis_preview import ProcessAxisPreview
     from src.user_management.recovery.dependencies import get_send_recovery_email
 
+    registry.register(
+        "axis_history_note", 1, ProcessAxisHistory(worker_runtime, workflow_extractor).definition
+    )
     registry.register(
         "axis_preview", 1, ProcessAxisPreview(worker_runtime, get_axis_provider).definition
     )

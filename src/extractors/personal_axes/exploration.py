@@ -122,6 +122,8 @@ ORDER BY e.id LIMIT 3001
                     )
                 }
                 | {
+                    "node_id": f"AxisFinding:{row['id']}",
+                    "source_hash": row["content_hash"],
                     "tags": json.loads(row["tags_json"]),
                     "evidence": [
                         {key: edge[key] for key in ("id", "quote", "start_char", "end_char")}
@@ -292,6 +294,9 @@ ORDER BY e.id LIMIT 3001
                 candidates = [n for n in nodes.values() if n["id"] != root]
                 chosen, following = page(candidates, scope, cursor, limit, lambda n: n["id"])
                 nodes = {n["id"]: n for n in chosen} | {root: nodes[root]}
+                nodes[root]["tags_complete"] = all(
+                    edge["target"] in nodes for edge in edges if edge["type"] == "HAS_TAG"
+                )
                 edges = [e for e in edges if e["source"] in nodes and e["target"] in nodes]
             else:
                 tag = None
@@ -333,7 +338,7 @@ ORDER BY e.id LIMIT 3001
                     following = next_cursor(selected[limit - 1]["id"], scope)
                 views = await self.finding_views(tx, selected[:limit])
                 for finding in views:
-                    self.add_finding(nodes, edges, finding, axis_id, tag=tag, include_tags=False)
+                    self.add_finding(nodes, edges, finding, axis_id, tag=tag, include_tags=True)
             return {
                 "axis_id": str(axis_id),
                 "version_id": version_id,
@@ -367,7 +372,15 @@ ORDER BY e.id LIMIT 3001
         node = f"AxisFinding:{finding['id']}"
         document = f"Document:{finding['document_id']}"
         origin = {key: finding[key] for key in ("document_id", "axis_id", "version_id", "run_id")}
-        nodes[node] = {"id": node, "type": "AxisFinding", "label": finding["title"], **origin}
+        nodes[node] = {
+            "id": node,
+            "type": "AxisFinding",
+            "label": finding["title"],
+            "finding_id": finding["id"],
+            "tags_complete": include_tags,
+            "source_hash": finding["source_hash"],
+            **origin,
+        }
         nodes[document] = {
             "id": document,
             "type": "Document",
@@ -410,16 +423,23 @@ async def preview_neighbors(service, preview_id, node_id=None, cursor=None, limi
         raise AxisError("axis_node_not_found", 404)
     revision = results["preview"]["revision_hash"]
     scope = [str(service.owner), str(preview_id), revision, root]
-    edges = [e for e in graph["edges"] if root in (e["source"], e["target"])]
-    neighbors = {e["target"] if e["source"] == root else e["source"] for e in edges}
+    adjacent = [e for e in graph["edges"] if root in (e["source"], e["target"])]
+    neighbors = {e["target"] if e["source"] == root else e["source"] for e in adjacent}
     chosen, following = page(list(neighbors), scope, cursor, limit, lambda item: item)
     visible = set(chosen) | {root}
+    # A page counts direct neighbors; finding context is bounded by the payload contract.
+    finding_ids = {n for n in visible if nodes[n]["type"] == "AxisFinding"}
+    for edge in graph["edges"]:
+        if edge["type"] in {"HAS_FINDING", "HAS_TAG"} and (
+            edge["source"] in finding_ids or edge["target"] in finding_ids
+        ):
+            visible.update((edge["source"], edge["target"]))
     return {
         "preview_id": str(preview_id),
         "revision_hash": revision,
         "root_id": root,
         "nodes": [nodes[n] for n in sorted(visible)],
-        "edges": [e for e in edges if e["source"] in visible and e["target"] in visible],
+        "edges": [e for e in graph["edges"] if e["source"] in visible and e["target"] in visible],
         "next_cursor": following,
         "limit": limit,
     }

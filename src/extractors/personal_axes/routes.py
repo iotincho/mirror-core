@@ -1,13 +1,25 @@
 """Experimental, authenticated backend; no changes to existing constellation routes."""
 
+from datetime import date
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query
+from sqlalchemy import func, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.routes.exteriorization import require_same_origin
+from src.extractors.personal_axes.access import laboratory_available
 from src.extractors.personal_axes.contracts import AcceptPreview, PreviewRequest
 from src.extractors.personal_axes.dependencies import get_axis_previews
 from src.extractors.personal_axes.exploration import AxisExploration, preview_neighbors
+from src.extractors.personal_axes.history import AxisHistory
+from src.extractors.personal_axes.history_schemas import (
+    HistoryBatchPage,
+    HistoryBatchView,
+    HistoryCandidates,
+    HistoryRequest,
+)
 from src.extractors.personal_axes.schemas import (
     ActiveFinding,
     ActiveFindingsPage,
@@ -16,15 +28,49 @@ from src.extractors.personal_axes.schemas import (
     AxisEnabled,
     AxisResponse,
     AxisTagsPage,
+    LaboratoryContext,
+    LaboratoryPreferences,
+    LaboratoryPreferenceUpdate,
     PreviewNeighbors,
     PreviewResults,
     PreviewSnapshot,
 )
 from src.use_cases.axis_previews import AxisPreviews
+from src.user_management.database import get_async_session
+from src.user_management.dependencies import AuthenticatedUser, get_authenticated_user
+from src.user_management.models import User
 
-router = APIRouter(tags=["personal axes"])
+router = APIRouter(tags=["personal axes"], dependencies=[Depends(require_same_origin)])
 Service = Annotated[AxisPreviews, Depends(get_axis_previews)]
 IdempotencyKey = Annotated[UUID, Header(alias="Idempotency-Key")]
+
+
+Identity = Annotated[AuthenticatedUser, Depends(get_authenticated_user)]
+Session = Annotated[AsyncSession, Depends(get_async_session)]
+
+
+@router.get("/laboratory/context", response_model=LaboratoryContext)
+async def laboratory_context(user: Identity, session: Session):
+    dismissed = await session.scalar(
+        select(User.laboratory_welcome_dismissed_at).where(User.id == user.id)
+    )
+    return {
+        "enabled": await laboratory_available(session, user.id),
+        "welcome_dismissed": dismissed is not None,
+    }
+
+
+@router.patch("/laboratory/preferences", response_model=LaboratoryPreferences)
+async def laboratory_preferences(
+    body: LaboratoryPreferenceUpdate, user: Identity, session: Session
+):
+    await session.execute(
+        update(User)
+        .where(User.id == user.id, User.laboratory_welcome_dismissed_at.is_(None))
+        .values(laboratory_welcome_dismissed_at=func.now())
+    )
+    await session.commit()
+    return {"welcome_dismissed": True}
 
 
 @router.post("/laboratory/axis-previews", status_code=202, response_model=PreviewSnapshot)
@@ -62,6 +108,61 @@ async def list_axes(
 @router.get("/personal-axes/{axis_id}", response_model=AxisResponse)
 async def get_axis(axis_id: UUID, service: Service):
     return await service.axes.get(service.owner, axis_id)
+
+
+@router.get("/personal-axes/{axis_id}/history/notes", response_model=HistoryCandidates)
+async def history_notes(
+    axis_id: UUID,
+    service: Service,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    q: str = Query("", max_length=200),
+    date_from: date | None = None,
+    date_to: date | None = None,
+):
+    return await AxisHistory(service).notes(axis_id, offset, limit, q.strip(), date_from, date_to)
+
+
+@router.get("/personal-axes/{axis_id}/history/batches", response_model=HistoryBatchPage)
+async def history_batches(
+    axis_id: UUID,
+    service: Service,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=30),
+):
+    return await AxisHistory(service).batches(axis_id, offset, limit)
+
+
+@router.post(
+    "/personal-axes/{axis_id}/history/batches", response_model=HistoryBatchView, status_code=202
+)
+async def start_history(axis_id: UUID, body: HistoryRequest, key: IdempotencyKey, service: Service):
+    return await AxisHistory(service).start(axis_id, body, key)
+
+
+@router.get("/personal-axes/{axis_id}/history/batches/{batch_id}", response_model=HistoryBatchView)
+async def history_batch(
+    axis_id: UUID,
+    batch_id: UUID,
+    service: Service,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+):
+    return await AxisHistory(service).snapshot(axis_id, batch_id, offset, limit)
+
+
+@router.post(
+    "/personal-axes/{axis_id}/history/batches/{batch_id}/stop", response_model=HistoryBatchView
+)
+async def stop_history(axis_id: UUID, batch_id: UUID, service: Service):
+    return await AxisHistory(service).stop(axis_id, batch_id)
+
+
+@router.post(
+    "/personal-axes/{axis_id}/history/batches/{batch_id}/retry", response_model=HistoryBatchView
+)
+async def retry_history(axis_id: UUID, batch_id: UUID, key: IdempotencyKey, service: Service):
+    return await AxisHistory(service).retry(axis_id, batch_id, key)
 
 
 @router.patch("/personal-axes/{axis_id}", response_model=AxisResponse)

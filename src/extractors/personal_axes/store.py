@@ -19,7 +19,9 @@ class ArcadeDBAxisStore:
     def __init__(self, client):
         self.client = client
 
-    async def write(self, output, payload, axis_id, version_id):
+    async def write(
+        self, output, payload, axis_id, version_id, *, write_order=None, legacy_versions=None
+    ):
         for kind, name in (
             ("VERTEX", "AxisExtraction"),
             ("VERTEX", "AxisFinding"),
@@ -50,8 +52,24 @@ class ArcadeDBAxisStore:
             "run_edge": str(uuid5(output.run_id, "document-edge")),
             "content_hash": output.content_hash,
             "created_at": output.created_at.isoformat(),
+            "write_order": write_order or "",
         }
         async with self.client.transaction() as tx:
+            current = rows(
+                await tx.query(
+                    "SELECT write_order, version_id FROM AxisExtraction "
+                    "WHERE document_id=:document_id AND axis_id=:axis_id",
+                    params,
+                )
+            )
+            for previous in current:
+                previous_order = previous.get("write_order") or (
+                    f"{(legacy_versions or {}).get(previous.get('version_id'), 0):012d}:"
+                )
+                if write_order and previous_order > write_order:
+                    return False
+                if not write_order and previous.get("write_order"):
+                    return False
             source = rows(
                 await tx.query("SELECT content FROM Document WHERE id=:document_id", params)
             )
@@ -71,12 +89,13 @@ class ArcadeDBAxisStore:
             await tx.command(
                 """
 MATCH (d:Document {id:$document_id})
+SET d.axis_write_guard=$run_id
 MERGE (r:AxisExtraction {id:$run_id})
 SET r.document_id=$document_id, r.axis_id=$axis_id, r.version_id=$version_id,
     r.run_id=$run_id, r.artifact_hash=$artifact_hash, r.artifact_json=$artifact_json,
     r.profile_hash=$profile_hash, r.profile_id=$profile_id, r.layer=$layer,
     r.content_hash=$content_hash, r.created_at=$created_at,
-    r.visualizable=false
+    r.visualizable=false, r.write_order=$write_order
 MERGE (d)-[e:HAS_AXIS_EXTRACTION {id:$run_edge}]->(r)
 SET e.document_id=$document_id, e.run_id=$run_id, e.layer=$layer, e.visualizable=false
 """,
@@ -192,3 +211,4 @@ RETURN n.id AS finding_id, e.id AS edge_id, e.quote AS quote,
                 expected_edges, key=lambda v: v["edge_id"]
             ):
                 raise ValueError("axis_evidence_verification_failed")
+        return True

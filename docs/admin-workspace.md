@@ -93,3 +93,26 @@ públicos siguen detenidos, por lo que no se verificó aislamiento contra un ori
 público activo durante este arranque. Las pruebas Docker desechables anteriores
 sí verificaron el proxy público. El acceso desde otro dispositivo de la LAN y sus
 reglas de firewall siguen pendientes; no se modificó el firewall del sistema.
+
+
+## Actualización local del 2026-10-21: Laboratorio
+
+El panel que respondía en `127.0.0.1:8081` todavía ejecutaba imágenes del 17 de
+octubre, aunque los cambios y los builds recientes ya estaban disponibles.
+Se recompilaron y recrearon únicamente `admin-api` y `admin-web` con los tags
+locales `mirror-core:admin-workspace` y `mirror-admin:admin-workspace`. Ambos
+quedaron saludables. Se conservaron los bindings existentes de 8081 a loopback
+y a la IP LAN y no se reiniciaron PostgreSQL, API pública, workers, dispatcher ni
+admin-sync. No se modificaron permisos de cuentas ni se publicaron imágenes.
+
+La base ya estaba en `20261021_16`; no fue necesario migrarla. El flag global
+estaba encendido en la API pública mediante `.env.local`, pero faltaba en `.env`,
+que usa el Compose administrativo. Se añadió exclusivamente
+`PERSONAL_AXES_ENABLED=true` a este último para mantener el mismo valor.
+
+Verificación sobre el servicio activo: la lista/detalle devuelve
+`laboratory_enabled` y `laboratory_global_enabled=true`; Chrome recorrió
+Usuarios → Ver cuenta y mostró **Laboratorio → Habilitar para esta cuenta**,
+también tras recargar y en mobile, sin errores de página ni solicitudes de escritura.
+Para ver el control actualizado, recargar <http://127.0.0.1:8081/#/users> y abrir
+**Ver cuenta**. La habilitación se decide por cuenta desde ese interruptor.

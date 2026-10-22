@@ -27,7 +27,12 @@ class ProcessingRepository:
 
     @staticmethod
     def event(session, record):
-        if record.workflow in {"invitation_push", "password_recovery_email", "axis_preview"}:
+        if record.workflow in {
+            "invitation_push",
+            "password_recovery_email",
+            "axis_preview",
+            "axis_history_note",
+        }:
             return  # Internal deliveries must not enter the document event feed.
         session.add(
             ProcessingEvent(
@@ -454,7 +459,12 @@ class ProcessingRepository:
             query = select(ProcessingRecord).where(
                 ProcessingRecord.user_id == user_id,
                 ProcessingRecord.workflow.not_in(
-                    ["invitation_push", "password_recovery_email", "axis_preview"]
+                    [
+                        "invitation_push",
+                        "password_recovery_email",
+                        "axis_preview",
+                        "axis_history_note",
+                    ]
                 ),
             )
             if active:

@@ -223,6 +223,7 @@ class RequestProcessing:
             "invitation_push",
             "password_recovery_email",
             "axis_preview",
+            "axis_history_note",
         }:
             raise DocumentNotFoundError("Processing not found")
         lock = record.status == "failed"

@@ -321,6 +321,7 @@ class AxisPreviews:
                     {
                         "document_id": str(document.id),
                         "run_id": str(run_id),
+                        "source_hash": value["sources"][str(document.id)],
                         "title": document.title or "Nota",
                         "findings": findings,
                         "status": "completed" if output else "pending",

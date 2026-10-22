@@ -19,6 +19,7 @@ class AdministrationSettings(BaseSettings):
     inventory_max_age_seconds: int = Field(
         default=300, ge=30, validation_alias="ADMIN_INVENTORY_MAX_AGE_SECONDS"
     )
+    personal_axes_enabled: bool = Field(default=False, validation_alias="PERSONAL_AXES_ENABLED")
 
 
 @lru_cache

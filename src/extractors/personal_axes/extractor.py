@@ -57,6 +57,8 @@ class PersonalAxisExtractor(Extractor):
         super().__init__(documents, artifacts, self.specification.profile)
         self.provider, self.store = provider, store
         self.axis_id, self.version_id = axis_id, version_id
+        self.write_order, self.legacy_versions = None, {}
+        self.write_applied = True
 
     @property
     def request_config(self):
@@ -138,4 +140,11 @@ class PersonalAxisExtractor(Extractor):
             raise ValueError("axis_active_binding_required")
         if output.request_config != self.request_config:
             raise ValueError("axis_binding_mismatch")
-        await self.store.write(output, payload, self.axis_id, self.version_id)
+        self.write_applied = await self.store.write(
+            output,
+            payload,
+            self.axis_id,
+            self.version_id,
+            write_order=self.write_order,
+            legacy_versions=self.legacy_versions,
+        )

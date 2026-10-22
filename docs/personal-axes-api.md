@@ -1,19 +1,19 @@
 # Backend experimental de ejes personales: entregas 1 a 4
 
 Implementa creación, prueba, aceptación versionada, ejecución automática en
-notas nuevas y exploración de resultados activos por API. La UI queda para su
-etapa de diseño. La familia reutiliza `Extractor` y sus artefactos; las citas se
+notas nuevas y exploración de resultados activos por API. La PWA integra estos
+contratos en una sección independiente de Laboratorio. La familia reutiliza `Extractor` y sus artefactos; las citas se
 guardan en relaciones, siguiendo el modelo de emociones.
 
 ## Configuración y preparación
 
-Aplicar las migraciones Alembic hasta `20261021_14` antes de iniciar los procesos que usan
+Aplicar las migraciones Alembic hasta `20261021_17` antes de iniciar los procesos que usan
 estos modelos. Mantener el volumen de workspaces compartido entre API, workers y
 dispatcher, como el resto de los artefactos durables.
 
 | Variable | Predeterminado | Uso |
 | --- | --- | --- |
-| `PERSONAL_AXES_ENABLED` | `false` | Habilita rutas y selección de ejes para nuevas reservas. |
+| `PERSONAL_AXES_ENABLED` | `false` | Interruptor global; requiere además el permiso por cuenta. |
 | `PERSONAL_AXES_PREVIEW_HOURS` | `72` | Vigencia fija de cada prueba. |
 | `PERSONAL_AXES_PREVIEW_CONCURRENCY` | `2` | Notas procesadas simultáneamente por prueba. |
 | `PERSONAL_AXES_MAX_PENDING_PREVIEWS` | `10` | Pruebas pendientes simultáneas por dueño. |
@@ -21,8 +21,78 @@ dispatcher, como el resto de los artefactos durables.
 | `PERSONAL_AXES_MAX_OUTPUT_TOKENS` | `6000` | Límite solicitado al proveedor. |
 
 Se utilizan `LLM_PROVIDER=openai`, `OPENAI_MODEL` y `OPENAI_API_KEY` existentes.
-API, workers y dispatcher deben compartir configuración. Las credenciales nunca
+API, workers, dispatcher y admin-api deben compartir el interruptor global. API, workers y dispatcher deben compartir configuración. Las credenciales nunca
 forman parte de manifests, especificaciones persistidas ni respuestas.
+
+## Contexto y bienvenida de Laboratorio
+
+`GET /api/laboratory/context` requiere autenticación y devuelve `enabled` (global encendido y permiso vigente de la cuenta),
+`welcome_dismissed`, `sample_size=5`, `title_limit=200`, `purpose_limit=8000`,
+`adjustment_limit=4000` y `max_adjustments=20`. Responde también con la función
+apagada; no necesita abrir el workspace ni llamar a proveedores.
+
+`PATCH /api/laboratory/preferences` acepta únicamente
+`{"welcome_dismissed": true}`. La preferencia es monotónica e idempotente y sólo
+modifica al usuario autenticado. Visitar la sección o consultar ayuda no escribe
+este marcador. Se marca al posponer la bienvenida o comenzar un eje.
+
+La migración `20261021_15` añade un timestamp nullable a `user`; no guarda el
+borrador, las notas ni el historial de ajustes. Las mutaciones de esta familia
+usan la protección de origen de la aplicación.
+
+## Habilitación por usuario desde administración
+
+La migración `20261021_16` añade `user.laboratory_enabled`, booleano no nullable
+con default `false` para cuentas nuevas y existentes. La capacidad efectiva exige
+`PERSONAL_AXES_ENABLED=true`, permiso de la cuenta y cuenta activa. El contexto
+responde `enabled=false` cuando no se cumplen esas condiciones; las rutas de
+pruebas, ejes y resultados responden 404 antes de abrir el workspace.
+
+En el panel LAN, **Usuarios → Ver cuenta → Laboratorio** permite modificar el
+permiso. Su contrato, exclusivo del proceso administrativo, es:
+
+```http
+PATCH /api/admin/users/{user_id}/laboratory
+Content-Type: application/json
+
+{"laboratory_enabled": true}
+```
+
+Acepta únicamente ese campo con booleano estricto y rechaza otros orígenes.
+Devuelve el usuario con `laboratory_enabled` y `laboratory_global_enabled`, también
+presentes en lista/detalle. Repetir el mismo valor es idempotente. El permiso puede
+prepararse con el global apagado; el panel explica que todavía no estará disponible.
+El proxy LAN sólo permite PATCH en esta ruta y conserva host/puerto para verificar
+el origen. Las demás mutaciones siguen bloqueadas. Las lecturas administrativas
+mantienen transacciones de sólo lectura; esta escritura usa una transacción propia.
+
+La API pública no registra este endpoint ni acepta el permiso en alta/edición de
+cuenta. El permiso se consulta en cada petición y al reservar procesamiento: quitarlo
+no necesita reiniciar procesos, no borra datos y no cambia la pausa de los ejes.
+Las tareas aceptadas antes del cambio conservan su configuración y pueden terminar.
+Volver a dar acceso recupera los mismos ejes y versiones. La navegación de una PWA
+abierta se actualiza al recargar; la autorización del backend se aplica inmediatamente.
+
+## Voz de los hallazgos
+
+Las reglas comunes de extracción hablan directamente a quien escribió la nota.
+En español respetan las formas de trato, conjugaciones y vocabulario presentes
+en la propia narración: voseo, tuteo, ustedeo o combinaciones regionales naturales.
+Sin señales claras usan segunda persona de uso compartido, sin imponer una
+variante ni inferir origen por nombres o por citas de otras personas. No se
+pretende identificar un acento oral a partir de texto. Usan títulos breves y lenguaje cercano, evitando
+describir al dueño como «el autor» o producir un informe sobre él. Las etiquetas
+siguen siendo temas concisos. El generador de criterios define qué observar y
+deja la voz a esas reglas comunes, también en la corrección de evidencias.
+
+Las citas se conservan literalmente, incluida su persona gramatical. Las otras
+personas mencionadas permanecen diferenciadas de quien escribe. La cercanía no
+habilita agregar emociones, intenciones o certezas ausentes en la fuente.
+
+El seguimiento histórico comprueba también `profile_hash`: una extracción con
+instrucciones anteriores no acredita cobertura del prompt actualizado, aunque
+se haya autorizado excepcionalmente cambiar una definición en desarrollo sin
+crear otra versión. La API normal conserva la inmutabilidad de las versiones.
 
 ## Crear y refinar una prueba
 
@@ -124,6 +194,69 @@ cambios sobre una versión base obsoleta.
 histórica propia. `PATCH /api/personal-axes/{id}` con `{"enabled": false}` pausa
 nuevas reservas; `true` las habilita otra vez. No borra hallazgos ni modifica
 trabajos ya reservados. Una versión nueva conserva el estado de pausa del eje.
+
+## Analizar notas anteriores
+
+El análisis histórico es manual y puede ejecutarse con el eje pausado. No se
+dispara al aceptar una versión y no promueve las cinco notas de prueba. Sólo
+ejecuta el extractor del eje elegido, con la versión aceptada que se confirma.
+
+| Ruta bajo `/api/personal-axes/{axis_id}` | Uso |
+| --- | --- |
+| `GET /history/notes` | Candidatos con título, fecha, hash, cobertura y cantidad de hallazgos. |
+| `POST /history/batches` | Confirmar selección; responde 202 con el lote durable. |
+| `GET /history/batches` | Lotes de la cuenta, del más reciente al más antiguo. |
+| `GET /history/batches/{batch_id}` | Progreso y estados por nota paginados. |
+| `POST /history/batches/{batch_id}/stop` | Detener pendientes; lo iniciado puede terminar. |
+| `POST /history/batches/{batch_id}/retry` | Retomar solamente fallos recuperables. |
+
+Crear y reintentar requieren `Idempotency-Key` UUID. Detener es idempotente sin
+clave. Todas las rutas exigen el acceso efectivo a Laboratorio y propiedad del
+eje/lote; las mutaciones conservan la protección de origen.
+
+Los candidatos aceptan `q` (título, hasta 200 caracteres), `date_from`, `date_to`
+(fechas inclusivas en America/Argentina/Buenos_Aires), `offset` y `limit` (máximo
+100). Sus estados son `unanalysed`, `current`, `previous_version`, `changed` e
+`in_progress`. `remaining` cuenta los candidatos seleccionables dentro del filtro.
+Un `AxisExtraction` vigente acredita cobertura incluso con cero hallazgos.
+
+```json
+{
+  "version_id": "<UUID de la versión aceptada>",
+  "documents": [
+    {"document_id": "<UUID propio>", "source_hash": "<SHA-256 del texto>"}
+  ]
+}
+```
+
+La confirmación admite de 1 a 1000 notas distintas. Valida propiedad, versión y
+todos los hashes antes de reservar trabajo. Lote, ítems, trabajos y outbox se
+guardan en una transacción. La clave se asocia al cuerpo exacto: una respuesta
+perdida puede recuperarse sin duplicar el lote aunque las fuentes hayan cambiado
+después. Una misma clave con otro cuerpo produce conflicto. Las notas vigentes o
+ya en proceso para este eje se registran como omitidas, sin otra llamada al modelo.
+
+La migración `20261021_17` añade `axis_history_batches` y `axis_history_items`.
+Cada nota usa el workflow existente de procesamiento durable con la definición
+`axis_history_note/1`: extracción → persistencia → fin. Reutiliza
+`PersonalAxisExtractor`, `LayerArtifacts`, leases, checkpoints y outbox. El lote se
+consulta desde cualquier dispositivo; sólo la solicitud pendiente de confirmación
+se conserva localmente, separada del borrador de creación.
+
+El snapshot informa `counts`, `finished`, `retryable`, `items` y `next_offset`.
+Además de los estados del ejecutor, los ítems pueden terminar `completed`,
+`skipped`, `stopped`, `changed`, `deleted` o `superseded`. Los resultados nuevos
+reemplazan atómicamente sólo la capa de ese eje/nota. Una escritura de versión
+anterior o de una reserva anterior de la misma versión no reemplaza otra más
+nueva, incluso si termina después. Las extracciones automáticas usan la misma
+protección de orden; las escrituras concurrentes disputan el mismo documento.
+
+Detener cierra inmediatamente los trabajos pendientes y libera sus leases; sus
+entregas anteriores quedan invalidadas por generación. Las notas ya iniciadas
+pueden terminar y conservan sus resultados. Reintentar mantiene versión y hashes,
+reutiliza checkpoints y sólo reinicia fallos recuperables; si la nota cambió o se
+eliminó, termina con ese estado sin analizar otro texto. Los lotes históricos no
+entran en el feed SSE ni en el listado general de procesamiento de documentos.
 
 ## Ejecución automática y recuperación
 
@@ -290,3 +423,25 @@ Entregas 3 y 4, validadas localmente el 2026-10-21:
 
 La función sigue deshabilitada por defecto. Estos resultados usan proveedores
 sintéticos; no acreditan evaluación semántica con LLM real, frontend o despliegue.
+
+
+## Contrato adicional para exploración en la PWA
+
+- Los nodos `AxisFinding` incluyen `finding_id` explícito para el endpoint de
+  detalle, `source_hash` y `tags_complete`. Sus IDs de grafo y los de etiquetas
+  son opacos para el cliente.
+- El listado y detalle activos incluyen `node_id` y `source_hash`. Cada documento
+  de resultados temporales también incluye el hash de contenido.
+- Una vecindad de nota/etiqueta devuelve las notas, todas las citas y las etiquetas
+  de cada hallazgo descubierto en esa página; no requiere otra petición por
+  hallazgo. El límite pagina hallazgos y el contexto está acotado por el contrato:
+  hasta 20 etiquetas y 30 citas por hallazgo. Para límite L, el máximo conservador
+  es 22L+1 nodos y 50L relaciones. La PWA solicita 12 vecinos por página.
+- Las vecindades de prueba incluyen el mismo contexto completo de los hallazgos
+  visibles. Al paginar un hallazgo activo, `tags_complete` es falso si faltan
+  etiquetas en esa respuesta. El cliente acumula páginas sin descartar ramas.
+- `source_hash` es SHA-256 del texto original codificado en UTF-8. Los offsets
+  cuentan puntos de código de Python. Antes de resaltar, la PWA verifica el hash,
+  convierte los offsets a UTF-16 y compara el fragmento exacto con `quote`.
+- Las relaciones contraídas al ocultar tipos son una proyección del cliente:
+  conservan las referencias a hallazgos y citas y no agregan relaciones persistidas.

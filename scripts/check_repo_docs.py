@@ -37,6 +37,7 @@ def main() -> int:
     maintained = sorted(
         {
             ROOT / "README.md",
+            ROOT / "ARCHITECTURE.md",
             ROOT / "src/graph/README.md",
             *instructions,
             *(ROOT / "docs").rglob("*.md"),

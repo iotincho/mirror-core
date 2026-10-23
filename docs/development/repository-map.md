@@ -4,6 +4,11 @@ Estado contrastado con el código del repositorio el 2026-10-23. Este mapa indic
 dónde buscar; los contratos específicos describen el comportamiento detallado.
 Los nombres de archivos son puntos de entrada, no una lista para cargar completa.
 
+Este mapa describe la organización actual, todavía sin migrar. La estructura
+objetivo está en [ARCHITECTURE.md](../../ARCHITECTURE.md) y las correspondencias/etapas en el
+[plan de migración hexagonal](hexagonal-migration-plan.md). No inferir que una
+dependencia actual cumple las fronteras objetivo sólo por aparecer en este mapa.
+
 | Tarea | Entrada y responsables | Pruebas / contrato |
 | --- | --- | --- |
 | HTTP público / composición | `src/main.py`, `src/api/router.py`, `src/api/routes/`, `src/dependencies.py` | `tests/test_openapi_docs.py`, `tests/test_documents_route.py` |

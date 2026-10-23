@@ -1,5 +1,11 @@
 # Implementar cambios en el backend
 
+La [arquitectura objetivo](../../ARCHITECTURE.md) separa `core`, `use_cases`, `adapters`
+y `bootstrap`. El [plan de migración](hexagonal-migration-plan.md) define cómo
+llegar desde el árbol actual; su ejecución funcional requiere autorización.
+Las rutas heredadas de esta guía siguen siendo puntos de entrada mientras cada
+etapa no se complete, no convenciones para agregar nuevas dependencias concretas.
+
 ## Recorrido de una tarea
 
 1. Confirmar alcance, estado de Git y módulo en [el mapa](repository-map.md).
@@ -21,8 +27,9 @@ Un plan no reemplaza esa actualización al finalizar la implementación.
   Mantener I/O asíncrono; no bloquear el loop con procesos o archivos grandes.
 - Repositorios: transacciones y consultas de su agregado. Persistencia de una
   capa de extracción pertenece a esa capa, no a un store genérico creciente.
-- Composición: elegir adaptadores en las dependencias del área y workflows.
-  No crear un segundo registro o selector paralelo de extractores.
+- Composición: concentrar construcción de adaptadores y registros en `bootstrap`
+  según avance la migración. Las dependencias del área y workflows actuales son
+  el puente existente. No crear un segundo registro o selector paralelo.
 - Nombres: verbos para casos de uso, contratos explícitos y tipos en fronteras.
   Evitar `utils.py` o servicios que mezclen responsabilidades sin relación.
 - Extraer un módulo cuando tenga una responsabilidad propia y reduzca acoplamiento;
@@ -57,8 +64,10 @@ Resolver stores desde el workspace autenticado; workers lo reconstruyen desde el
 dueño del job. Verificar ownership también en lecturas, retry, borrado y SSE.
 No registrar rutas administrativas en `src/main.py`.
 
-Agregar configuración tipada en `src/config.py` o en la configuración específica
-del área; documentar alias/default en `.env.example` y en su contrato. API, workers
+La configuración de entorno actual vive en `src/config.py`; su destino es
+`bootstrap/settings.py`. Inyectar valores tipados a la aplicación, manteniendo
+especificaciones aceptadas en core y evitando nuevos accesos globales a settings.
+Documentar alias/default en `.env.example` y en su contrato. API, workers
 y dispatcher deben compartir valores cuando participan del mismo workflow.
 Nunca persistir claves dentro de snapshots de configuración o manifests.
 

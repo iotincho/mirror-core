@@ -15,6 +15,8 @@
 
 ## Reglas comunes
 
+- Arquitectura y criterios para nuevos módulos: [ARCHITECTURE.md](ARCHITECTURE.md).
+  Consultar la sección pertinente al cambiar responsabilidades o dependencias.
 - Seguir [implementación](docs/development/implementation.md) al cambiar comportamiento.
   Reutilizar contratos, casos de uso y composición existentes antes de crear abstracciones.
 - API/Taskiq son adaptadores; los casos de uso no importan clientes concretos de

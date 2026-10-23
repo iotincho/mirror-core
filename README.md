@@ -11,6 +11,7 @@ producción se configura en `mirror-deploy`.
 ## Empezar aquí
 
 - **Implementar con un agente:** [AGENTS.md](AGENTS.md).
+- **Organización objetivo y migración:** [arquitectura](ARCHITECTURE.md) y [plan hexagonal](docs/development/hexagonal-migration-plan.md).
 - **Encontrar código y pruebas:** [mapa del repositorio](docs/development/repository-map.md).
 - **Agregar o modificar comportamiento:** [guía de implementación](docs/development/implementation.md).
 - **Ejecutar verificaciones:** [guía de pruebas](docs/development/testing.md).

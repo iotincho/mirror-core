@@ -6,17 +6,18 @@ from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFil
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
+from src.adapters.storage.postgres.workspace_repository import WorkspaceRepository
+from src.bootstrap.auth import get_authenticated_user
+from src.bootstrap.database import get_async_session
+from src.bootstrap.workspaces import get_workspace_runtime
 from src.config import get_settings
 from src.core.processing.errors import StorageUnavailable
+from src.core.workspaces.context import WorkspaceRuntime
 from src.processing.runtime import get_repository
 from src.processing.submissions import SubmissionConflict
 from src.services.document_store import FileDocumentStore
 from src.services.graph_store import GraphPersistenceError
 from src.use_cases.document_archive import ArchiveConflict, DocumentArchive, DocumentArchiveTransfer
-from src.user_management.database import get_async_session
-from src.user_management.dependencies import get_authenticated_user
-from src.workspaces.dependencies import WorkspaceRuntime, get_workspace_runtime
-from src.workspaces.repository import WorkspaceRepository
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 MAX_ARCHIVE_BYTES = 25 * 1024 * 1024

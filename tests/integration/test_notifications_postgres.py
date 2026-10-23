@@ -12,6 +12,9 @@ from fastapi import HTTPException
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from src.adapters.storage.postgres.accounts import User
+from src.adapters.storage.postgres.workspace_models import UserWorkspace
+from src.bootstrap.auth import get_authenticated_user
 from src.exteriorization.models import Invitation, InvitationPreference
 from src.exteriorization.repository import InvitationRepository
 from src.main import app
@@ -21,9 +24,6 @@ from src.notifications.repository import NotificationRepository, add_notificatio
 from src.notifications.schemas import AnnouncementContent
 from src.use_cases.configure_invitations import ConfigureInvitations
 from src.use_cases.schedule_invitations import ScheduleInvitations
-from src.user_management.dependencies import get_authenticated_user
-from src.user_management.models import User
-from src.workspaces.models import UserWorkspace
 
 pytestmark = [
     pytest.mark.anyio,

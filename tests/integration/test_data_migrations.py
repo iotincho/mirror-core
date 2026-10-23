@@ -11,6 +11,8 @@ from legacy_graph_fixture import EmbeddingSpec, legacy_schema_statements
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from src.adapters.storage.postgres.accounts import User
+from src.adapters.storage.postgres.workspace_models import UserWorkspace
 from src.domain.documents import NewDocument, build_document
 from src.graph.arcadedb.client import AsyncArcadeDBHTTPClient
 from src.maintenance.data_migrations import DataMigrations
@@ -18,8 +20,6 @@ from src.maintenance.models import DataMigration
 from src.processing.models import ProcessingEvent, ProcessingOutbox, ProcessingRecord
 from src.processing.repository import ProcessingRepository
 from src.services.document_store import FileDocumentStore
-from src.user_management.models import User
-from src.workspaces.models import UserWorkspace
 
 pytestmark = [
     pytest.mark.anyio,

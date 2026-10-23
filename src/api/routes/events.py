@@ -11,13 +11,13 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 
+from src.adapters.storage.postgres.accounts import AccessToken, User
+from src.adapters.storage.postgres.workspace_models import UserWorkspace
+from src.bootstrap.auth import COOKIE_NAME
+from src.bootstrap.database import get_session_maker
 from src.config import get_settings
 from src.observability import report_issue
 from src.processing.events import EventFeed
-from src.user_management.authentication import COOKIE_NAME
-from src.user_management.database import get_session_maker
-from src.user_management.models import AccessToken, User
-from src.workspaces.models import UserWorkspace
 
 router = APIRouter(tags=["processing"])
 logger = logging.getLogger(__name__)

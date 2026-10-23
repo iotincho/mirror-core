@@ -8,7 +8,11 @@ from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.adapters.storage.postgres.accounts import User
 from src.api.routes.exteriorization import require_same_origin
+from src.bootstrap.auth import get_authenticated_user
+from src.bootstrap.database import get_async_session
+from src.core.auth.identity import AuthenticatedUser
 from src.extractors.personal_axes.access import laboratory_available
 from src.extractors.personal_axes.contracts import AcceptPreview, PreviewRequest
 from src.extractors.personal_axes.dependencies import get_axis_previews
@@ -36,9 +40,6 @@ from src.extractors.personal_axes.schemas import (
     PreviewSnapshot,
 )
 from src.use_cases.axis_previews import AxisPreviews
-from src.user_management.database import get_async_session
-from src.user_management.dependencies import AuthenticatedUser, get_authenticated_user
-from src.user_management.models import User
 
 router = APIRouter(tags=["personal axes"], dependencies=[Depends(require_same_origin)])
 Service = Annotated[AxisPreviews, Depends(get_axis_previews)]

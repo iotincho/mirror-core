@@ -12,13 +12,13 @@ import uvicorn
 from fastapi import FastAPI
 from sqlalchemy import delete, func, update
 
+from src.adapters.storage.postgres.accounts import AccessToken
+from src.adapters.storage.postgres.workspace_models import UserWorkspace
 from src.api.routes import events
 from src.api.schemas.processing import ProcessingResponse
 from src.config import get_settings
 from src.processing.events import EventFeed
 from src.processing.models import ProcessingEvent
-from src.user_management.models import AccessToken
-from src.workspaces.models import UserWorkspace
 from tests.integration.test_processing_postgres import anyio_backend, job, store  # noqa: F401
 
 pytestmark = [

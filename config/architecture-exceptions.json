@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Migración etapas 0-3. legacy_files sólo admite ubicaciones preexistentes; no desactiva reglas de imports. Puentes por archivo/arista con motivo y etapa de retiro explícitos.",
+  "description": "Migración etapas 0-4. Excepciones exactas sólo para consumidores heredados pendientes y enlaces transaccionales explícitos; sin excepciones en core o aplicación canónicos.",
   "legacy_files": [
     "src/admin_main.py",
     "src/administration/__init__.py",
@@ -34,7 +34,6 @@
     "src/api/schemas/documents.py",
     "src/api/schemas/exteriorization.py",
     "src/api/schemas/processing.py",
-    "src/auth/session.py",
     "src/config.py",
     "src/dependencies.py",
     "src/domain/__init__.py",
@@ -133,41 +132,26 @@
     "src/services/durable_files.py",
     "src/services/graph_store.py",
     "src/services/openai_transcription_provider.py",
-    "src/services/transcription_provider.py",
-    "src/user_management/__init__.py",
-    "src/user_management/authentication.py",
-    "src/user_management/database.py",
-    "src/user_management/dependencies.py",
-    "src/user_management/manager.py",
-    "src/user_management/models.py",
-    "src/user_management/oauth.py",
-    "src/user_management/passwords.py",
-    "src/user_management/recovery/__init__.py",
-    "src/user_management/recovery/dependencies.py",
-    "src/user_management/recovery/models.py",
-    "src/user_management/recovery/repository.py",
-    "src/user_management/recovery/resend.py",
-    "src/user_management/recovery/routes.py",
-    "src/user_management/recovery/security.py",
-    "src/user_management/routes.py",
-    "src/user_management/schemas.py",
-    "src/user_management/users.py",
-    "src/workspaces/__init__.py",
-    "src/workspaces/arcade_admin.py",
-    "src/workspaces/context.py",
-    "src/workspaces/dependencies.py",
-    "src/workspaces/models.py",
-    "src/workspaces/provisioning.py",
-    "src/workspaces/repository.py",
-    "src/workspaces/routes.py",
-    "src/workspaces/secrets.py"
+    "src/services/transcription_provider.py"
   ],
   "exceptions": [
     {
-      "source": "src/adapters/storage/postgres/models.py",
-      "target": "src.user_management.models.Base",
-      "remove_in": "4",
-      "reason": "Base/metadata SQL compartida con identidad todavía heredada; tablas y revisiones Alembic conservan identidad."
+      "source": "src/adapters/storage/postgres/recovery_transaction.py",
+      "target": "src.exteriorization.models.InvitationDelivery",
+      "reason": "Reset y revocación de push/invitaciones conservan una sola transacción y el orden de locks. Modelos/repositorio de invitaciones se migran a PostgreSQL en etapa 5; no pasan a aplicación.",
+      "remove_in": "5"
+    },
+    {
+      "source": "src/adapters/storage/postgres/recovery_transaction.py",
+      "target": "src.exteriorization.models.PushSubscription",
+      "reason": "Reset y revocación de push/invitaciones conservan una sola transacción y el orden de locks. Modelos/repositorio de invitaciones se migran a PostgreSQL en etapa 5; no pasan a aplicación.",
+      "remove_in": "5"
+    },
+    {
+      "source": "src/adapters/storage/postgres/recovery_transaction.py",
+      "target": "src.exteriorization.repository.InvitationRepository",
+      "reason": "Reset y revocación de push/invitaciones conservan una sola transacción y el orden de locks. Modelos/repositorio de invitaciones se migran a PostgreSQL en etapa 5; no pasan a aplicación.",
+      "remove_in": "5"
     },
     {
       "source": "src/adapters/storage/postgres/repository.py",
@@ -182,12 +166,6 @@
       "reason": "Validación de invitación dentro de la transacción durable de handoff; se encapsulará con el storage común de invitaciones."
     },
     {
-      "source": "src/adapters/storage/postgres/repository.py",
-      "target": "src.workspaces.models.UserWorkspace",
-      "remove_in": "4",
-      "reason": "Consulta de disponibilidad y ownership contra la tabla de workspace aún heredada; sin exponer ORM al runner."
-    },
-    {
       "source": "src/adapters/storage/postgres/submissions.py",
       "target": "src.exteriorization.models.Invitation",
       "remove_in": "5",
@@ -198,6 +176,114 @@
       "target": "src.exteriorization.models.InvitationResponse",
       "remove_in": "5",
       "reason": "Respuesta de invitación y aceptación durable se confirman juntas; modelo se migra en etapa 5."
+    },
+    {
+      "source": "src/api/router.py",
+      "target": "src.bootstrap.auth.require_authenticated",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "6"
+    },
+    {
+      "source": "src/api/router.py",
+      "target": "src.bootstrap.workspaces.router",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "6"
+    },
+    {
+      "source": "src/api/routes/activity.py",
+      "target": "src.bootstrap.auth.get_authenticated_user",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "5"
+    },
+    {
+      "source": "src/api/routes/activity.py",
+      "target": "src.bootstrap.database.get_session_maker",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "5"
+    },
+    {
+      "source": "src/api/routes/auth.py",
+      "target": "src.bootstrap.auth.router",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "6"
+    },
+    {
+      "source": "src/api/routes/document_archive.py",
+      "target": "src.bootstrap.auth.get_authenticated_user",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "6"
+    },
+    {
+      "source": "src/api/routes/document_archive.py",
+      "target": "src.bootstrap.database.get_async_session",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "6"
+    },
+    {
+      "source": "src/api/routes/document_archive.py",
+      "target": "src.bootstrap.workspaces.get_workspace_runtime",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "6"
+    },
+    {
+      "source": "src/api/routes/events.py",
+      "target": "src.bootstrap.auth.COOKIE_NAME",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "6"
+    },
+    {
+      "source": "src/api/routes/events.py",
+      "target": "src.bootstrap.database.get_session_maker",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "6"
+    },
+    {
+      "source": "src/api/routes/exteriorization.py",
+      "target": "src.bootstrap.auth.COOKIE_NAME",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "5"
+    },
+    {
+      "source": "src/api/routes/exteriorization.py",
+      "target": "src.bootstrap.auth.get_authenticated_user",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "5"
+    },
+    {
+      "source": "src/api/routes/notifications.py",
+      "target": "src.bootstrap.auth.get_authenticated_user",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "5"
+    },
+    {
+      "source": "src/api/routes/processing.py",
+      "target": "src.bootstrap.workspaces.get_workspace_runtime",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "6"
+    },
+    {
+      "source": "src/dependencies.py",
+      "target": "src.bootstrap.workspaces.get_workspace_runtime",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "6"
+    },
+    {
+      "source": "src/exteriorization/dependencies.py",
+      "target": "src.bootstrap.database.get_session_maker",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "5"
+    },
+    {
+      "source": "src/extractors/backfill_titles.py",
+      "target": "src.bootstrap.database.close_database",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "6"
+    },
+    {
+      "source": "src/extractors/cli.py",
+      "target": "src.bootstrap.database.close_database",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "6"
     },
     {
       "source": "src/extractors/document_embeddings.py",
@@ -230,6 +316,36 @@
       "remove_in": "6"
     },
     {
+      "source": "src/extractors/personal_axes/access.py",
+      "target": "src.bootstrap.auth.get_authenticated_user",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "6"
+    },
+    {
+      "source": "src/extractors/personal_axes/access.py",
+      "target": "src.bootstrap.database.get_async_session",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "6"
+    },
+    {
+      "source": "src/extractors/personal_axes/dependencies.py",
+      "target": "src.bootstrap.workspaces.get_workspace_runtime",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "6"
+    },
+    {
+      "source": "src/extractors/personal_axes/routes.py",
+      "target": "src.bootstrap.auth.get_authenticated_user",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "6"
+    },
+    {
+      "source": "src/extractors/personal_axes/routes.py",
+      "target": "src.bootstrap.database.get_async_session",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "6"
+    },
+    {
       "source": "src/extractors/registry.py",
       "target": "src.bootstrap.extractor_registry.ExtractorRegistry",
       "reason": "Puente exacto de constructor/import o CLI para consumidores identificados. Implementación única en capas canónicas; retirar con sus consumidores en consolidación.",
@@ -252,6 +368,42 @@
       "target": "src.bootstrap.graph.build_graph_store",
       "reason": "Puente exacto de constructor/import o CLI para consumidores identificados. Implementación única en capas canónicas; retirar con sus consumidores en consolidación.",
       "remove_in": "6"
+    },
+    {
+      "source": "src/main.py",
+      "target": "src.bootstrap.database.close_database",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "6"
+    },
+    {
+      "source": "src/main.py",
+      "target": "src.bootstrap.workspaces.reconcile_active_workspaces",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "6"
+    },
+    {
+      "source": "src/maintenance/data_migrations.py",
+      "target": "src.bootstrap.database.close_database",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "6"
+    },
+    {
+      "source": "src/maintenance/data_migrations.py",
+      "target": "src.bootstrap.database.get_session_maker",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "6"
+    },
+    {
+      "source": "src/notifications/cli.py",
+      "target": "src.bootstrap.database.close_database",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "5"
+    },
+    {
+      "source": "src/notifications/dependencies.py",
+      "target": "src.bootstrap.database.get_session_maker",
+      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
+      "remove_in": "5"
     },
     {
       "source": "src/processing/broker.py",
@@ -411,6 +563,12 @@
     },
     {
       "source": "src/use_cases/configure_invitations.py",
+      "target": "src.adapters.storage.postgres.workspace_models.UserWorkspace",
+      "reason": "Invitaciones heredadas conservan consultas de disponibilidad del workspace; etapa 5 separa sus reglas y la transacción compartida.",
+      "remove_in": "5"
+    },
+    {
+      "source": "src/use_cases/configure_invitations.py",
       "target": "src.exteriorization.models.Invitation",
       "reason": "Dependencia heredada del area; separar reglas/contratos de persistencia y composicion.",
       "remove_in": "5"
@@ -454,12 +612,6 @@
     {
       "source": "src/use_cases/configure_invitations.py",
       "target": "src.notifications.models.Notification",
-      "reason": "Dependencia heredada del area; separar reglas/contratos de persistencia y composicion.",
-      "remove_in": "5"
-    },
-    {
-      "source": "src/use_cases/configure_invitations.py",
-      "target": "src.workspaces.models.UserWorkspace",
       "reason": "Dependencia heredada del area; separar reglas/contratos de persistencia y composicion.",
       "remove_in": "5"
     },
@@ -812,120 +964,6 @@
       "reason": "Puente exacto de import/constructor o entrypoint para consumidores vigentes. Implementación y configuración canónicas en bootstrap; retirar al migrar consumidores. Puente conservado para HTTP/CLI, workspace, mantenimiento o ejes; consolidar imports y entrypoints en etapa 6."
     },
     {
-      "source": "src/use_cases/recover_password.py",
-      "target": "fastapi_users.exceptions.InvalidPasswordException",
-      "reason": "Recuperacion conoce el framework de autenticacion; adaptar por contrato de password/identidad.",
-      "remove_in": "4"
-    },
-    {
-      "source": "src/use_cases/recover_password.py",
-      "target": "fastapi_users.password.PasswordHelper",
-      "reason": "Recuperacion conoce el framework de autenticacion; adaptar por contrato de password/identidad.",
-      "remove_in": "4"
-    },
-    {
-      "source": "src/use_cases/recover_password.py",
-      "target": "sqlalchemy.delete",
-      "reason": "Caso de uso heredado con SQL o errores ORM; encapsular en puerto y adaptador PostgreSQL.",
-      "remove_in": "4"
-    },
-    {
-      "source": "src/use_cases/recover_password.py",
-      "target": "sqlalchemy.func",
-      "reason": "Caso de uso heredado con SQL o errores ORM; encapsular en puerto y adaptador PostgreSQL.",
-      "remove_in": "4"
-    },
-    {
-      "source": "src/use_cases/recover_password.py",
-      "target": "sqlalchemy.orm.noload",
-      "reason": "Caso de uso heredado con SQL o errores ORM; encapsular en puerto y adaptador PostgreSQL.",
-      "remove_in": "4"
-    },
-    {
-      "source": "src/use_cases/recover_password.py",
-      "target": "sqlalchemy.select",
-      "reason": "Caso de uso heredado con SQL o errores ORM; encapsular en puerto y adaptador PostgreSQL.",
-      "remove_in": "4"
-    },
-    {
-      "source": "src/use_cases/recover_password.py",
-      "target": "sqlalchemy.update",
-      "reason": "Caso de uso heredado con SQL o errores ORM; encapsular en puerto y adaptador PostgreSQL.",
-      "remove_in": "4"
-    },
-    {
-      "source": "src/use_cases/recover_password.py",
-      "target": "src.exteriorization.models.InvitationDelivery",
-      "reason": "Dependencia heredada del area; separar reglas/contratos de persistencia y composicion.",
-      "remove_in": "4"
-    },
-    {
-      "source": "src/use_cases/recover_password.py",
-      "target": "src.exteriorization.models.PushSubscription",
-      "reason": "Dependencia heredada del area; separar reglas/contratos de persistencia y composicion.",
-      "remove_in": "4"
-    },
-    {
-      "source": "src/use_cases/recover_password.py",
-      "target": "src.exteriorization.repository.InvitationRepository",
-      "reason": "Dependencia heredada del area; separar reglas/contratos de persistencia y composicion.",
-      "remove_in": "4"
-    },
-    {
-      "source": "src/use_cases/recover_password.py",
-      "target": "src.processing.models.ProcessingRecord",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "4"
-    },
-    {
-      "source": "src/use_cases/recover_password.py",
-      "target": "src.processing.repository.ProcessingRepository",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "4"
-    },
-    {
-      "source": "src/use_cases/recover_password.py",
-      "target": "src.user_management.models.AccessToken",
-      "reason": "Dependencia heredada del area; separar reglas/contratos de persistencia y composicion.",
-      "remove_in": "4"
-    },
-    {
-      "source": "src/use_cases/recover_password.py",
-      "target": "src.user_management.models.User",
-      "reason": "Dependencia heredada del area; separar reglas/contratos de persistencia y composicion.",
-      "remove_in": "4"
-    },
-    {
-      "source": "src/use_cases/recover_password.py",
-      "target": "src.user_management.passwords.validate_password",
-      "reason": "Dependencia heredada del area; separar reglas/contratos de persistencia y composicion.",
-      "remove_in": "4"
-    },
-    {
-      "source": "src/use_cases/recover_password.py",
-      "target": "src.user_management.recovery.models.RecoveryDelivery",
-      "reason": "Dependencia heredada del area; separar reglas/contratos de persistencia y composicion.",
-      "remove_in": "4"
-    },
-    {
-      "source": "src/use_cases/recover_password.py",
-      "target": "src.user_management.recovery.repository.RecoveryError",
-      "reason": "Dependencia heredada del area; separar reglas/contratos de persistencia y composicion.",
-      "remove_in": "4"
-    },
-    {
-      "source": "src/use_cases/recover_password.py",
-      "target": "src.user_management.recovery.repository.RecoveryRepository",
-      "reason": "Dependencia heredada del area; separar reglas/contratos de persistencia y composicion.",
-      "remove_in": "4"
-    },
-    {
-      "source": "src/use_cases/recover_password.py",
-      "target": "src.user_management.recovery.security.RecoverySecrets",
-      "reason": "Dependencia heredada del area; separar reglas/contratos de persistencia y composicion.",
-      "remove_in": "4"
-    },
-    {
       "source": "src/use_cases/request_processing.py",
       "target": "src.bootstrap.processing.LegacyRequestFacade",
       "remove_in": "6",
@@ -935,6 +973,12 @@
       "source": "src/use_cases/schedule_invitations.py",
       "target": "sqlalchemy.select",
       "reason": "Caso de uso heredado con SQL o errores ORM; encapsular en puerto y adaptador PostgreSQL.",
+      "remove_in": "5"
+    },
+    {
+      "source": "src/use_cases/schedule_invitations.py",
+      "target": "src.adapters.storage.postgres.workspace_models.UserWorkspace",
+      "reason": "Invitaciones heredadas conservan consultas de disponibilidad del workspace; etapa 5 separa sus reglas y la transacción compartida.",
       "remove_in": "5"
     },
     {
@@ -976,12 +1020,6 @@
     {
       "source": "src/use_cases/schedule_invitations.py",
       "target": "src.exteriorization.scheduling.scheduled_at",
-      "reason": "Dependencia heredada del area; separar reglas/contratos de persistencia y composicion.",
-      "remove_in": "5"
-    },
-    {
-      "source": "src/use_cases/schedule_invitations.py",
-      "target": "src.workspaces.models.UserWorkspace",
       "reason": "Dependencia heredada del area; separar reglas/contratos de persistencia y composicion.",
       "remove_in": "5"
     },
@@ -1038,42 +1076,6 @@
       "target": "src.processing.execution.WorkflowFailure",
       "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
       "remove_in": "5"
-    },
-    {
-      "source": "src/use_cases/send_recovery_email.py",
-      "target": "sqlalchemy.select",
-      "reason": "Caso de uso heredado con SQL o errores ORM; encapsular en puerto y adaptador PostgreSQL.",
-      "remove_in": "4"
-    },
-    {
-      "source": "src/use_cases/send_recovery_email.py",
-      "target": "src.processing.execution.WorkflowDefinition",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "4"
-    },
-    {
-      "source": "src/use_cases/send_recovery_email.py",
-      "target": "src.processing.execution.WorkflowFailure",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "4"
-    },
-    {
-      "source": "src/use_cases/send_recovery_email.py",
-      "target": "src.user_management.models.User",
-      "reason": "Dependencia heredada del area; separar reglas/contratos de persistencia y composicion.",
-      "remove_in": "4"
-    },
-    {
-      "source": "src/use_cases/send_recovery_email.py",
-      "target": "src.user_management.recovery.models.RecoveryAddress",
-      "reason": "Dependencia heredada del area; separar reglas/contratos de persistencia y composicion.",
-      "remove_in": "4"
-    },
-    {
-      "source": "src/use_cases/send_recovery_email.py",
-      "target": "src.user_management.recovery.models.RecoveryDelivery",
-      "reason": "Dependencia heredada del area; separar reglas/contratos de persistencia y composicion.",
-      "remove_in": "4"
     },
     {
       "source": "src/use_cases/submit_processing.py",

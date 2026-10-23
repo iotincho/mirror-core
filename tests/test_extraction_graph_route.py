@@ -7,7 +7,7 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from src.auth.session import require_authenticated
+from src.bootstrap.auth import require_authenticated
 from src.dependencies import get_document_store, get_graph_store
 from src.domain.documents import NewDocument, build_document
 from src.graph.contracts import ExtractionGraph, GraphEdge, GraphNode

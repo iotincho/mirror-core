@@ -1,5 +1,11 @@
 # Registro con email y contraseña
 
+La política y la identidad viven en `src/core/auth/`; el login usa
+`src/use_cases/auth/authenticate.py`. FastAPI Users adapta registro, cookies y OAuth
+en `src/adapters/access/api/public/auth/`, conectado por `src/bootstrap/auth.py`.
+La contraseña se verifica bajo el mismo lock de cuenta que utiliza recuperación;
+un upgrade del hash conserva la versión de sesión y no puede restaurar la contraseña anterior.
+
 La PWA ofrece `Ingresar`, `Crear cuenta` y `Continuar con Google` en la pantalla
 de acceso. El email es el identificador; no se incorpora un nombre de usuario.
 La contraseña requiere al menos 12 caracteres y no puede contener el email.
@@ -17,6 +23,12 @@ se creó la cuenta. No se fusionan identidades automáticamente. La asociación
 con Google conserva el flujo explícito autenticado existente.
 
 ## Preparación del espacio
+
+Estados, contexto y puertos: `src/core/workspaces/`. Coordinación de acceso,
+provisión/reconciliación: `src/use_cases/workspaces/`. PostgreSQL mantiene asignación
+y locks; `src/adapters/storage/arcadedb/provisioning.py` prepara esquema y principal
+restringido. `src/bootstrap/workspaces.py` conecta cifrado, configuración y ciclo de
+vida de stores; las rutas de acceso público sólo traducen entrada/resultado.
 
 `GET /api/workspace/status` devuelve únicamente `status`: `pending`,
 `provisioning`, `active`, `failed`, `suspended` o `unavailable`. Ambos endpoints

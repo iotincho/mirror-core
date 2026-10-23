@@ -1,7 +1,7 @@
 import httpx
 import pytest
 
-from src.auth.session import require_authenticated
+from src.bootstrap.auth import require_authenticated
 from src.dependencies import get_list_documents
 from src.domain.documents import NewDocument, build_document
 from src.main import app

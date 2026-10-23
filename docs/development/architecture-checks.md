@@ -76,7 +76,7 @@ Puntos que el piloto debe conservar hasta adaptar consumidores:
 
 | Frente | Entradas actuales que revisar |
 | --- | --- |
-| Composición HTTP/workspace | `src/dependencies.py`, `src/workspaces/dependencies.py`; overrides HTTP de las pruebas |
+| Composición HTTP/workspace | `src/dependencies.py`, `src/bootstrap/{auth,workspaces,database}.py`; overrides HTTP de las pruebas |
 | Composición de ejecución | `src/processing/runtime.py`, `src/processing/workflows.py`, dependencias de cada familia, incluida compatibilidad con ejes |
 | Contratos y stores | Modelos `src.domain`, `DocumentStore` y errores en `src.services.document_store`; stores de audio/grafo y artefactos |
 | Títulos | `document_title.py`, `document_title_store.py`, `openai_document_title.py`, `ensure_document_titles.py`, `backfill_document_titles.py`; strings de monkeypatch de sus tests |
@@ -192,4 +192,34 @@ La fixture de exploración inserta ejecuciones históricas duplicadas explícita
 las extracciones actuales reemplazan su capa. Así se prueba deduplicación de lectura
 sin cambiar el reemplazo atómico para satisfacer una expectativa antigua.
 Conservar los puentes exactos de ejes, identidad/workspace e invitaciones del plan.
-Próximo alcance: etapa 4, identidad, recuperación y workspaces.
+## Regresión de identidad y workspaces
+
+Etapa 4: política de contraseña, credenciales, sesión y recuperación en core;
+login, recuperación, entrega de correo, acceso/provisión/reconciliación en aplicación.
+Los casos se importan con FastAPI Users, cryptography y demás infraestructura bloqueados.
+
+```bash
+.venv/bin/python -m pytest tests/test_identity_application.py tests/test_processing_application.py \
+  tests/test_signup_flow.py tests/test_password_recovery.py tests/test_workspaces.py \
+  tests/test_workspace_dependencies.py tests/test_google_oauth.py tests/test_user_management.py
+```
+
+Usar bases PostgreSQL desechables migradas separadas, con nombres que comiencen
+por `recovery_test` y `workspace_test`. Configurar `RECOVERY_TEST_DATABASE_URL` y
+`WORKSPACE_TEST_DATABASE_URL`. Provisión real requiere además
+`WORKSPACE_TEST_ARCADEDB_URL` y `WORKSPACE_TEST_ARCADEDB_PASSWORD` del servidor
+ArcadeDB desechable; la fixture no carga `.env` y usa configuración explícita.
+La prueba asigna principales por cuenta y comprueba sus permisos reales.
+
+```bash
+.venv/bin/python -m pytest tests/integration/test_password_recovery_postgres.py \
+  tests/integration/test_password_recovery_migration.py \
+  tests/integration/test_workspace_provisioning.py -rs
+```
+
+También ejecutar la regresión durable anterior: cambia la identidad de imports
+usada por API, workers, scripts, Alembic y familias pendientes. No reescribir
+revisiones ya aplicadas. Alembic debe seguir informando que no hay cambios nuevos.
+Las carpetas antiguas de identidad/workspace y sus entradas de excepciones se
+retiraron; no restaurarlas para corregir un importador sin migrar.
+Próximo alcance: etapa 5, invitaciones, notificaciones y administración.

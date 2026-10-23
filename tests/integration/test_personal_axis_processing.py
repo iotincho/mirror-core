@@ -14,7 +14,8 @@ from test_emotion_layer import layer_database  # noqa: F401
 from test_emotion_processing import pipeline, run, upload  # noqa: F401
 from test_processing_postgres import store  # noqa: F401
 
-from src.auth.session import require_authenticated
+from src.adapters.storage.postgres.accounts import User
+from src.bootstrap.auth import require_authenticated
 from src.config import get_settings
 from src.extractors.artifacts import LayerArtifacts
 from src.extractors.contracts import ExtractorProfile
@@ -36,7 +37,6 @@ from src.use_cases.process_document_extractors import ProcessDocumentExtractors
 from src.use_cases.process_extractor import ProcessExtractor
 from src.use_cases.request_processing import RequestProcessing
 from src.use_cases.submit_processing import SubmitAudioNote
-from src.user_management.models import User
 
 pytestmark = [
     pytest.mark.anyio,

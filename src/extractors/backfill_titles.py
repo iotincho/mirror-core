@@ -5,12 +5,12 @@ import asyncio
 import json
 from uuid import UUID
 
+from src.bootstrap.database import close_database
 from src.config import get_settings
 from src.processing.execution import WorkflowFailure
 from src.processing.runtime import get_repository
 from src.processing.workflows import worker_runtime
 from src.use_cases.backfill_document_titles import BackfillDocumentTitles
-from src.user_management.database import close_database
 
 
 def positive_limit(value):

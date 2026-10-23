@@ -9,8 +9,8 @@ from src.observability import initialize_sentry, report_issue, trace_operation
 
 
 async def close_resources():
+    from src.bootstrap.database import close_database
     from src.bootstrap.workflows import close_workflow_providers
-    from src.user_management.database import close_database
 
     await close_workflow_providers()
     await close_database()

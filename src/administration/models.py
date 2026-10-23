@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.user_management.models import Base
+from src.adapters.storage.postgres.accounts import Base
 
 
 class DocumentMetric(Base):

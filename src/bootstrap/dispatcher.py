@@ -4,6 +4,8 @@ import asyncio
 import logging
 import signal
 
+from src.bootstrap.database import close_database
+from src.bootstrap.recovery import get_recovery_repository
 from src.config import get_settings
 from src.exteriorization.dependencies import get_invitation_repository
 from src.notifications.dependencies import get_notifications
@@ -16,8 +18,6 @@ from src.processing.workflows import worker_runtime
 from src.use_cases.expire_axis_previews import expire_axis_previews
 from src.use_cases.schedule_invitations import ScheduleInvitations
 from src.use_cases.submit_processing import recover_submissions
-from src.user_management.database import close_database
-from src.user_management.recovery.dependencies import get_recovery_repository
 
 logger = logging.getLogger(__name__)
 

@@ -11,10 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import aliased
 
 from src.adapters.storage.postgres.models import ProcessingEvent, ProcessingOutbox, ProcessingRecord
+from src.adapters.storage.postgres.workspace_models import UserWorkspace
 from src.core.processing.configuration import document_workflow_version
 from src.core.processing.errors import LeaseLost
 from src.core.processing.projections import processing_projection
-from src.workspaces.models import UserWorkspace
 
 
 class ProcessingRepository:

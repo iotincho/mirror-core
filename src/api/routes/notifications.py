@@ -4,10 +4,11 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 
 from src.api.routes.exteriorization import require_same_origin
+from src.bootstrap.auth import get_authenticated_user
+from src.core.auth.identity import AuthenticatedUser
 from src.notifications.dependencies import get_notifications
 from src.notifications.repository import NotificationRepository
 from src.notifications.schemas import NotificationList, ReadAll
-from src.user_management.dependencies import AuthenticatedUser, get_authenticated_user
 
 router = APIRouter(
     prefix="/notifications", tags=["notifications"], dependencies=[Depends(require_same_origin)]

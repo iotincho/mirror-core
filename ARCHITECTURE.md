@@ -1,8 +1,9 @@
 # Arquitectura del backend
 
-Estado: arquitectura objetivo acordada el 2026-10-23; documentos, audio, extractores
-de títulos/emociones/embeddings, grafo, respaldos y procesamiento durable migrados,
-con puentes explícitos a áreas pendientes.
+Estado: arquitectura objetivo acordada el 2026-10-23; etapas 0–4 completadas.
+Documentos, audio, extractores de títulos/emociones/embeddings, grafo, respaldos,
+procesamiento durable, identidad, recuperación y workspaces migrados, con enlaces
+explícitos a áreas pendientes.
 El resto del código todavía no cumple todas estas fronteras.
 El [mapa del repositorio](docs/development/repository-map.md)
 describe el árbol existente; el [plan de migración](docs/development/hexagonal-migration-plan.md)
@@ -57,7 +58,7 @@ src/                              # Backend; estructura objetivo tras la migraci
 │   ├── extractors/               # Perfiles, resultados, evidencia y puertos
 │   ├── notifications/            # Vigencia y reglas del centro de notificaciones
 │   ├── workspaces/               # Identidad, alcance y disponibilidad del espacio
-│   ├── auth/                     # Identidad y políticas de autorización
+│   ├── auth/                     # Identidad, contraseñas, sesiones y recuperación
 │   ├── exteriorization/          # Invitaciones, horarios y consentimiento
 │   └── administration/           # Contratos de inventario, métricas y permisos
 ├── use_cases/                    # Acciones de aplicación y coordinación por puertos
@@ -85,6 +86,7 @@ src/                              # Backend; estructura objetivo tras la migraci
 │   ├── providers/                # Integraciones con servicios externos
 │   │   ├── openai/               # Extracción, embeddings y transcripción
 │   │   ├── email/                # Entrega de correo y traducción de fallos
+│   │   ├── security/             # Cifrado y protección de credenciales técnicas
 │   │   └── web_push/             # Envíos push y respuestas del proveedor
 │   └── messaging/                # Transporte de mensajes de procesamiento
 │       └── rabbitmq/             # Publicación, cola y confirmación del broker
@@ -291,11 +293,26 @@ de errores/retry del núcleo. Bootstrap conecta esas responsabilidades por capac
 Ejes mantiene dos puentes explícitos en bootstrap: preparación/orden de escritura
 y clasificación de fallos privados para el extractor; contexto SQL sólo para sus
 workflows experimentales de preview/histórico. El procesador genérico no conoce
-el nombre de ejes ni accede a sesiones. Los modelos de workspace/identidad y
-el enlace transaccional de invitaciones conservan dependencias exactas de
-compatibilidad hasta sus etapas 4/5. Los consumidores HTTP, workspace y comandos
+el nombre de ejes ni accede a sesiones. La revocación transaccional conserva tres
+imports exactos de invitaciones pendientes de la etapa 5. Los consumidores HTTP y comandos
 heredados conservan constructores/imports compatibles hasta su consolidación;
 los casos canónicos no reciben ORM ni leen configuración global.
+
+Identidad y recuperación usan tipos independientes en `core/auth` y acciones en
+`use_cases/auth`. FastAPI Users adapta cookies, registro y OAuth en acceso público;
+bootstrap conecta el proveedor de hashing y el store de cuentas. La autenticación
+conserva el lock compartido con reset y la versión de sesión, incluso al rehashear.
+La transacción de recuperación aplica presupuestos, desafío, contraseña, revocación
+y outbox juntos; sólo el adaptador conoce sus modelos SQL. Los errores del núcleo
+contienen códigos y esperas; acceso decide HTTP y `Retry-After`.
+
+Workspace define estados, contexto y puertos en `core/workspaces`, y coordina acceso,
+provisión y reconciliación en `use_cases/workspaces`. El adaptador ArcadeDB usa root
+sólo para provisionar; los runtimes reciben el principal restringido al dueño.
+El cifrado conserva sus claves y separación de dominios. `bootstrap/workspaces.py`
+crea y cierra los stores una vez resuelto ese límite. Las carpetas anteriores
+`src/user_management`, `src/workspaces` y `src/auth` se eliminaron al migrar sus
+consumidores; no conservan implementaciones ni shims duplicados.
 
 Mover archivos no basta si persisten sesiones SQL en los casos de uso o clientes
 concretos detrás de un runtime. Durante la transición se mantienen puentes de import

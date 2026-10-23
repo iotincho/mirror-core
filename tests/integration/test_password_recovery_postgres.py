@@ -14,23 +14,33 @@ from fastapi_users.password import PasswordHelper
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from src.adapters.providers.email.resend import ResendMailTransport
+from src.adapters.storage.postgres.accounts import AccessToken, OAuthAccount, User
+from src.adapters.storage.postgres.recovery_models import (
+    RecoveryAddress,
+    RecoveryDelivery,
+    RecoveryIP,
+)
+from src.adapters.storage.postgres.recovery_repository import RecoveryError, RecoveryRepository
+from src.bootstrap.auth import (
+    InvitationDatabaseStrategy,
+    UserManager,
+    build_router,
+    get_database_strategy,
+    session,
+)
+from src.bootstrap.database import get_access_token_db, get_async_session
+from src.bootstrap.recovery import (
+    RecoverPassword,
+    RecoverySecrets,
+    SendRecoveryEmail,
+    get_password_recovery,
+)
 from src.config import Settings
 from src.exteriorization.models import InvitationPreference, PushSubscription
 from src.processing.execution import ExecuteProcessing, WorkflowRegistry
 from src.processing.models import ProcessingEvent, ProcessingOutbox, ProcessingRecord
 from src.processing.repository import ProcessingRepository
-from src.use_cases.recover_password import RecoverPassword
-from src.use_cases.send_recovery_email import SendRecoveryEmail
-from src.user_management.authentication import InvitationDatabaseStrategy, get_database_strategy
-from src.user_management.database import get_access_token_db, get_async_session
-from src.user_management.manager import UserManager
-from src.user_management.models import AccessToken, OAuthAccount, User
-from src.user_management.recovery.dependencies import get_password_recovery
-from src.user_management.recovery.models import RecoveryAddress, RecoveryDelivery, RecoveryIP
-from src.user_management.recovery.repository import RecoveryError, RecoveryRepository
-from src.user_management.recovery.resend import ResendMailTransport
-from src.user_management.recovery.security import RecoverySecrets
-from src.user_management.routes import build_router, session
 
 pytestmark = [
     pytest.mark.anyio,
@@ -123,8 +133,8 @@ async def env(monkeypatch):
     )
     value.jobs = ProcessingRepository(sessions, lease_seconds=30)
     value.executor = ExecuteProcessing(value.jobs, registry)
-    monkeypatch.setattr("src.user_management.manager.get_settings", lambda: settings)
-    monkeypatch.setattr("src.user_management.recovery.routes.get_settings", lambda: settings)
+    monkeypatch.setattr("src.bootstrap.auth.get_settings", lambda: settings)
+    monkeypatch.setattr("src.bootstrap.recovery.get_settings", lambda: settings)
     app = FastAPI()
     router = build_router(settings)
     router.add_api_route("/session", session, methods=["GET"])
@@ -428,7 +438,7 @@ async def test_concurrent_ip_requests_cannot_exceed_ten(env):
     assert sum(outcome is None for outcome in outcomes) == 10
     assert (
         sum(
-            isinstance(outcome, RecoveryError) and outcome.status_code == 429
+            isinstance(outcome, RecoveryError) and outcome.code == "recovery_rate_limited"
             for outcome in outcomes
         )
         == 10

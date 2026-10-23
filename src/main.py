@@ -18,13 +18,13 @@ from src.api.error_handlers import (
 )
 from src.api.request_logging import RequestLoggingMiddleware
 from src.api.router import api_router
+from src.bootstrap.database import close_database
+from src.bootstrap.workspaces import reconcile_active_workspaces
 from src.config import get_settings
 from src.exteriorization.repository import InvitationError
 from src.extractors.personal_axes.contracts import AxisError
 from src.logging import configure_logging
 from src.observability import initialize_sentry
-from src.user_management.database import close_database
-from src.workspaces.provisioning import reconcile_active_workspaces
 
 logger = logging.getLogger(__name__)
 initialize_sentry("api")

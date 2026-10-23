@@ -9,6 +9,9 @@ from pathlib import Path
 
 from sqlalchemy import func, select
 
+from src.adapters.storage.arcadedb.administration import ArcadeDBAdminClient
+from src.adapters.storage.postgres.workspace_models import UserWorkspace
+from src.bootstrap.database import close_database, get_session_maker
 from src.config import get_settings
 from src.graph.arcadedb.client import AsyncArcadeDBHTTPClient
 from src.graph.arcadedb.store import ArcadeDBGraphStore
@@ -21,9 +24,6 @@ from src.maintenance.models import DataMigration
 from src.processing.models import ProcessingRecord
 from src.processing.repository import ProcessingRepository
 from src.services.document_store import FileDocumentStore
-from src.user_management.database import close_database, get_session_maker
-from src.workspaces.arcade_admin import ArcadeDBAdminClient
-from src.workspaces.models import UserWorkspace
 
 MIGRATION_ID = "20261006-retire-exploratory-extraction"
 

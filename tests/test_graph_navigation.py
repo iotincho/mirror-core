@@ -9,7 +9,7 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from src.auth.session import require_authenticated
+from src.bootstrap.auth import get_database_strategy, get_user_manager, require_authenticated
 from src.dependencies import get_document_store, get_graph_store
 from src.domain.documents import NewDocument, build_document
 from src.graph.arcadedb.store import ArcadeDBGraphStore
@@ -17,8 +17,6 @@ from src.graph.contracts import LinkNeighborhood, LinkType
 from src.main import app
 from src.services.document_store import DocumentNotFoundError
 from src.services.graph_store import GraphPersistenceError
-from src.user_management.authentication import get_database_strategy
-from src.user_management.manager import get_user_manager
 
 
 @pytest.fixture

@@ -15,11 +15,11 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 
+from src.adapters.storage.postgres.accounts import User
 from src.administration.config import get_admin_settings
 from src.administration.database import close_admin_database, get_admin_sessions
 from src.administration.models import DocumentMetric, InventoryState
 from src.processing.models import ProcessingReceipt, ProcessingRecord
-from src.user_management.models import User
 
 LOCK_ID = 814021069
 

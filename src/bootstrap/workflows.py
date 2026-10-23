@@ -17,10 +17,13 @@ from src.bootstrap.extraction import build_embedding_extractor as DocumentEmbedd
 from src.bootstrap.extraction import build_emotion_extractor as EmotionExtractor
 from src.bootstrap.extraction import build_emotions_provider as OpenAIEmotionProvider
 from src.bootstrap.extractor_registry import ExtractorRegistry
+from src.bootstrap.workspaces import build_workspace_runtime, workspace_access, workspace_binding
 from src.config import get_settings
 from src.core.extractors.contracts import ExtractorProfile
 from src.core.extractors.document_embeddings import EmbeddingConfiguration
 from src.core.processing.errors import WorkflowFailure
+from src.core.workspaces.errors import WorkspaceSecretError
+from src.core.workspaces.models import WorkspaceUnavailable
 from src.extractors.personal_axes.dependencies import (
     build_personal_axis_extractor,
     close_axis_providers,
@@ -30,35 +33,18 @@ from src.use_cases.process_document import ProcessDocument
 from src.use_cases.process_document_extractors import ProcessDocumentExtractors
 from src.use_cases.process_document_layers import ProcessDocumentLayers
 from src.use_cases.process_extractor import ProcessExtractor
-from src.user_management.database import get_session_maker
-from src.workspaces.context import UserWorkspaceContext
-from src.workspaces.dependencies import WorkspaceBinding, build_workspace_runtime
-from src.workspaces.models import UserWorkspace
-from src.workspaces.secrets import WorkspaceSecretCipher
 
 
 @asynccontextmanager
 async def worker_runtime(user_id: UUID):
     settings = get_settings()
-    async with get_session_maker()() as session:
-        workspace = await session.get(UserWorkspace, user_id)
-        if (
-            workspace is None
-            or workspace.status != "active"
-            or workspace.arcadedb_instance_key != settings.arcadedb_instance_key
-        ):
-            raise WorkflowFailure("workspace_unavailable")
-        secret = WorkspaceSecretCipher(settings).decrypt(workspace.graph_secret_ciphertext)
-        binding = WorkspaceBinding(
-            UserWorkspaceContext(
-                user_id=user_id,
-                arcadedb_instance_key=workspace.arcadedb_instance_key,
-                database_name=workspace.database_name,
-                graph_username=workspace.graph_username,
-                filesystem_root=settings.workspaces_path / str(user_id),
-            ),
-            secret,
-        )
+    try:
+        resolved = await workspace_access(settings=settings).resolve(user_id)
+    except WorkspaceUnavailable as error:
+        if isinstance(error.__cause__, WorkspaceSecretError):
+            raise error.__cause__
+        raise WorkflowFailure("workspace_unavailable") from error
+    binding = workspace_binding(resolved, settings)
     runtime = build_workspace_runtime(binding, settings)
     try:
         yield runtime
@@ -187,12 +173,12 @@ async def retired_extraction(context):
 
 def register_workflows(registry):
     # Old messages cannot recreate historical extractions after the cutover.
+    from src.bootstrap.recovery import get_send_recovery_email
     from src.core.processing.workflows import WorkflowDefinition
     from src.exteriorization.dependencies import get_send_invitation
     from src.use_cases.process_axis_history import ProcessAxisHistory
     from src.use_cases.process_axis_preview import ProcessAxisPreview
     from src.use_cases.processing.context import ExecutionContext
-    from src.user_management.recovery.dependencies import get_send_recovery_email
 
     registry.register(
         "axis_history_note", 1, ProcessAxisHistory(worker_runtime, workflow_extractor).definition

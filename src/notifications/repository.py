@@ -9,6 +9,8 @@ from fastapi import HTTPException
 from sqlalchemy import func, or_, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 
+from src.adapters.storage.postgres.accounts import User
+from src.adapters.storage.postgres.workspace_models import UserWorkspace
 from src.exteriorization.models import InvitationPreference
 from src.notifications.models import Announcement, Notification, NotificationEnrollment
 from src.notifications.schemas import (
@@ -18,8 +20,6 @@ from src.notifications.schemas import (
     NotificationRead,
 )
 from src.processing.models import ProcessingReceipt
-from src.user_management.models import User
-from src.workspaces.models import UserWorkspace
 
 ONBOARDING = (
     (

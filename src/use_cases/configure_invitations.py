@@ -6,13 +6,13 @@ from uuid import UUID, uuid4
 from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 
+from src.adapters.storage.postgres.workspace_models import UserWorkspace
 from src.exteriorization.models import Invitation, InvitationPreference, PushSubscription
 from src.exteriorization.repository import InvitationError, InvitationRepository
 from src.exteriorization.scheduling import next_occurrence
 from src.notifications.invitations import add_invitation_notification
 from src.notifications.models import Notification
 from src.use_cases.generate_invitation import GenerateInvitation
-from src.workspaces.models import UserWorkspace
 
 
 class ConfigureInvitations:

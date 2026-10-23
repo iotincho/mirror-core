@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import DateTime, ForeignKey, Index, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.user_management.models import Base
+from src.adapters.storage.postgres.accounts import Base
 
 
 class AxisHistoryBatch(Base):

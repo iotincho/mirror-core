@@ -16,7 +16,8 @@ from test_processing_postgres import store  # noqa: F401
 from test_title_backfill import counts, fork_title
 
 from src.api.routes import processing as routes
-from src.auth.session import require_authenticated
+from src.bootstrap.auth import require_authenticated
+from src.bootstrap.workspaces import get_workspace_runtime
 from src.domain.documents import NewDocument, build_document
 from src.main import app
 from src.processing.execution import ExecuteProcessing
@@ -24,7 +25,6 @@ from src.services.document_store import FileDocumentStore
 from src.use_cases.backfill_document_titles import BackfillDocumentTitles, TitleBackfillResult
 from src.use_cases.request_processing import RequestProcessing
 from src.use_cases.submit_processing import document_identity, document_title_specification
-from src.workspaces.dependencies import get_workspace_runtime
 
 pytestmark = [
     pytest.mark.anyio,

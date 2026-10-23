@@ -5,9 +5,9 @@ import asyncio
 import json
 from pathlib import Path
 
+from src.bootstrap.database import close_database
 from src.notifications.dependencies import get_notifications
 from src.notifications.schemas import AnnouncementContent
-from src.user_management.database import close_database
 
 
 async def run(args):

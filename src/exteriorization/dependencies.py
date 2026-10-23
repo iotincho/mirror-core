@@ -1,11 +1,11 @@
 """Composition shared by HTTP, dispatcher and workers."""
 
+from src.bootstrap.database import get_session_maker
 from src.config import get_settings
 from src.exteriorization.repository import InvitationError, InvitationRepository
 from src.exteriorization.web_push import WebPushTransport
 from src.use_cases.configure_invitations import ConfigureInvitations
 from src.use_cases.send_invitation import SendInvitation
-from src.user_management.database import get_session_maker
 
 
 def get_invitation_repository() -> InvitationRepository:

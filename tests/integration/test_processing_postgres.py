@@ -10,6 +10,8 @@ import pytest
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from src.adapters.storage.postgres.accounts import User
+from src.adapters.storage.postgres.workspace_models import UserWorkspace
 from src.processing.dispatcher import dispatch_once
 from src.processing.execution import (
     ExecuteProcessing,
@@ -25,8 +27,6 @@ from src.processing.models import (
     ProcessingRecord,
 )
 from src.processing.repository import LeaseLost, ProcessingRepository
-from src.user_management.models import User
-from src.workspaces.models import UserWorkspace
 
 pytestmark = [
     pytest.mark.anyio,

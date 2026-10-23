@@ -14,14 +14,14 @@ from src.api.schemas.exteriorization import (
     SubscriptionRead,
     TestInvitationRequest,
 )
+from src.bootstrap.auth import COOKIE_NAME, get_authenticated_user
 from src.config import get_settings
+from src.core.auth.identity import AuthenticatedUser
 from src.exteriorization.dependencies import get_invitations, require_push_configuration
 from src.exteriorization.models import Invitation, InvitationPreference, PushSubscription
 from src.exteriorization.repository import session_fingerprint
 from src.exteriorization.web_push import validate_subscription
 from src.use_cases.configure_invitations import ConfigureInvitations
-from src.user_management.authentication import COOKIE_NAME
-from src.user_management.dependencies import AuthenticatedUser, get_authenticated_user
 
 
 async def require_same_origin(request: Request) -> None:

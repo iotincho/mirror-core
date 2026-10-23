@@ -19,7 +19,12 @@ from test_emotion_processing import pipeline, run  # noqa: F401
 from test_personal_axis_processing import active  # noqa: F401
 from test_processing_postgres import store  # noqa: F401
 
+from src.adapters.storage.postgres.accounts import AccessToken, User
 from src.api.routes import activity, processing
+from src.bootstrap.auth import get_authenticated_user
+from src.bootstrap.auth import router as auth_router
+from src.bootstrap.database import get_async_session
+from src.bootstrap.workspaces import get_workspace_runtime
 from src.config import get_settings
 from src.domain.documents import NewDocument, build_document
 from src.extractors.personal_axes.contracts import AxisError
@@ -30,11 +35,6 @@ from src.processing.execution import ResourceBusy
 from src.processing.models import ProcessingRecord
 from src.use_cases.process_axis_history import ProcessAxisHistory
 from src.use_cases.process_axis_preview import ProcessAxisPreview
-from src.user_management.database import get_async_session
-from src.user_management.dependencies import get_authenticated_user
-from src.user_management.models import AccessToken, User
-from src.user_management.routes import router as auth_router
-from src.workspaces.dependencies import get_workspace_runtime
 
 pytestmark = [
     pytest.mark.anyio,

@@ -4,10 +4,11 @@ from typing import Annotated
 
 from fastapi import Depends
 
+from src.bootstrap.workspaces import get_workspace_runtime
+from src.core.workspaces.context import WorkspaceRuntime
 from src.services.audio_note_store import FileAudioNoteStore
 from src.services.document_store import FileDocumentStore
 from src.services.graph_store import GraphBackend
-from src.workspaces.dependencies import WorkspaceRuntime, get_workspace_runtime
 
 
 async def get_document_store(

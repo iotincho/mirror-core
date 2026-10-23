@@ -17,7 +17,7 @@ git diff --check
 | Documentación / instrucciones | `python3 scripts/check_repo_docs.py` | Revisar ejemplos contra código/config; no ejecutar servicios |
 | Fronteras / movimientos de módulos | `python3 scripts/check_architecture.py` y `tests/test_architecture_boundaries.py` | [Inventario y línea de base del piloto](architecture-checks.md) |
 | Ruta / schema público | Test HTTP de la ruta + `tests/test_openapi_docs.py` | Autenticación, ownership y casos de error |
-| Cuenta / workspace | `tests/test_signup_flow.py`, `tests/test_workspace_dependencies.py`, `tests/test_workspaces.py` | Integración PostgreSQL/provisioning si cambia persistencia |
+| Cuenta / workspace | `tests/test_identity_application.py`, `tests/test_signup_flow.py`, `tests/test_workspace_dependencies.py`, `tests/test_workspaces.py` | Recuperación PostgreSQL y `tests/integration/test_workspace_provisioning.py`; [comandos](architecture-checks.md#regresión-de-identidad-y-workspaces) |
 | Extractor | Test de la capa y configuración | Persistir artefacto sin proveedor, reemplazo y aislamiento de capas |
 | Runtime / locks / outbox | `tests/test_processing_transport.py`, `tests/test_processing_artifacts.py` | `tests/integration/test_processing_postgres.py` y jobs afectados |
 | Aplicación durable / transacciones | `tests/test_processing_application.py` con puertos en memoria e imports de infraestructura bloqueados | Reprocess, jobs, backfill e histórico de ejes con PostgreSQL/ArcadeDB aislados |
@@ -49,6 +49,9 @@ skips; no significa que la integración haya pasado.
 - Transporte real: `PROCESSING_TEST_RABBITMQ_URL`, broker/vhost separado.
 - Grafo de capas: `EMOTIONS_TEST_ARCADEDB_URL` y `EMOTIONS_TEST_ARCADEDB_PASSWORD`.
 - Embeddings: `EMBEDDINGS_TEST_ARCADEDB_URL` y `EMBEDDINGS_TEST_ARCADEDB_PASSWORD`.
+- Recuperación: `RECOVERY_TEST_DATABASE_URL`, base desechable con prefijo `recovery_test`.
+- Provisión real: `WORKSPACE_TEST_DATABASE_URL` con prefijo `workspace_test`,
+  `WORKSPACE_TEST_ARCADEDB_URL` y `WORKSPACE_TEST_ARCADEDB_PASSWORD` desechables.
 - Otras familias pueden requerir variables adicionales: leer el encabezado y
   fixtures del test seleccionado antes de ejecutarlo.
 

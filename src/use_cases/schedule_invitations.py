@@ -5,11 +5,11 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 
+from src.adapters.storage.postgres.workspace_models import UserWorkspace
 from src.exteriorization.models import Invitation, InvitationPreference, PushSubscription
 from src.exteriorization.repository import InvitationRepository
 from src.exteriorization.scheduling import expires_at, next_occurrence, scheduled_at
 from src.use_cases.generate_invitation import GenerateInvitation
-from src.workspaces.models import UserWorkspace
 
 
 class ScheduleInvitations:

@@ -30,8 +30,10 @@ from src.api.schemas.processing import (
     ReprocessDocumentsRequest,
     ReprocessDocumentsResponse,
 )
+from src.bootstrap.workspaces import get_workspace_runtime
 from src.config import get_settings
 from src.core.processing.errors import StorageUnavailable
+from src.core.workspaces.context import WorkspaceRuntime
 from src.domain.documents import NewDocument
 from src.exteriorization.repository import InvitationError
 from src.processing.runtime import get_repository
@@ -48,7 +50,6 @@ from src.use_cases.ingest_document_file import (
 )
 from src.use_cases.request_processing import RequestProcessing
 from src.use_cases.submit_processing import SubmitAudioNote, SubmitDocument
-from src.workspaces.dependencies import WorkspaceRuntime, get_workspace_runtime
 
 router = APIRouter(tags=["processing"])
 Runtime = Annotated[WorkspaceRuntime, Depends(get_workspace_runtime)]

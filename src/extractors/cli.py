@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from uuid import UUID, uuid4
 
+from src.bootstrap.database import close_database
 from src.config import get_settings
 from src.extractors.artifacts import LayerArtifacts
 from src.extractors.contracts import ExtractorProfile
@@ -19,7 +20,6 @@ from src.processing.workflows import (
     close_workflow_providers,
     worker_runtime,
 )
-from src.user_management.database import close_database
 
 
 async def execute(args):

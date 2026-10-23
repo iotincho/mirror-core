@@ -13,7 +13,9 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import DBAPIError, IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from src.auth.session import require_authenticated
+from src.adapters.storage.postgres.accounts import User
+from src.adapters.storage.postgres.workspace_models import UserWorkspace
+from src.bootstrap.auth import require_authenticated
 from src.config import Settings
 from src.core.processing.errors import StorageUnavailable
 from src.domain.documents import NewDocument, build_document
@@ -39,8 +41,6 @@ from src.services.document_store import FileDocumentStore
 from src.use_cases.axis_previews import AxisPreviews
 from src.use_cases.expire_axis_previews import expire_axis_previews
 from src.use_cases.process_axis_preview import ProcessAxisPreview
-from src.user_management.models import User
-from src.workspaces.models import UserWorkspace
 
 pytestmark = [
     pytest.mark.anyio,

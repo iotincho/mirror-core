@@ -10,15 +10,14 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from src.adapters.storage.arcadedb.administration import ArcadeDBAdminError
+from src.adapters.storage.postgres.accounts import AccessToken, Base, OAuthAccount, User
+from src.adapters.storage.postgres.workspace_models import UserWorkspace
+from src.bootstrap import workspaces as provisioning
+from src.bootstrap.auth import build_router, get_database_strategy, session
+from src.bootstrap.database import get_access_token_db, get_async_session
+from src.bootstrap.workspaces import router as workspace_router
 from src.config import Settings
-from src.user_management.authentication import get_database_strategy
-from src.user_management.database import get_access_token_db, get_async_session
-from src.user_management.models import AccessToken, Base, OAuthAccount, User
-from src.user_management.routes import build_router, session
-from src.workspaces import provisioning
-from src.workspaces.arcade_admin import ArcadeDBAdminError
-from src.workspaces.models import UserWorkspace
-from src.workspaces.routes import router as workspace_router
 
 PASSWORD = "a-long-private-passphrase"
 
@@ -41,13 +40,13 @@ async def signup_env(monkeypatch, tmp_path):
     async with engine.begin() as connection:
         await connection.run_sync(lambda sync: Base.metadata.create_all(sync, tables=tables))
     sessions = async_sessionmaker(engine, expire_on_commit=False)
-    monkeypatch.setattr("src.user_management.manager.get_settings", lambda: settings)
-    monkeypatch.setattr("src.workspaces.routes.get_settings", lambda: settings)
+    monkeypatch.setattr("src.bootstrap.auth.get_settings", lambda: settings)
+    monkeypatch.setattr("src.bootstrap.workspaces.get_settings", lambda: settings)
     monkeypatch.setattr(provisioning, "get_settings", lambda: settings)
     monkeypatch.setattr(provisioning, "get_session_maker", lambda: sessions)
     env = SimpleNamespace(fail=False, crash=False, targets=[], sessions=sessions)
 
-    def remote(self, target):
+    async def remote(self, target):
         env.targets.append(target)
         if env.fail:
             raise ArcadeDBAdminError("simulated remote failure with private details")

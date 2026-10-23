@@ -14,7 +14,9 @@ import pytest
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from src.auth.session import require_authenticated
+from src.adapters.storage.postgres.accounts import User
+from src.adapters.storage.postgres.workspace_models import UserWorkspace
+from src.bootstrap.auth import require_authenticated
 from src.domain.documents import NewDocument
 from src.exteriorization.dependencies import get_invitations
 from src.exteriorization.models import (
@@ -43,8 +45,6 @@ from src.use_cases.configure_invitations import ConfigureInvitations
 from src.use_cases.schedule_invitations import ScheduleInvitations
 from src.use_cases.send_invitation import SendInvitation
 from src.use_cases.submit_processing import SubmitDocument, recover_submissions
-from src.user_management.models import User
-from src.workspaces.models import UserWorkspace
 
 pytestmark = [
     pytest.mark.anyio,
@@ -547,11 +547,10 @@ async def test_retry_limit_is_per_device_and_durable(store):
 async def test_real_cookie_logout_deactivates_only_its_device(store, monkeypatch):
     from fastapi_users.db import SQLAlchemyUserDatabase
 
+    from src.adapters.storage.postgres.accounts import AccessToken, OAuthAccount
+    from src.bootstrap.auth import COOKIE_NAME, UserManager, get_user_manager
+    from src.bootstrap.database import get_async_session
     from src.exteriorization.repository import session_fingerprint
-    from src.user_management.authentication import COOKIE_NAME
-    from src.user_management.database import get_async_session
-    from src.user_management.manager import UserManager, get_user_manager
-    from src.user_management.models import AccessToken, OAuthAccount
 
     repo, owner, service, subscriptions = await setup(store, devices=2)
     token = str(uuid4())
@@ -698,7 +697,7 @@ async def test_real_taskiq_workers_handle_duplicate_deliveries(store, tmp_path):
 async def test_http_document_upload_preserves_typed_invitation_contract(
     store, tmp_path, monkeypatch
 ):
-    from src.workspaces.dependencies import get_workspace_runtime
+    from src.bootstrap.workspaces import get_workspace_runtime
 
     repo, owner, service, subscriptions = await setup(store)
     invitation = await service.test(owner, "session-0", subscriptions[0].id, uuid4())

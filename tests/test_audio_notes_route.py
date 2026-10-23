@@ -1,7 +1,7 @@
 import httpx
 import pytest
 
-from src.auth.session import require_authenticated
+from src.bootstrap.auth import require_authenticated
 from src.dependencies import get_audio_note_store
 from src.main import app
 from src.services.audio_note_store import FileAudioNoteStore

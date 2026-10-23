@@ -5,14 +5,15 @@ from typing import Annotated
 
 from fastapi import Depends
 
+from src.bootstrap.workspaces import get_workspace_runtime
 from src.config import get_settings
+from src.core.workspaces.context import WorkspaceRuntime
 from src.extractors.artifacts import LayerArtifacts
 from src.extractors.personal_axes.access import require_laboratory_access
 from src.extractors.personal_axes.contracts import AxisSpecification
 from src.extractors.personal_axes.extractor import PersonalAxisExtractor
 from src.extractors.personal_axes.provider import OpenAIAxisProvider
 from src.extractors.personal_axes.store import ArcadeDBAxisStore
-from src.workspaces.dependencies import WorkspaceRuntime, get_workspace_runtime
 
 
 @lru_cache(maxsize=32)

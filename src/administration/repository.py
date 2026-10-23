@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import Date, String, and_, case, cast, func, literal, or_, select, update
 
+from src.adapters.storage.postgres.accounts import User
 from src.administration.config import get_admin_settings
 from src.administration.models import DocumentMetric, InventoryState, MetricCoverage, UserActivity
 from src.administration.schemas import (
@@ -18,7 +19,6 @@ from src.administration.schemas import (
     UserRead,
 )
 from src.processing.models import ProcessingRecord
-from src.user_management.models import User
 
 ZONE = ZoneInfo("America/Argentina/Buenos_Aires")
 

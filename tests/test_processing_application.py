@@ -41,7 +41,10 @@ import importlib.abc
 import sys
 class BlockInfrastructure(importlib.abc.MetaPathFinder):
     def find_spec(self, fullname, path=None, target=None):
-        blocked = {'sqlalchemy', 'taskiq', 'openai', 'httpx', 'fastapi', 'tiktoken'}
+        blocked = {
+            'sqlalchemy', 'taskiq', 'openai', 'httpx', 'fastapi', 'tiktoken',
+            'fastapi_users', 'cryptography',
+        }
         if fullname.split('.')[0] in blocked:
             raise AssertionError('Infrastructure imported: ' + fullname)
 sys.meta_path.insert(0, BlockInfrastructure())
@@ -53,6 +56,8 @@ from src.use_cases.audio import process_audio_note, create_audio_note
 from src.use_cases.extraction import emotions, document_embeddings
 from src.use_cases.graph import read_graph
 from src.core.processing import failures
+from src.use_cases.auth import authenticate, recover_password, send_recovery_email
+from src.use_cases.workspaces import access, provision
 """
     subprocess.run([sys.executable, "-c", code], check=True, capture_output=True, text=True)
 

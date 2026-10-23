@@ -17,6 +17,10 @@ from invitation_test_support import clock_path, controlled_now, invitation_repos
 from pydantic import BaseModel
 from sqlalchemy import delete, select, update
 
+from src.adapters.storage.postgres.accounts import AccessToken, User
+from src.adapters.storage.postgres.workspace_models import UserWorkspace
+from src.bootstrap.database import close_database, get_session_maker
+from src.bootstrap.workspaces import WorkspaceSecretCipher
 from src.config import get_settings
 from src.exteriorization.dependencies import get_invitations
 from src.exteriorization.models import (
@@ -39,10 +43,6 @@ from src.processing.runtime import get_repository
 from src.processing.tasks import execute_processing
 from src.use_cases.configure_invitations import ConfigureInvitations
 from src.use_cases.schedule_invitations import ScheduleInvitations
-from src.user_management.database import close_database, get_session_maker
-from src.user_management.models import AccessToken, User
-from src.workspaces.models import UserWorkspace
-from src.workspaces.secrets import WorkspaceSecretCipher
 
 owners = [uuid4(), uuid4()]
 password = "isolated-invitation-test-password"

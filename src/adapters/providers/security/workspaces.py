@@ -1,0 +1,37 @@
+"""Encryption for server-only ArcadeDB credentials."""
+
+from __future__ import annotations
+
+import base64
+import hashlib
+
+from cryptography.fernet import Fernet, InvalidToken
+
+from src.core.workspaces.errors import WorkspaceSecretError as WorkspaceSecretError
+
+
+class WorkspaceSecretCipher:
+    """Uses an explicit key or a domain-separated key from the auth secret."""
+
+    def __init__(self, raw_key: str | None, *, session_secret: str | None) -> None:
+        if raw_key is None:
+            if not session_secret:
+                raise WorkspaceSecretError("workspace secret encryption is not configured")
+            material = hashlib.sha256(
+                b"el-espejo/workspace-credential/v1\x00"
+                + session_secret.encode()
+            ).digest()
+            raw_key = base64.urlsafe_b64encode(material).decode()
+        try:
+            self._fernet = Fernet(raw_key.encode())
+        except (TypeError, ValueError) as error:
+            raise WorkspaceSecretError("WORKSPACE_SECRET_KEY must be a Fernet key") from error
+
+    def encrypt(self, value: str) -> str:
+        return self._fernet.encrypt(value.encode()).decode()
+
+    def decrypt(self, ciphertext: str) -> str:
+        try:
+            return self._fernet.decrypt(ciphertext.encode()).decode()
+        except (InvalidToken, UnicodeDecodeError) as error:
+            raise WorkspaceSecretError("workspace credential cannot be decrypted") from error

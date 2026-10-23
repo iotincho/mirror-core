@@ -6,9 +6,10 @@ from fastapi import APIRouter, Depends, Response
 
 from src.administration.activity import record_access
 from src.api.routes.exteriorization import require_same_origin
+from src.bootstrap.auth import get_authenticated_user
+from src.bootstrap.database import get_session_maker
 from src.config import get_settings
-from src.user_management.database import get_session_maker
-from src.user_management.dependencies import AuthenticatedUser, get_authenticated_user
+from src.core.auth.identity import AuthenticatedUser
 
 router = APIRouter(prefix="/activity", tags=["activity"])
 

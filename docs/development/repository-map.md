@@ -4,8 +4,9 @@ Estado contrastado con el código del repositorio el 2026-10-23. Este mapa indic
 dónde buscar; los contratos específicos describen el comportamiento detallado.
 Los nombres de archivos son puntos de entrada, no una lista para cargar completa.
 
-Este mapa describe la organización actual tras las etapas 0–3: documentos, audio,
-extractores, grafo, respaldos y procesamiento durable migrados; el resto en transición. La estructura
+Este mapa describe la organización actual tras las etapas 0–4: documentos, audio,
+extractores, grafo, respaldos, procesamiento durable, identidad y workspaces migrados;
+el resto en transición. La estructura
 objetivo está en [ARCHITECTURE.md](../../ARCHITECTURE.md) y las correspondencias/etapas en el
 [plan de migración hexagonal](hexagonal-migration-plan.md). No inferir que una
 dependencia actual cumple las fronteras objetivo sólo por aparecer en este mapa.
@@ -32,8 +33,9 @@ referencias de Docker, Alembic, empaquetado, scripts y pruebas a conservar al mi
 | Lecturas / proyecciones de grafo | `src/core/graph/`, `src/use_cases/graph/read_graph.py`, `src/adapters/storage/arcadedb/{graph,emotion_projection,queries}.py`; acceso en `src/api/routes/graph.py` | `tests/test_graph_navigation.py`, `tests/test_emotion_projection.py`; [grafo](../../src/graph/README.md) |
 | Audio / transcripción | `src/core/audio/`, `src/use_cases/audio/`, `src/adapters/storage/filesystem/{audio_notes,audio_transcoding}.py`, `src/adapters/providers/openai/transcription.py` | `tests/test_openai_transcription_provider.py`, `tests/test_processing_artifacts.py`; [recuperación](../audio-transcription-recovery.md) |
 | Respaldos | `src/core/documents/archive.py`, `src/use_cases/documents/archive.py`, `delete_document.py`, `src/bootstrap/archives.py`; HTTP en `src/api/routes/document_archive.py` y CLI en `scripts/export_document_archives.py` | `tests/test_document_archive.py`; [respaldos](../document-archives.md) |
-| Cuenta / sesión / recuperación | `src/auth/session.py`, `src/user_management/`, `src/user_management/recovery/` | `tests/test_signup_flow.py`, `tests/test_password_recovery.py`, `tests/test_google_oauth.py`; [registro](../signup.md) |
-| Workspace / aislamiento | `src/workspaces/context.py`, `dependencies.py`, `provisioning.py`, `secrets.py` | `tests/test_workspace_dependencies.py`, `tests/test_workspaces.py` |
+| Cuenta / sesión / recuperación | `src/core/auth/`, `src/use_cases/auth/`, `src/adapters/access/api/public/auth/`; composición en `src/bootstrap/{auth,recovery,oauth,database}.py` | `tests/test_signup_flow.py`, `tests/test_password_recovery.py`, `tests/test_google_oauth.py`; [registro](../signup.md) |
+| Workspace / aislamiento | `src/core/workspaces/`, `src/use_cases/workspaces/`, `src/adapters/storage/postgres/{workspaces,workspace_models,workspace_repository}.py`, `src/adapters/storage/arcadedb/{administration,provisioning}.py`; composición en `src/bootstrap/workspaces.py` | `tests/test_workspace_dependencies.py`, `tests/test_workspaces.py`, `tests/integration/test_workspace_provisioning.py` |
+| SQL de identidad / recuperación | `src/adapters/storage/postgres/{accounts,base,authentication,recovery_models,recovery_repository,recovery_transaction}.py`; cifrado en `src/adapters/providers/security/` y Resend en `src/adapters/providers/email/` | `tests/test_identity_application.py`, `tests/integration/test_password_recovery_postgres.py`; [recuperación](../password-recovery.md) |
 | Invitaciones / notificaciones | `src/exteriorization/`, `src/notifications/`, `src/use_cases/schedule_invitations.py`, `generate_invitation.py`, `send_invitation.py` | `tests/test_exteriorization.py`, `tests/test_notifications.py`; [centro](../notification-center.md) |
 | Administración | `src/admin_main.py`, `src/administration/` | `tests/test_administration_api.py`, `tests/integration/test_administration.py`; [admin](../admin-lan.md) |
 | Configuración / observabilidad | `src/config.py`, `.env.example`, `src/observability.py`, `src/logging.py`, `src/api/request_logging.py` | `tests/test_config.py`, `tests/test_observability.py`, `tests/test_request_logging.py`; [Sentry](../sentry.md) |
@@ -54,9 +56,10 @@ originales/temporales. Los respaldos y borrado usan puertos durables sin sesione
 La clasificación de fallos separa hechos técnicos del adaptador y política pura.
 
 Bootstrap compone por capacidad: `documents.py`, `extraction.py`, `audio.py`,
-`graph.py`, `archives.py` y `workflows.py`; evita un contenedor global de dependencias.
-`src/dependencies.py`, `src/workspaces/dependencies.py`, las rutas públicas y otras
-familias mantienen conexiones heredadas pendientes de etapas 4–6. Ejes conserva
+`graph.py`, `archives.py`, `auth.py`, `recovery.py`, `workspaces.py` y `workflows.py`; evita un contenedor global de dependencias.
+`src/dependencies.py`, las rutas públicas anteriores y otras familias mantienen
+conexiones heredadas pendientes de etapas 5–6. Se eliminaron `src/user_management/`,
+`src/workspaces/` y `src/auth/`; sus consumidores importan directamente las nuevas capas. Ejes conserva
 sus internals y puentes explícitos para ejecución/orden de escritura/privacidad.
 
 ## Material fuera del recorrido normal

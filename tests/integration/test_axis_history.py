@@ -312,11 +312,12 @@ async def test_history_http_authorization_validation_and_recovery(history, monke
     from fastapi.responses import JSONResponse
     from sqlalchemy import update
 
+    from src.adapters.storage.postgres.accounts import User
+    from src.bootstrap.auth import get_authenticated_user
+    from src.bootstrap.database import get_async_session
+    from src.bootstrap.workspaces import get_workspace_runtime
+    from src.core.auth.identity import AuthenticatedUser
     from src.extractors.personal_axes.routes import router
-    from src.user_management.database import get_async_session
-    from src.user_management.dependencies import AuthenticatedUser, get_authenticated_user
-    from src.user_management.models import User
-    from src.workspaces.dependencies import get_workspace_runtime
 
     env = history
     axis = await approve(env)

@@ -39,7 +39,7 @@ from src.processing.models import ProcessingRecord
 from src.processing.runtime import get_repository
 from src.processing.workflows import worker_runtime
 from src.use_cases.request_processing import RequestProcessing
-from src.user_management.database import close_database, get_session_maker
+from src.bootstrap.database import close_database, get_session_maker
 
 PROCESSING_ID = UUID("00000000-0000-0000-0000-000000000001")
 AUDIO_ID = UUID("00000000-0000-0000-0000-000000000002")

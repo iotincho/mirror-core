@@ -1,5 +1,5 @@
+from src.bootstrap.database import get_session_maker
 from src.notifications.repository import NotificationRepository
-from src.user_management.database import get_session_maker
 
 
 def get_notifications():

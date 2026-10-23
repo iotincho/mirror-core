@@ -13,14 +13,14 @@ from sqlalchemy import func, select, update
 from test_processing_postgres import anyio_backend, store  # noqa: F401
 
 from src.api.routes import processing as routes
-from src.auth.session import require_authenticated
+from src.bootstrap.auth import require_authenticated
+from src.bootstrap.workspaces import get_workspace_runtime
 from src.domain.documents import NewDocument, build_document
 from src.main import app
 from src.processing.models import ProcessingOutbox, ProcessingReceipt, ProcessingRecord
 from src.processing.submissions import SubmissionConflict
 from src.services.document_store import DocumentNotFoundError, FileDocumentStore
 from src.use_cases.request_processing import RequestProcessing
-from src.workspaces.dependencies import get_workspace_runtime
 
 pytestmark = [
     pytest.mark.anyio,

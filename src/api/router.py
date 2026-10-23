@@ -14,9 +14,9 @@ from src.api.routes import (
     retired,
     system,
 )
-from src.auth.session import require_authenticated
+from src.bootstrap.auth import require_authenticated
+from src.bootstrap.workspaces import router as workspace_router
 from src.extractors.personal_axes.routes import router as axes_router
-from src.workspaces.routes import router as workspace_router
 
 api_router = APIRouter()
 api_router.include_router(system.router)

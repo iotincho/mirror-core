@@ -6,10 +6,11 @@ from fastapi import Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.adapters.storage.postgres.accounts import User
+from src.bootstrap.auth import get_authenticated_user
+from src.bootstrap.database import get_async_session
 from src.config import get_settings
-from src.user_management.database import get_async_session
-from src.user_management.dependencies import AuthenticatedUser, get_authenticated_user
-from src.user_management.models import User
+from src.core.auth.identity import AuthenticatedUser
 
 
 async def laboratory_available(session, owner):

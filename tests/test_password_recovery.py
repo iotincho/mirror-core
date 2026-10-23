@@ -8,9 +8,9 @@ import pytest
 from pydantic import ValidationError
 from starlette.requests import Request
 
+from src.adapters.providers.email.resend import ResendMailTransport
+from src.bootstrap.recovery import RecoverySecrets, recovery_client_ip
 from src.config import Settings
-from src.user_management.recovery.resend import ResendMailTransport
-from src.user_management.recovery.security import RecoverySecrets, recovery_client_ip
 
 
 @pytest.fixture

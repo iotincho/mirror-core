@@ -9,7 +9,8 @@ import pytest
 from pydantic import ValidationError
 
 from src.api.routes.document_archive import get_archive_store
-from src.auth.session import require_authenticated
+from src.bootstrap.auth import require_authenticated
+from src.bootstrap.workspaces import get_workspace_runtime
 from src.domain.documents import Document
 from src.main import app
 from src.processing.runtime import get_repository
@@ -18,7 +19,6 @@ from src.services.document_store import FileDocumentStore
 from src.services.graph_store import GraphPersistenceError
 from src.use_cases.document_archive import ArchiveConflict, DocumentArchive, DocumentArchiveTransfer
 from src.use_cases.submit_processing import imported_document_identity
-from src.workspaces.dependencies import get_workspace_runtime
 
 
 @pytest.fixture
@@ -365,7 +365,7 @@ async def test_export_store_scoped_to_user_without_active_graph(tmp_path, monkey
 async def test_archive_routes_require_authentication():
     from fastapi import HTTPException
 
-    from src.user_management.dependencies import current_active_user
+    from src.bootstrap.auth import current_active_user
 
     def unauthorized():
         raise HTTPException(401, "Unauthorized")

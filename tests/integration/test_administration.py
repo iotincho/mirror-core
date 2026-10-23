@@ -10,6 +10,8 @@ import pytest
 from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from src.adapters.storage.postgres.accounts import User
+from src.adapters.storage.postgres.workspace_models import UserWorkspace
 from src.admin_main import app
 from src.administration.activity import record_access
 from src.administration.database import admin_session
@@ -19,8 +21,6 @@ from src.administration.sync import LOCK_ID, SyncInventory
 from src.domain.documents import NewDocument, build_document
 from src.processing.models import ProcessingReceipt, ProcessingRecord
 from src.services.document_store import FileDocumentStore
-from src.user_management.models import User
-from src.workspaces.models import UserWorkspace
 
 pytestmark = [
     pytest.mark.anyio,

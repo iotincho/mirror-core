@@ -6,7 +6,8 @@ import pytest
 from fastapi import FastAPI
 
 from src.api.routes import activity
-from src.user_management.dependencies import AuthenticatedUser, get_authenticated_user
+from src.bootstrap.auth import get_authenticated_user
+from src.core.auth.identity import AuthenticatedUser
 
 
 @pytest.fixture

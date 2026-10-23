@@ -13,7 +13,8 @@ from test_emotion_layer import layer_database  # noqa: F401
 from test_emotion_processing import pipeline, run, upload  # noqa: F401
 from test_processing_postgres import store  # noqa: F401
 
-from src.auth.session import require_authenticated
+from src.bootstrap.auth import require_authenticated
+from src.bootstrap.workspaces import get_workspace_runtime
 from src.core.processing.errors import StorageUnavailable
 from src.extractors.artifacts import LayerArtifacts
 from src.extractors.base import Extractor
@@ -26,7 +27,6 @@ from src.use_cases.delete_document import DeleteDocument
 from src.use_cases.process_document_extractors import ProcessDocumentExtractors
 from src.use_cases.process_extractor import ProcessExtractor
 from src.use_cases.request_processing import RequestProcessing
-from src.workspaces.dependencies import get_workspace_runtime
 
 pytestmark = [
     pytest.mark.anyio,

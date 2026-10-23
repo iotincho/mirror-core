@@ -15,7 +15,8 @@ from sqlalchemy import func, select, update
 from test_processing_postgres import anyio_backend, store  # noqa: F401, F811
 
 from src.api.routes import processing as routes
-from src.auth.session import require_authenticated
+from src.bootstrap.auth import require_authenticated
+from src.bootstrap.workspaces import get_workspace_runtime
 from src.domain.documents import NewDocument
 from src.main import app
 from src.processing.execution import ExecuteProcessing, WorkflowRegistry
@@ -34,7 +35,6 @@ from src.use_cases.submit_processing import (
     recover_submissions,
     workflow_config,
 )
-from src.workspaces.dependencies import get_workspace_runtime
 
 pytestmark = [
     pytest.mark.anyio,

@@ -5,12 +5,12 @@ from functools import lru_cache
 
 from src.adapters.storage.postgres.repository import ProcessingRepository
 from src.adapters.storage.postgres.state import PostgresExecutionStore, database_errors
+from src.bootstrap.database import get_session_maker
 from src.config import get_settings
 from src.core.processing.workflows import WorkflowDefinition, WorkflowRegistry
 from src.observability import report_issue
 from src.use_cases.processing.context import ExecutionContext
 from src.use_cases.processing.execute import ExecuteProcessing
-from src.user_management.database import get_session_maker
 
 
 class CompatibleRegistry:

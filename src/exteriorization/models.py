@@ -20,7 +20,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
-from src.user_management.models import Base
+from src.adapters.storage.postgres.accounts import Base
 
 
 class InvitationPreference(Base):

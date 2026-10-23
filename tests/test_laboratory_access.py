@@ -8,16 +8,17 @@ from fastapi import FastAPI, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from src.adapters.storage.postgres.accounts import Base, User
 from src.administration.config import get_admin_settings
 from src.administration.database import admin_session, admin_write_session
 from src.administration.models import DocumentMetric, InventoryState, UserActivity
 from src.administration.routes import router as admin_router
+from src.bootstrap.auth import get_authenticated_user
+from src.bootstrap.database import get_async_session
+from src.bootstrap.workspaces import get_workspace_runtime
 from src.config import get_settings
+from src.core.auth.identity import AuthenticatedUser
 from src.extractors.personal_axes.routes import router
-from src.user_management.database import get_async_session
-from src.user_management.dependencies import AuthenticatedUser, get_authenticated_user
-from src.user_management.models import Base, User
-from src.workspaces.dependencies import get_workspace_runtime
 
 
 @pytest.fixture
@@ -157,8 +158,8 @@ async def test_admin_patch_is_narrow_idempotent_and_rejects_cross_origin(access)
 
 
 def test_public_application_has_no_administrative_write_route():
+    from src.adapters.access.api.public.auth.schemas import UserCreate, UserUpdate
     from src.main import app
-    from src.user_management.schemas import UserCreate, UserUpdate
 
     assert not any(path.startswith("/api/admin") for path in app.openapi()["paths"])
     assert "laboratory_enabled" not in UserUpdate.model_fields

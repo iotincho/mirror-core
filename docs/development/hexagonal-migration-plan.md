@@ -1,8 +1,8 @@
 # Plan de migración a arquitectura hexagonal
 
-Estado al 2026-10-23: etapas 0–3 completadas localmente; etapa 4 pendiente.
+Estado al 2026-10-23: etapas 0–4 completadas localmente; etapa 5 pendiente.
 Se implementaron controles, documentos/títulos, procesamiento durable y separación
-de audio, emociones, embeddings, grafo y respaldos.
+de audio, emociones, embeddings, grafo, respaldos, identidad, recuperación y workspaces.
 No se publicaron
 cambios ni se desplegaron entornos. Revalidar el árbol y las pruebas al iniciar
 cada etapa; la ejecución de etapas siguientes requiere su alcance autorizado.
@@ -300,25 +300,79 @@ La fixture histórica de exploración fallaba también contra el commit `2515bb6
 esperaba dos ejecuciones aunque la extracción reemplaza la anterior. Ahora inserta
 el escenario histórico explícitamente y conserva la prueba de deduplicación y
 proveniencia, sin modificar el reemplazo de producción. Ruff, fronteras y enlaces
-pasan. Los servicios desechables se eliminaron al finalizar. Los cambios de etapa 3
-quedan sin commit; no hay publicación ni despliegue. Próximo paso: etapa 4, identidad,
-recuperación y workspaces; conservar los contratos y puentes de ejes existentes.
+pasan. Los servicios desechables se eliminaron al finalizar. El commit `01339cd`
+conserva etapa 3 en la misma rama; no hay publicación ni despliegue.
 
 ### Etapa 4 — Identidad, recuperación y workspaces
 
 Depende de la base de transacciones de etapa 2. Puede avanzar después por separado
 de etapa 3; el piloto usa la composición de workspace existente como puente.
 
-- [ ] Definir identidad/contexto y políticas sin FastAPI Users ni modelos ORM.
-- [ ] Separar login, recuperación y revocación de SQL, hashing, cifrado y correo.
-- [ ] Mantener provisión, reconciliación y acceso por workspace mediante puertos.
+- [x] Definir identidad/contexto y políticas sin FastAPI Users ni modelos ORM.
+- [x] Separar login, recuperación y revocación de SQL, hashing, cifrado y correo.
+- [x] Mantener provisión, reconciliación y acceso por workspace mediante puertos.
   No ampliar acceso root ni introducir stores globales para simplificar inyección.
-- [ ] Conservar protección de origen, cookies, sesiones, límites de recuperación,
+- [x] Conservar protección de origen, cookies, sesiones, límites de recuperación,
   suspensión y efectos transaccionales sobre invitaciones/jobs.
 
 Salida: mismas garantías de cuenta/propietario y recuperación, con pruebas de
 aplicación sin frameworks HTTP/ORM. Integraciones de alta, recuperación PostgreSQL,
 OAuth y aislamiento de workspaces según las fronteras modificadas.
+
+Implementación canónica:
+
+| Responsabilidad | Ubicación vigente |
+| --- | --- |
+| Identidad verificada, contraseña, versión de sesión y estados/puertos de recuperación | `src/core/auth/` |
+| Estado, contexto, credenciales técnicas protegidas y puertos de workspace | `src/core/workspaces/` |
+| Autenticar, solicitar/consumir código y coordinar entrega durable | `src/use_cases/auth/` |
+| Resolver dueño, consultar/preparar, provisionar y reconciliar | `src/use_cases/workspaces/` |
+| Cookies, registro/OAuth, errores HTTP/IP confiable y rutas de setup | `src/adapters/access/api/public/{auth,workspaces}/` |
+| Metadatos ORM compartidos, cuentas, asignación, snapshots y transacciones | `src/adapters/storage/postgres/{base,accounts,authentication,workspace_models,workspace_repository,workspaces,recovery_models,recovery_repository,recovery_transaction,snapshots}.py` |
+| Cifrado/HMAC y entrega de correo | `src/adapters/providers/{security,email}/` |
+| Operaciones root de provisión y permisos restringidos | `src/adapters/storage/arcadedb/{administration,provisioning}.py` |
+| Configuración, dependencias, registro de routers y ciclo de vida | `src/bootstrap/{auth,database,oauth,recovery,workspaces}.py` |
+
+Se eliminaron `src/user_management/`, `src/workspaces/` y `src/auth/`, los casos
+sueltos anteriores de recuperación y los métodos de transición duplicados del
+repositorio. Sus consumidores, scripts, tests y registro de modelos Alembic
+importan las ubicaciones canónicas; no quedaron shims en esas carpetas. Los ejes
+conservan sus internals: sólo se actualizaron imports de identidad/SQL/composición.
+Los wrappers anteriores de otras etapas se retiran cuando migra su último consumidor.
+
+La aplicación recibe copias desacopladas y operaciones semánticas. Un solo commit
+conserva presupuestos/desafío/cambio de contraseña/versión/revocación/push y outbox.
+Se mantiene el lock de usuario compartido entre login, upgrade de hash y reset,
+además del orden dirección/entrega/preferencias para no cambiar la concurrencia.
+Core no importa HTTP, SQLAlchemy, FastAPI Users ni cryptography; los códigos y
+esperas se traducen a HTTP en acceso. La entrega usa el mismo workflow sin workspace.
+
+Provisión conserva estado/asignación/secretos y no reactiva suspendidos. El puerto
+remoto prepara esquema/grupo/principal; resolver un runtime usa el dueño verificado
+y credenciales restringidas. API y worker comparten la resolución: errores públicos
+seguros y fallo de cifrado recuperable como antes. No se cambian claves, esquemas,
+prompts, cookies, exposición de rutas ni revisiones aplicadas.
+
+Excepciones exactas: tres imports SQL de invitaciones/push en el adaptador de
+recuperación, con retiro en etapa 5, y consumidores de composición HTTP/CLI todavía
+heredados hasta sus etapas. Inventario: 327 módulos, 2.167 imports, 158 aristas
+heredadas y 131 ubicaciones anteriores. El aumento de aristas refleja imports de
+composición ahora explícitos al retirar módulos viejos; no habilita nuevas
+dependencias de infraestructura en core/aplicación canónicos.
+
+Validación: 361 pruebas locales aprobadas, seis Web Push omitidas por `pywebpush`
+ausente. 152 integraciones distintas aprobadas: 17 de recuperación/migración,
+133 de regresión durable y dos nuevas de provisión real. Usan PostgreSQL 17,
+ArcadeDB 26.9.1 y RabbitMQ desechables, proveedores determinísticos y workers reales.
+Las nuevas pruebas comprueban principales limitados por cuenta, originales aislados,
+provisión concurrente y suspensión. La fixture remota usa sólo configuración explícita,
+sin cargar `.env`. Tras ubicar acceso bajo `api/public`, 42 casos focalizados
+aprobaron; los dos casos de límite IP volvieron a confirmar HTTP 429 y `Retry-After`.
+Alembic confirmó `No new upgrade operations detected`. Ruff, fronteras y documentación
+pasan; no se acredita Google OAuth remoto ni entrega real de correo/push.
+Los servicios desechables se eliminaron al finalizar. Etapa 4 queda sin commit,
+sin publicación ni despliegue. Próximo paso: etapa 5, invitaciones, notificaciones
+y administración; preservar el commit compartido de revocación y los puentes de ejes.
 
 ### Etapa 5 — Invitaciones, notificaciones y administración
 

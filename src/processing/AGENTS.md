@@ -9,7 +9,11 @@
   su semántica; no añadir nuevas llamadas LLM al retomar un job anterior.
 - Retry conserva IDs/artefactos; reprocess crea una ejecución nueva. Persistencia
   recupera el artefacto sin crear proveedor. Los hijos completados no se repiten.
-- `workflows.py` compone; casos de uso en `../use_cases/` orquestan.
+- Contratos y registros sin ORM en `../core/processing/`; casos durables en
+  `../use_cases/processing/`; SQL/eventos/recibos en `../adapters/storage/postgres/`.
+  `../bootstrap/workflows.py` registra versiones y extractores;
+  `../bootstrap/processing.py` inyecta puertos y hooks de compatibilidad con ejes.
+  Los módulos de esta carpeta conservan imports/entrypoints anteriores.
 - Un cambio de concurrencia requiere integración PostgreSQL aislada: duplicados,
   lease vencido, cancelación, pérdida de entrega y fallo parcial relevantes.
   Un test simulado de transporte no prueba las transacciones ni locks reales.

@@ -1,8 +1,9 @@
 # Arquitectura del backend
 
-Estado: arquitectura objetivo acordada el 2026-10-23; piloto de documentos y títulos
-migrado, con puentes al coordinador durable. El resto del código todavía no cumple
-todas estas fronteras. El [mapa del repositorio](docs/development/repository-map.md)
+Estado: arquitectura objetivo acordada el 2026-10-23; documentos, títulos y aplicación
+de procesamiento durable migrados, con puentes explícitos a áreas pendientes.
+El resto del código todavía no cumple todas estas fronteras.
+El [mapa del repositorio](docs/development/repository-map.md)
 describe el árbol existente; el [plan de migración](docs/development/hexagonal-migration-plan.md)
 define cómo llegar a esta organización sin cambiar el comportamiento del producto.
 
@@ -248,10 +249,31 @@ El piloto ubica originales y puertos en `core/domain`, `core/documents` y
 persistencia en `adapters/storage/{filesystem,arcadedb}` y el proveedor de títulos
 en `adapters/providers/openai`. `bootstrap/documents.py` conecta esos componentes.
 `TitleReadPolicy` entrega configuración sin credenciales a la aplicación.
-`TitleScheduling` aísla la aceptación durable: por ahora bootstrap le conecta
-`BackfillDocumentTitles`, que conserva sus transacciones heredadas hasta la etapa 2.
-Las rutas HTTP, el workspace y el registro de workflows actuales siguen siendo
-los entrypoints; los módulos de compatibilidad delegan, sin duplicar algoritmos.
+`TitleScheduling` aísla la aceptación durable: `BackfillDocumentTitles` usa ahora
+el puerto transaccional de procesamiento, sin SQL en el caso de uso.
+
+Procesamiento separa `ProcessingJob`, `SubmissionReceipt` y `OutboxDelivery` de sus
+modelos ORM. `ProcessingTransaction` expresa operaciones de recibos, trabajos,
+eventos y outbox en una misma transacción; sólo el adaptador conoce la sesión.
+`ExecutionStore` conserva leases, fencing, checkpoints y coordinación padre/hijos.
+Los adaptadores entregan copias independientes y traducen fallos SQL a
+`StorageUnavailable`: la aplicación deja el lease sin resolver y el transporte
+mantiene el mensaje sin ACK. El acceso HTTP conserva su respuesta 503.
+
+Los casos durables viven en `use_cases/processing`; PostgreSQL en
+`adapters/storage/postgres`; recepción Taskiq en `adapters/access/workers` y
+construcción del broker RabbitMQ en `adapters/messaging/rabbitmq`. Bootstrap conecta
+registro, configuración aceptada, recursos y limpieza del dispatcher/worker.
+Las rutas HTTP y el workspace actuales siguen siendo entrypoints; los módulos
+anteriores delegan, sin duplicar algoritmos.
+
+Ejes mantiene dos puentes explícitos en bootstrap: preparación/orden de escritura
+y clasificación de fallos privados para el extractor; contexto SQL sólo para sus
+workflows experimentales de preview/histórico. El procesador genérico no conoce
+el nombre de ejes ni accede a sesiones. Los modelos de workspace/identidad y
+el enlace transaccional de invitaciones conservan dependencias exactas de
+compatibilidad hasta sus etapas 4/5. Audio y respaldo mantienen sus coordinaciones
+específicas para etapa 3; usan el runner y los modelos SQL canónicos actuales.
 
 Mover archivos no basta si persisten sesiones SQL en los casos de uso o clientes
 concretos detrás de un runtime. Durante la transición se mantienen puentes de import

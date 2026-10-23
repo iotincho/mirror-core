@@ -15,8 +15,10 @@ conservan imports/constructores de compatibilidad, con una sola implementación.
 
 `TitleReadPolicy` contiene límite/habilitación, sin claves. `TitleScheduling`
 expone programación durable sin sesiones SQL al caso de lectura; bootstrap lo
-conecta al backfill actual. Ese puente y el registro de workflows se separarán
-con procesamiento durable en la etapa 2 del [plan](development/hexagonal-migration-plan.md).
+conecta al backfill en `src/use_cases/documents/backfill_document_titles.py`, que
+usa transacciones de procesamiento sin sesiones SQL. El registro de workflows y
+su configuración se componen en bootstrap desde la etapa 2 del
+[plan](development/hexagonal-migration-plan.md).
 
 ## Contrato y ejecución
 

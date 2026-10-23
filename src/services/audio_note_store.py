@@ -1,21 +1,21 @@
 """Durable local storage for raw voice notes and their metadata."""
 
 import asyncio
+import hashlib
 import json
 from pathlib import Path
 from typing import Protocol
 from uuid import UUID, uuid4
 
+from src.core.audio.errors import (
+    AudioNoteAlreadyExistsError as AudioNoteAlreadyExistsError,
+)
+from src.core.audio.errors import (
+    AudioNoteNotFoundError as AudioNoteNotFoundError,
+)
+from src.core.processing.submissions import SubmissionConflict
 from src.domain.audio_notes import AudioNote
 from src.services.durable_files import sync_published
-
-
-class AudioNoteAlreadyExistsError(Exception):
-    pass
-
-
-class AudioNoteNotFoundError(Exception):
-    pass
 
 
 class AudioNoteStore(Protocol):
@@ -54,6 +54,11 @@ class FileAudioNoteStore:
                     pass
 
         await asyncio.to_thread(restore)
+
+    async def verify_original(self, note, *, size_bytes, sha256):
+        raw = await asyncio.to_thread(self.audio_path(note).read_bytes)
+        if len(raw) != size_bytes or hashlib.sha256(raw).hexdigest() != sha256:
+            raise SubmissionConflict("audio_artifact_mismatch")
 
     def _create(self, note: AudioNote, content: bytes) -> None:
         self._directory.mkdir(parents=True, exist_ok=True)

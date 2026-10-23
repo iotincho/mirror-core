@@ -61,7 +61,7 @@ async def pipeline(store, layer_database, monkeypatch):
         }
     ]
     monkeypatch.setattr("src.use_cases.submit_processing.workflow_config", lambda: config)
-    monkeypatch.setattr("src.use_cases.request_processing.workflow_config", lambda: config)
+    monkeypatch.setattr("src.bootstrap.acceptance.workflow_config", lambda: config)
 
     @asynccontextmanager
     async def runtime_factory(user_id):

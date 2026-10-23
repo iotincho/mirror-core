@@ -1,8 +1,3 @@
-"""Select the durable document workflow from its accepted configuration."""
+"""Compatibility imports; canonical implementation lives in the new layers."""
 
-
-def document_workflow_version(config: dict) -> int:
-    # Historic jobs without layers must not silently start invoking providers.
-    if not config.get("extractors"):
-        return 2
-    return config.get("document_workflow_version", 3)
+from src.core.processing.configuration import document_workflow_version as document_workflow_version

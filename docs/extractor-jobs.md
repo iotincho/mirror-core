@@ -14,6 +14,14 @@ extractor mantiene sus modelos, validación y escritura. Sus constructores se
 registran por nombre en la composición de workflows; cada constructor decide
 sus proveedores y dependencias.
 
+Los coordinadores canónicos están en `src/use_cases/processing/`, con puertos y
+estados sin ORM en `src/core/processing/`. `src/bootstrap/workflows.py` registra
+versiones y extractores; `src/bootstrap/processing.py` inyecta artefactos, traducción
+de errores y hooks de compatibilidad de ejes. El procesador genérico no tiene una
+rama por nombre para ejes ni conoce sesiones SQL; la composición conserva su
+orden de escritura y la supresión de causas privadas. Los imports anteriores
+de `src.processing` y `src.use_cases` son puentes temporales.
+
 El hijo guarda `extractor_name`, `parent_processing_id`, `extraction_run_id` y
 la especificación aceptada. Los IDs de hijo y ejecución se derivan del coordinador
 y nombre de capa. Un retry conserva ambos IDs, el profile y los artefactos. Una

@@ -7,6 +7,7 @@ import hashlib
 
 from sqlalchemy.exc import SQLAlchemyError
 
+from src.core.processing.errors import StorageUnavailable
 from src.domain.documents import NewDocument, build_document
 from src.processing.artifacts import ProcessingArtifacts
 from src.processing.execution import LeaseLost, WorkflowDefinition, WorkflowFailure, WorkflowWaiting
@@ -155,7 +156,7 @@ class ProcessAudioNote:
         except WorkflowFailure as failure:
             await self.project_failure(context, failure, service)
             raise
-        except (WorkflowWaiting, LeaseLost, SQLAlchemyError):
+        except (WorkflowWaiting, LeaseLost, StorageUnavailable, SQLAlchemyError):
             raise
         except Exception as error:
             failure = failure_for(error, record.stage_attempts, service)

@@ -1,23 +1,7 @@
-"""Process-local dependencies, shared by workers and the dispatcher."""
+"""Compatibility entrypoint; state and implementation live in bootstrap."""
 
-from functools import lru_cache
+import sys
 
-from src.config import get_settings
-from src.processing.execution import ExecuteProcessing, WorkflowRegistry
-from src.processing.repository import ProcessingRepository
-from src.user_management.database import get_session_maker
+from src.bootstrap import processing as canonical
 
-registry = WorkflowRegistry()
-
-from src.processing.workflows import register_workflows  # noqa: E402
-
-register_workflows(registry)
-
-
-@lru_cache
-def get_repository() -> ProcessingRepository:
-    return ProcessingRepository(get_session_maker(), get_settings().processing_lease_seconds)
-
-
-def get_executor() -> ExecuteProcessing:
-    return ExecuteProcessing(get_repository(), registry)
+sys.modules[__name__] = canonical

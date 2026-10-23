@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Migración gradual: baseline etapa 0 y puentes exactos del piloto etapa 1. legacy_files solo admite ubicaciones preexistentes; no desactiva reglas de imports. Revisar cada excepción nueva.",
+  "description": "Migración etapas 0-2. legacy_files sólo admite ubicaciones preexistentes; no desactiva reglas de imports. Puentes por archivo/arista con motivo y etapa de retiro explícitos.",
   "legacy_files": [
     "src/admin_main.py",
     "src/administration/__init__.py",
@@ -164,16 +164,82 @@
   ],
   "exceptions": [
     {
+      "source": "src/adapters/storage/postgres/models.py",
+      "target": "src.user_management.models.Base",
+      "remove_in": "4",
+      "reason": "Base/metadata SQL compartida con identidad todavía heredada; tablas y revisiones Alembic conservan identidad."
+    },
+    {
+      "source": "src/adapters/storage/postgres/repository.py",
+      "target": "src.exteriorization.models.InvitationResponse",
+      "remove_in": "5",
+      "reason": "Enlace de invitación y handoff de documento conservan una transacción SQL; modelo todavía heredado."
+    },
+    {
+      "source": "src/adapters/storage/postgres/repository.py",
+      "target": "src.exteriorization.repository.InvitationRepository",
+      "remove_in": "5",
+      "reason": "Validación de invitación dentro de la transacción durable de handoff; se encapsulará con el storage común de invitaciones."
+    },
+    {
+      "source": "src/adapters/storage/postgres/repository.py",
+      "target": "src.workspaces.models.UserWorkspace",
+      "remove_in": "4",
+      "reason": "Consulta de disponibilidad y ownership contra la tabla de workspace aún heredada; sin exponer ORM al runner."
+    },
+    {
+      "source": "src/adapters/storage/postgres/submissions.py",
+      "target": "src.exteriorization.models.Invitation",
+      "remove_in": "5",
+      "reason": "Validar ownership de invitación junto con aceptación de recibo/job/evento/outbox; tabla aún heredada."
+    },
+    {
+      "source": "src/adapters/storage/postgres/submissions.py",
+      "target": "src.exteriorization.models.InvitationResponse",
+      "remove_in": "5",
+      "reason": "Respuesta de invitación y aceptación durable se confirman juntas; modelo se migra en etapa 5."
+    },
+    {
       "source": "src/extractors/openai_document_title.py",
       "target": "src.bootstrap.documents.build_title_provider",
-      "reason": "Constructor heredado de títulos: adapta defaults de entorno en bootstrap hasta migrar consumidores; SDK solo en adapters.",
-      "remove_in": "etapa 2"
+      "reason": "Constructor heredado de títulos: adapta defaults de entorno en bootstrap hasta migrar consumidores; SDK solo en adapters. Consumidores y entrada heredados se conservan hasta migrar el resto de extractores en etapa 3.",
+      "remove_in": "3"
+    },
+    {
+      "source": "src/processing/broker.py",
+      "target": "src.bootstrap.messaging.broker",
+      "remove_in": "3",
+      "reason": "Puente exacto de import/constructor o entrypoint para consumidores vigentes. Implementación y configuración canónicas en bootstrap; retirar al migrar consumidores."
+    },
+    {
+      "source": "src/processing/dispatcher.py",
+      "target": "src.bootstrap.dispatcher",
+      "remove_in": "3",
+      "reason": "Puente exacto de import/constructor o entrypoint para consumidores vigentes. Implementación y configuración canónicas en bootstrap; retirar al migrar consumidores."
+    },
+    {
+      "source": "src/processing/execution.py",
+      "target": "src.bootstrap.processing.build_executor",
+      "remove_in": "3",
+      "reason": "Puente exacto de import/constructor o entrypoint para consumidores vigentes. Implementación y configuración canónicas en bootstrap; retirar al migrar consumidores."
+    },
+    {
+      "source": "src/processing/runtime.py",
+      "target": "src.bootstrap.processing",
+      "remove_in": "4",
+      "reason": "Puente exacto de import/constructor o entrypoint para consumidores vigentes. Implementación y configuración canónicas en bootstrap; retirar al migrar consumidores."
+    },
+    {
+      "source": "src/processing/tasks.py",
+      "target": "src.bootstrap.worker",
+      "remove_in": "3",
+      "reason": "Puente exacto de import/constructor o entrypoint para consumidores vigentes. Implementación y configuración canónicas en bootstrap; retirar al migrar consumidores."
     },
     {
       "source": "src/processing/workflows.py",
-      "target": "src.bootstrap.documents.build_document_title_extractor",
-      "reason": "Registro durable heredado delega la composición del piloto a bootstrap; se retira al migrar el registro en etapa 2.",
-      "remove_in": "etapa 2"
+      "target": "src.bootstrap.workflows",
+      "remove_in": "3",
+      "reason": "Puente exacto de import/constructor o entrypoint para consumidores vigentes. Implementación y configuración canónicas en bootstrap; retirar al migrar consumidores."
     },
     {
       "source": "src/use_cases/axis_previews.py",
@@ -255,33 +321,9 @@
     },
     {
       "source": "src/use_cases/backfill_document_titles.py",
-      "target": "sqlalchemy.select",
-      "reason": "Puente durable del piloto detrás de TitleScheduling: conserva SQL, locks, recibo y outbox juntos hasta separar transacciones y coordinación en etapa 2.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/backfill_document_titles.py",
-      "target": "src.processing.models.ProcessingReceipt",
-      "reason": "Puente durable del piloto detrás de TitleScheduling: conserva SQL, locks, recibo y outbox juntos hasta separar transacciones y coordinación en etapa 2.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/backfill_document_titles.py",
-      "target": "src.processing.models.ProcessingRecord",
-      "reason": "Puente durable del piloto detrás de TitleScheduling: conserva SQL, locks, recibo y outbox juntos hasta separar transacciones y coordinación en etapa 2.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/backfill_document_titles.py",
-      "target": "src.processing.submissions.SubmissionConflict",
-      "reason": "Puente durable del piloto detrás de TitleScheduling: conserva SQL, locks, recibo y outbox juntos hasta separar transacciones y coordinación en etapa 2.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/backfill_document_titles.py",
-      "target": "src.processing.submissions.SubmissionRepository",
-      "reason": "Puente durable del piloto detrás de TitleScheduling: conserva SQL, locks, recibo y outbox juntos hasta separar transacciones y coordinación en etapa 2.",
-      "remove_in": "2"
+      "target": "src.bootstrap.processing.build_title_backfill",
+      "remove_in": "3",
+      "reason": "Puente exacto de import/constructor o entrypoint para consumidores vigentes. Implementación y configuración canónicas en bootstrap; retirar al migrar consumidores."
     },
     {
       "source": "src/use_cases/configure_invitations.py",
@@ -436,8 +478,8 @@
     {
       "source": "src/use_cases/ensure_document_titles.py",
       "target": "src.bootstrap.documents.build_title_scheduler",
-      "reason": "Constructor de compatibilidad de rutas vigentes; el caso canónico recibe política y puerto sin infraestructura.",
-      "remove_in": "etapa 2"
+      "reason": "Constructor de compatibilidad de rutas vigentes; el caso canónico recibe política y puerto sin infraestructura. Consumidores y entrada heredados se conservan hasta migrar el resto de extractores en etapa 3.",
+      "remove_in": "3"
     },
     {
       "source": "src/use_cases/expire_axis_previews.py",
@@ -568,62 +610,62 @@
     {
       "source": "src/use_cases/process_audio_note.py",
       "target": "sqlalchemy.exc.SQLAlchemyError",
-      "reason": "Caso de uso heredado con SQL o errores ORM; encapsular en puerto y adaptador PostgreSQL.",
-      "remove_in": "2"
+      "reason": "Workflow específico de audio conservado hasta etapa 3: preparación/transcripción y construcción de artefactos se migran juntos. Handoff, leases y coordinación usan el runner/puerto durable de etapa 2.",
+      "remove_in": "3"
     },
     {
       "source": "src/use_cases/process_audio_note.py",
       "target": "src.domain.documents.NewDocument",
-      "reason": "Modelo canonico en ubicacion heredada; migrar a core/domain sin duplicarlo.",
-      "remove_in": "2"
+      "reason": "Workflow específico de audio conservado hasta etapa 3: preparación/transcripción y construcción de artefactos se migran juntos. Handoff, leases y coordinación usan el runner/puerto durable de etapa 2.",
+      "remove_in": "3"
     },
     {
       "source": "src/use_cases/process_audio_note.py",
       "target": "src.domain.documents.build_document",
-      "reason": "Modelo canonico en ubicacion heredada; migrar a core/domain sin duplicarlo.",
-      "remove_in": "2"
+      "reason": "Workflow específico de audio conservado hasta etapa 3: preparación/transcripción y construcción de artefactos se migran juntos. Handoff, leases y coordinación usan el runner/puerto durable de etapa 2.",
+      "remove_in": "3"
     },
     {
       "source": "src/use_cases/process_audio_note.py",
       "target": "src.processing.artifacts.ProcessingArtifacts",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
+      "reason": "Workflow específico de audio conservado hasta etapa 3: preparación/transcripción y construcción de artefactos se migran juntos. Handoff, leases y coordinación usan el runner/puerto durable de etapa 2.",
+      "remove_in": "3"
     },
     {
       "source": "src/use_cases/process_audio_note.py",
       "target": "src.processing.execution.LeaseLost",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
+      "reason": "Workflow específico de audio conservado hasta etapa 3: preparación/transcripción y construcción de artefactos se migran juntos. Handoff, leases y coordinación usan el runner/puerto durable de etapa 2.",
+      "remove_in": "3"
     },
     {
       "source": "src/use_cases/process_audio_note.py",
       "target": "src.processing.execution.WorkflowDefinition",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
+      "reason": "Workflow específico de audio conservado hasta etapa 3: preparación/transcripción y construcción de artefactos se migran juntos. Handoff, leases y coordinación usan el runner/puerto durable de etapa 2.",
+      "remove_in": "3"
     },
     {
       "source": "src/use_cases/process_audio_note.py",
       "target": "src.processing.execution.WorkflowFailure",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
+      "reason": "Workflow específico de audio conservado hasta etapa 3: preparación/transcripción y construcción de artefactos se migran juntos. Handoff, leases y coordinación usan el runner/puerto durable de etapa 2.",
+      "remove_in": "3"
     },
     {
       "source": "src/use_cases/process_audio_note.py",
       "target": "src.processing.execution.WorkflowWaiting",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
+      "reason": "Workflow específico de audio conservado hasta etapa 3: preparación/transcripción y construcción de artefactos se migran juntos. Handoff, leases y coordinación usan el runner/puerto durable de etapa 2.",
+      "remove_in": "3"
     },
     {
       "source": "src/use_cases/process_audio_note.py",
       "target": "src.processing.failures.failure_for",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
+      "reason": "Workflow específico de audio conservado hasta etapa 3: preparación/transcripción y construcción de artefactos se migran juntos. Handoff, leases y coordinación usan el runner/puerto durable de etapa 2.",
+      "remove_in": "3"
     },
     {
       "source": "src/use_cases/process_audio_note.py",
       "target": "src.services.document_store.DocumentAlreadyExistsError",
-      "reason": "Puerto, error o implementacion todavia alojado en services; separar por responsabilidad.",
-      "remove_in": "2"
+      "reason": "Workflow específico de audio conservado hasta etapa 3: preparación/transcripción y construcción de artefactos se migran juntos. Handoff, leases y coordinación usan el runner/puerto durable de etapa 2.",
+      "remove_in": "3"
     },
     {
       "source": "src/use_cases/process_axis_history.py",
@@ -801,147 +843,27 @@
     },
     {
       "source": "src/use_cases/process_document.py",
-      "target": "sqlalchemy.exc.SQLAlchemyError",
-      "reason": "Caso de uso heredado con SQL o errores ORM; encapsular en puerto y adaptador PostgreSQL.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/process_document.py",
-      "target": "src.processing.execution.LeaseLost",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/process_document.py",
-      "target": "src.processing.execution.WorkflowDefinition",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/process_document.py",
-      "target": "src.processing.execution.WorkflowFailure",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/process_document.py",
-      "target": "src.processing.failures.failure_for",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
+      "target": "src.bootstrap.processing.build_source_processor",
+      "reason": "Constructor histórico delega configuración y artefactos a bootstrap; implementación canónica de aplicación sin infraestructura.",
+      "remove_in": "3"
     },
     {
       "source": "src/use_cases/process_document_extractors.py",
-      "target": "sqlalchemy.exc.SQLAlchemyError",
-      "reason": "Caso de uso heredado con SQL o errores ORM; encapsular en puerto y adaptador PostgreSQL.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/process_document_extractors.py",
-      "target": "src.processing.execution.LeaseLost",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/process_document_extractors.py",
-      "target": "src.processing.execution.WorkflowDefinition",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/process_document_extractors.py",
-      "target": "src.processing.execution.WorkflowFailure",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/process_document_extractors.py",
-      "target": "src.processing.execution.WorkflowWaiting",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/process_document_extractors.py",
-      "target": "src.processing.failures.failure_for",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
+      "target": "src.bootstrap.processing.build_document_coordinator",
+      "remove_in": "3",
+      "reason": "Puente exacto de import/constructor o entrypoint para consumidores vigentes. Implementación y configuración canónicas en bootstrap; retirar al migrar consumidores."
     },
     {
       "source": "src/use_cases/process_document_layers.py",
-      "target": "sqlalchemy.exc.SQLAlchemyError",
-      "reason": "Caso de uso heredado con SQL o errores ORM; encapsular en puerto y adaptador PostgreSQL.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/process_document_layers.py",
-      "target": "src.extractors.artifacts.LayerArtifacts",
-      "reason": "Dependencia heredada del area; separar reglas/contratos de persistencia y composicion.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/process_document_layers.py",
-      "target": "src.processing.execution.LeaseLost",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/process_document_layers.py",
-      "target": "src.processing.execution.WorkflowDefinition",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/process_document_layers.py",
-      "target": "src.processing.execution.WorkflowFailure",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/process_document_layers.py",
-      "target": "src.processing.failures.failure_for",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
+      "target": "src.bootstrap.processing.build_legacy_layers_processor",
+      "reason": "Constructor histórico delega configuración y artefactos a bootstrap; implementación canónica de aplicación sin infraestructura.",
+      "remove_in": "3"
     },
     {
       "source": "src/use_cases/process_extractor.py",
-      "target": "sqlalchemy.exc.SQLAlchemyError",
-      "reason": "Caso de uso heredado con SQL o errores ORM; encapsular en puerto y adaptador PostgreSQL.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/process_extractor.py",
-      "target": "src.extractors.artifacts.LayerArtifacts",
-      "reason": "Dependencia heredada del area; separar reglas/contratos de persistencia y composicion.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/process_extractor.py",
-      "target": "src.extractors.personal_axes.persistence.bind_axis_write",
-      "reason": "Extension de ejes en coordinacion compartida; preservar con contrato de compatibilidad.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/process_extractor.py",
-      "target": "src.processing.execution.LeaseLost",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/process_extractor.py",
-      "target": "src.processing.execution.WorkflowDefinition",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/process_extractor.py",
-      "target": "src.processing.execution.WorkflowFailure",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/process_extractor.py",
-      "target": "src.processing.failures.failure_for",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
+      "target": "src.bootstrap.processing.build_extractor_processor",
+      "remove_in": "3",
+      "reason": "Puente exacto de import/constructor o entrypoint para consumidores vigentes. Implementación y configuración canónicas en bootstrap; retirar al migrar consumidores."
     },
     {
       "source": "src/use_cases/recover_password.py",
@@ -1059,63 +981,9 @@
     },
     {
       "source": "src/use_cases/request_processing.py",
-      "target": "sqlalchemy.dialects.postgresql.insert",
-      "reason": "Caso de uso heredado con SQL o errores ORM; encapsular en puerto y adaptador PostgreSQL.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/request_processing.py",
-      "target": "sqlalchemy.func",
-      "reason": "Caso de uso heredado con SQL o errores ORM; encapsular en puerto y adaptador PostgreSQL.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/request_processing.py",
-      "target": "sqlalchemy.select",
-      "reason": "Caso de uso heredado con SQL o errores ORM; encapsular en puerto y adaptador PostgreSQL.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/request_processing.py",
-      "target": "src.extractors.personal_axes.configuration.user_workflow_config",
-      "reason": "Extension de ejes en coordinacion compartida; preservar con contrato de compatibilidad.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/request_processing.py",
-      "target": "src.processing.configuration.document_workflow_version",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/request_processing.py",
-      "target": "src.processing.models.ProcessingReceipt",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/request_processing.py",
-      "target": "src.processing.models.ProcessingRecord",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/request_processing.py",
-      "target": "src.processing.submissions.SubmissionConflict",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/request_processing.py",
-      "target": "src.processing.submissions.fingerprint",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/request_processing.py",
-      "target": "src.services.document_store.DocumentNotFoundError",
-      "reason": "Puerto, error o implementacion todavia alojado en services; separar por responsabilidad.",
-      "remove_in": "2"
+      "target": "src.bootstrap.processing.LegacyRequestFacade",
+      "remove_in": "3",
+      "reason": "Fachada de constructor para consumidores vigentes y reset(session,row,now) del histórico de ejes; traduce a unidad/estado sin SQL en el caso canónico."
     },
     {
       "source": "src/use_cases/schedule_invitations.py",
@@ -1263,123 +1131,9 @@
     },
     {
       "source": "src/use_cases/submit_processing.py",
-      "target": "src.config.get_settings",
-      "reason": "Lectura global de settings; reemplazar por configuracion tipada inyectada desde bootstrap.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/submit_processing.py",
-      "target": "src.domain.audio_notes.AudioNote",
-      "reason": "Modelo canonico en ubicacion heredada; migrar a core/domain sin duplicarlo.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/submit_processing.py",
-      "target": "src.domain.documents.Document",
-      "reason": "Modelo canonico en ubicacion heredada; migrar a core/domain sin duplicarlo.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/submit_processing.py",
-      "target": "src.domain.documents.NewDocument",
-      "reason": "Modelo canonico en ubicacion heredada; migrar a core/domain sin duplicarlo.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/submit_processing.py",
-      "target": "src.exteriorization.repository.InvitationRepository",
-      "reason": "Dependencia heredada del area; separar reglas/contratos de persistencia y composicion.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/submit_processing.py",
-      "target": "src.extractors.document_embeddings.EMBEDDINGS_PROFILE",
-      "reason": "Dependencia heredada del area; separar reglas/contratos de persistencia y composicion.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/submit_processing.py",
-      "target": "src.extractors.document_embeddings.EmbeddingConfiguration",
-      "reason": "Dependencia heredada del area; separar reglas/contratos de persistencia y composicion.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/submit_processing.py",
-      "target": "src.extractors.document_title.TITLE_PROFILE",
-      "reason": "Dependencia heredada del area; separar reglas/contratos de persistencia y composicion.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/submit_processing.py",
-      "target": "src.extractors.emotions.EMOTIONS_PROFILE",
-      "reason": "Dependencia heredada del area; separar reglas/contratos de persistencia y composicion.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/submit_processing.py",
-      "target": "src.extractors.personal_axes.configuration.user_workflow_config",
-      "reason": "Extension de ejes en coordinacion compartida; preservar con contrato de compatibilidad.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/submit_processing.py",
-      "target": "src.observability.report_issue",
-      "reason": "Instrumentacion concreta; separar observacion del recorrido y errores de aplicacion.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/submit_processing.py",
-      "target": "src.processing.execution.WorkflowFailure",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/submit_processing.py",
-      "target": "src.processing.submissions.SubmissionConflict",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/submit_processing.py",
-      "target": "src.processing.submissions.SubmissionRepository",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/submit_processing.py",
-      "target": "src.processing.submissions.fingerprint",
-      "reason": "Contrato o persistencia durable mezclados en processing; separar core/aplicacion/adaptadores.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/submit_processing.py",
-      "target": "src.services.audio_note_store.AudioNoteAlreadyExistsError",
-      "reason": "Puerto, error o implementacion todavia alojado en services; separar por responsabilidad.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/submit_processing.py",
-      "target": "src.services.document_store.DocumentAlreadyExistsError",
-      "reason": "Puerto, error o implementacion todavia alojado en services; separar por responsabilidad.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/submit_processing.py",
-      "target": "src.services.document_store.DocumentNotFoundError",
-      "reason": "Puerto, error o implementacion todavia alojado en services; separar por responsabilidad.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/submit_processing.py",
-      "target": "src.services.graph_store.GraphPersistenceError",
-      "reason": "Puerto, error o implementacion todavia alojado en services; separar por responsabilidad.",
-      "remove_in": "2"
-    },
-    {
-      "source": "src/use_cases/submit_processing.py",
-      "target": "src.workspaces.secrets.WorkspaceSecretError",
-      "reason": "Dependencia heredada del area; separar reglas/contratos de persistencia y composicion.",
-      "remove_in": "2"
+      "target": "src.bootstrap.acceptance",
+      "remove_in": "3",
+      "reason": "Puente exacto de import/constructor o entrypoint para consumidores vigentes. Implementación y configuración canónicas en bootstrap; retirar al migrar consumidores."
     }
   ]
 }

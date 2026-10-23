@@ -9,6 +9,13 @@ relaciones padre/hijo. Un workflow desconocido termina con
 
 ## Componentes y límites
 
+Implementación hexagonal: contratos/estados sin ORM en `src/core/processing/`;
+runner, aceptación, retry/reprocess y coordinadores en `src/use_cases/processing/`;
+persistencia y feed en `src/adapters/storage/postgres/`. Taskiq recibe/valida/ACK en
+`src/adapters/access/workers/`; RabbitMQ se configura en `src/adapters/messaging/`.
+`src/bootstrap/` compone procesos, versiones, extractores y opciones aceptadas.
+Los comandos/imports anteriores de `src.processing` se conservan como puentes.
+
 - `ProcessingRepository`: PostgreSQL guarda registros, historial de eventos y
   outbox. La creación del trabajo, su evento inicial y la intención de envío se
   confirman en una misma transacción. Las búsquedas de usuario exigen su `user_id`.
@@ -20,7 +27,9 @@ relaciones padre/hijo. Un workflow desconocido termina con
 - `WorkflowFailure`: el caso de uso devuelve un código seguro y decide si el
   error admite reintento y su demora. El runner limita a cuatro intentos por
   etapa; la etapa 4 incorpora clasificación de proveedores y backoff 10/30/120 con jitter. Los errores internos inesperados terminan como
-  `workflow_internal_error`; los errores SQL dejan el lease para recuperación.
+  `workflow_internal_error`; el adaptador traduce errores SQL a
+  `StorageUnavailable`, que deja el lease para recuperación. HTTP conserva el 503
+  seguro y el pedido de reutilizar la misma clave idempotente.
 - `processing.execute`: adaptador Taskiq. El mensaje contiene únicamente ID y
   generación. Confirma manualmente la entrega después de resolver el estado en
   SQL. Mientras PostgreSQL no responde conserva la entrega y espera; cancelar

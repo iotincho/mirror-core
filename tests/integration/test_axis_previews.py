@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from src.auth.session import require_authenticated
 from src.config import Settings
+from src.core.processing.errors import StorageUnavailable
 from src.domain.documents import NewDocument, build_document
 from src.extractors.contracts import ProviderMetadata
 from src.extractors.personal_axes.contracts import (
@@ -605,8 +606,9 @@ async def test_database_interruption_preserves_lease_and_prompt_checkpoint(labor
     monkeypatch.setattr(AxisPreviews, "source_guard", source_guard)
     preview = await lab.service.request(request(lab), uuid4())
     identifier = UUID(preview["id"])
-    with pytest.raises(OperationalError):
+    with pytest.raises(StorageUnavailable) as failure:
         await lab.execute(identifier, 1)
+    assert isinstance(failure.value.__cause__, OperationalError)
     record = await lab.processing.get(identifier, lab.owners[0])
     assert record.status == "running" and record.stage == "sample_extraction"
     assert await lab.service.store(identifier).read("specification") is not None

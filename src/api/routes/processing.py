@@ -31,6 +31,7 @@ from src.api.schemas.processing import (
     ReprocessDocumentsResponse,
 )
 from src.config import get_settings
+from src.core.processing.errors import StorageUnavailable
 from src.domain.documents import NewDocument
 from src.exteriorization.repository import InvitationError
 from src.processing.runtime import get_repository
@@ -72,7 +73,7 @@ def http_error(error):
         (ValidationError, InvalidDocumentEncodingError, ValueError),
     ):
         return HTTPException(422, "Invalid upload or processing request")
-    if isinstance(error, SQLAlchemyError):
+    if isinstance(error, (StorageUnavailable, SQLAlchemyError)):
         return HTTPException(
             503, "Processing storage unavailable; retry with the same Idempotency-Key"
         )

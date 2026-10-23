@@ -14,6 +14,7 @@ from test_emotion_processing import pipeline, run, upload  # noqa: F401
 from test_processing_postgres import store  # noqa: F401
 
 from src.auth.session import require_authenticated
+from src.core.processing.errors import StorageUnavailable
 from src.extractors.artifacts import LayerArtifacts
 from src.extractors.base import Extractor
 from src.extractors.contracts import ExtractorProfile, FrozenModel
@@ -375,8 +376,9 @@ async def test_failed_fork_rolls_back_children_and_resumes_from_document_checkpo
         original(session, record)
 
     monkeypatch.setattr(env.repo, "schedule", fail_schedule)
-    with pytest.raises(SQLAlchemyError):
+    with pytest.raises(StorageUnavailable) as failure:
         await run(env, parent)
+    assert isinstance(failure.value.__cause__, SQLAlchemyError)
     assert not await env.repo.extractor_children(parent.id, env.owner)
     current = await env.repo.get(parent.id, env.owner)
     assert current.stage == "extractor_processing"  # The verified original is already durable.

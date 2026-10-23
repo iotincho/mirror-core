@@ -97,7 +97,7 @@ async def ingestion(store, tmp_path, monkeypatch):  # noqa: F811
             **({"profile": profile} if profile != "v4" else {}),
         },
     )
-    monkeypatch.setattr("src.use_cases.request_processing.workflow_config", lambda: dict(config))
+    monkeypatch.setattr("src.bootstrap.acceptance.workflow_config", lambda: dict(config))
     runtime = SimpleNamespace(
         context=SimpleNamespace(user_id=owner, filesystem_root=tmp_path),
         document_store=FileDocumentStore(tmp_path / "documents"),

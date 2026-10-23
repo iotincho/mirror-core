@@ -1,7 +1,8 @@
 # Plan de migración a arquitectura hexagonal
 
-Estado al 2026-10-23: etapas 0 y 1 completadas localmente; etapa 2 pendiente.
-Se implementaron los controles y el piloto de documentos/títulos. No se publicaron
+Estado al 2026-10-23: etapas 0, 1 y 2 completadas localmente; etapa 3 pendiente.
+Se implementaron los controles, el piloto de documentos/títulos y procesamiento durable.
+No se publicaron
 cambios ni se desplegaron entornos. Revalidar el árbol y las pruebas al iniciar
 cada etapa; la ejecución de etapas siguientes requiere su alcance autorizado.
 
@@ -138,13 +139,12 @@ argumentos en un constructor de compatibilidad. El store de grafo heredado deleg
 la escritura base al adaptador nuevo; sus lecturas/borrado siguen para la etapa 3.
 Audio sólo mueve su modelo, no su procesamiento ni almacenamiento.
 
-Decisión de transición: `TitleScheduling` mantiene `BackfillDocumentTitles` como
-implementación heredada de aceptación SQL. Su separación transaccional se realizará
-con el motor durable en etapa 2, sin mover SQL a los casos nuevos ni separar ahora
-locks/recibo/job/outbox. Sus cinco excepciones pasan explícitamente de etapa 1 a 2.
-Tres imports exactos hacia bootstrap permiten los constructores de compatibilidad
-y el registro vigente. No hay excepciones en core, casos canónicos ni adaptadores
-nuevos. El control registra 223 módulos, 1.834 imports y 203 aristas heredadas.
+Transición resuelta en etapa 2: `TitleScheduling` conserva el mismo comportamiento
+de backfill, ahora mediante un caso canónico sin SQL y un puerto transaccional.
+Locks/recibo/job/outbox siguen juntos en PostgreSQL; se retiraron sus cinco
+excepciones de infraestructura. Los constructores anteriores siguen como puentes
+de import hasta migrar consumidores. El cierre del piloto registró 223 módulos,
+1.834 imports y 203 aristas heredadas; el estado actual está en la etapa siguiente.
 
 Validación: 343 pruebas sin integraciones aprobadas; seis omitidas de Web Push por
 `pywebpush` ausente. 83 integraciones aprobadas con PostgreSQL 17/ArcadeDB 26.9.1
@@ -161,14 +161,14 @@ al finalizar; no se requieren migraciones de esquema nuevas.
 
 Depende de etapa 1. Es la etapa de mayor sensibilidad por concurrencia y recuperación.
 
-- [ ] Separar registros de aplicación de modelos ORM; extraer puertos para estado,
+- [x] Separar registros de aplicación de modelos ORM; extraer puertos para estado,
   transacciones, recursos, leases, checkpoints y outbox sin exponer sesiones.
-- [ ] Migrar aceptación/retry/reprocess y coordinación padre/hijos. Desacoplar el
+- [x] Migrar aceptación/retry/reprocess y coordinación padre/hijos. Desacoplar el
   runner de repositorios concretos y errores SQL; conservar clasificación de fallos.
-- [ ] Separar recepción Taskiq, publicación RabbitMQ, dispatcher y composición.
-- [ ] Registrar workflows/extractores y construir especificaciones desde bootstrap
+- [x] Separar recepción Taskiq, publicación RabbitMQ, dispatcher y composición.
+- [x] Registrar workflows/extractores y construir especificaciones desde bootstrap
   o políticas explícitas; preservar la configuración fijada al aceptar cada trabajo.
-- [ ] Encapsular las extensiones de ejes que hoy aparecen en el procesador común.
+- [x] Encapsular las extensiones de ejes que hoy aparecen en el procesador común.
   Conservar su orden de escritura y privacidad; no refactorizar sus internals.
 
 Salida: misma semántica de ACK, fencing, locks, retries y workflow histórico;
@@ -179,6 +179,60 @@ publicación ambigua y fallo parcial con motores aislados.
 Pruebas: transporte/artefactos y las integraciones `test_processing_postgres.py`,
 `test_processing_events.py`, `test_extractor_jobs.py`, `test_reprocess_notes.py`.
 Ejecutar regresión de ejes afectada por los contratos compartidos.
+
+Implementación:
+
+| Responsabilidad | Ubicación vigente |
+| --- | --- |
+| Estado desacoplado, errores seguros, especificación de workflows y puertos | `src/core/processing/` |
+| Ejecución/heartbeat, aceptación, retry, reprocess, coordinación y publicación de outbox | `src/use_cases/processing/` |
+| Backfill sin SQL, conectado a transacciones de procesamiento | `src/use_cases/documents/backfill_document_titles.py` |
+| ORM, consultas, locks, leases, feed, recibos y adaptación de estados/transacciones | `src/adapters/storage/postgres/` |
+| Recepción/ACK de Taskiq | `src/adapters/access/workers/processing.py` |
+| Configuración técnica del broker durable | `src/adapters/messaging/rabbitmq/broker.py` |
+| Factories, registro y snapshots de configuración, ciclo de procesos y compatibilidad | `src/bootstrap/{processing,acceptance,processing_configuration,workflows,worker,messaging,dispatcher}.py` |
+
+Los estados entregados a la aplicación son copias independientes. Avanzar un
+checkpoint no puede sobrescribir la configuración aceptada por mutar una copia.
+El adaptador mantiene la identidad ORM internamente, aplica las mutaciones del
+caso y confirma recibo/trabajos/eventos/outbox juntos; no expone una sesión SQL.
+Eventos y envíos sincronizan sólo el trabajo afectado, sin volver a copiar el
+lote completo por cada elemento. La lectura de un replay conserva sus lecturas
+sin locks adicionales de filas; los locks de recursos y de mutaciones no cambian.
+
+`StorageUnavailable` conserva los fallos SQL sin resolver el lease ni confirmar
+el mensaje. La API lo traduce al mismo HTTP 503 y pide reutilizar la clave
+idempotente. Los workflows históricos de documento v2/v3 y los coordinadores
+v4/v5 conservan transiciones, IDs determinísticos y especificaciones aceptadas.
+La clasificación de proveedores vigente se inyecta desde composición hasta migrar
+sus adaptadores en etapa 3. No se agregaron retries al broker ni un segundo registro.
+
+Compatibilidad acotada: los nombres anteriores importan o construyen componentes
+canónicos. Ejes mantiene en bootstrap los hooks de orden de escritura/privacidad,
+el contexto de sus workflows experimentales y una fachada para su llamada existente
+`reset(session, row, now)`. Esa fachada traduce al puerto transaccional y usa la
+transacción del histórico; no modifica sus internals ni abre otro commit.
+Seis aristas exactas del adaptador PostgreSQL siguen apuntando a Base/workspace e
+invitaciones heredados, hasta etapas 4/5. Los casos canónicos y core no tienen
+excepciones; los shims tienen retiro indicado en la política. El workflow específico
+de audio conserva diez imports heredados hasta la etapa 3, junto con preparación,
+transcripción y artefactos; su handoff ya usa el motor/puerto durable migrado.
+Inventario actual:
+268 módulos, 1.989 imports y 162 aristas heredadas.
+
+Validación: 351 pruebas sin servicios aprobadas; seis pruebas de Web Push omitidas
+por `pywebpush` ausente. 133 integraciones aprobadas con PostgreSQL 17, ArcadeDB
+26.9.1 y RabbitMQ 4.3.6 desechables, sin skips en esa selección. Incluyen workers
+Taskiq reales, escalado, ACK, cancelación, entrega perdida/duplicada, leases/fencing,
+publicación ambigua, rollback, feed, aceptación/replay/reprocess, títulos y ejes.
+La aplicación se prueba con puertos en memoria y con imports de SQLAlchemy, Taskiq,
+FastAPI, OpenAI y HTTPX bloqueados. Alembic confirmó `No new upgrade operations
+detected`; no hay revisiones de esquema nuevas. Tras el ajuste final de sincronización,
+40 casos focalizados de aplicación/lotes/jobs/backfill/histórico volvieron a pasar.
+Ruff, fronteras y enlaces pasan.
+Sin proveedores reales, publicación ni despliegue; servicios desechables eliminados
+al finalizar. El commit `452f005` conserva etapas 0/1 en la misma rama; los cambios
+de esta etapa quedan separados en el árbol de trabajo.
 
 ### Etapa 3 — Audio, demás extractores, grafo y respaldos
 

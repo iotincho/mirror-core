@@ -7,7 +7,10 @@ import pytest
 
 from src.extractors.backfill_titles import build_parser, execute
 from src.extractors.document_title import TITLE_PROFILE
-from src.use_cases.backfill_document_titles import BackfillDocumentTitles, TitleBackfillResult
+from src.use_cases.documents.backfill_document_titles import (
+    BackfillDocumentTitles,
+    TitleBackfillResult,
+)
 from src.use_cases.submit_processing import document_title_specification
 
 

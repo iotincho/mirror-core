@@ -20,10 +20,13 @@ referencias de Docker, Alembic, empaquetado, scripts y pruebas a conservar al mi
 | Piloto documentos / títulos | `src/core/domain/`, `src/core/documents/`, `src/core/extractors/`; `src/use_cases/documents/`, `src/use_cases/extraction/`; `src/bootstrap/documents.py` | `tests/test_document_pilot.py`, `tests/test_document_title_extractor.py`, `tests/test_lazy_document_titles.py`; [títulos](../document-title-extractor.md) |
 | Persistencia del piloto | `src/adapters/storage/filesystem/`, `src/adapters/storage/arcadedb/documents.py`, `document_titles.py` | `tests/test_processing_artifacts.py`, integraciones de ingestión/títulos/capas |
 | Proveedor de títulos | `src/adapters/providers/openai/document_title.py`, `client.py`; configuración en bootstrap | `tests/test_title_provider_resources.py`, `tests/test_document_title_extractor.py` |
+| Aplicación durable / backfill | `src/use_cases/processing/`, `src/use_cases/documents/backfill_document_titles.py`; contratos en `src/core/processing/` | `tests/test_processing_application.py`, integraciones de procesamiento/reprocess/títulos |
+| SQL durable / feed de eventos | `src/adapters/storage/postgres/models.py`, `repository.py`, `transactions.py`, `submissions.py`, `submission_port.py`, `state.py`, `events.py` | `tests/integration/test_processing_postgres.py`, `test_processing_events.py`; [runtime](../processing-runtime.md) |
+| Composición y transporte durable | `src/bootstrap/processing.py`, `acceptance.py`, `processing_configuration.py`, `workflows.py`, `dispatcher.py`, `worker.py`, `messaging.py`; adaptadores en `src/adapters/access/workers/`, `src/adapters/messaging/rabbitmq/` | `tests/test_processing_transport.py`; workers reales opt-in |
 | HTTP público / composición | `src/main.py`, `src/api/router.py`, `src/api/routes/`, `src/dependencies.py` | `tests/test_openapi_docs.py`, `tests/test_documents_route.py` |
-| Ingestión / aceptación idempotente | `src/use_cases/submit_processing.py`, `src/processing/submissions.py`, `src/api/routes/processing.py` | `tests/integration/test_deferred_ingestion.py`; [ingestión](../deferred-ingestion.md) |
-| Orquestación durable | `src/processing/runtime.py`, `workflows.py`, `execution.py`, `repository.py`, `dispatcher.py`, `tasks.py` | `tests/test_processing_transport.py`, `tests/integration/test_processing_postgres.py`; [runtime](../processing-runtime.md) |
-| Procesar documentos / audio / capas | `src/use_cases/process_audio_note.py`, `process_document_extractors.py`, `process_extractor.py`, `src/processing/configuration.py` | `tests/integration/test_extractor_jobs.py`; [jobs](../extractor-jobs.md) |
+| HTTP de ingestión / aceptación idempotente | `src/api/routes/processing.py`; llama constructores de compatibilidad que delegan a bootstrap y aplicación durable | `tests/integration/test_deferred_ingestion.py`; [ingestión](../deferred-ingestion.md) |
+| Entrypoints durables compatibles | `src/processing/runtime.py`, `workflows.py`, `execution.py`, `repository.py`, `dispatcher.py`, `tasks.py` delegan a las filas canónicas anteriores | `tests/test_processing_transport.py`, `tests/integration/test_processing_postgres.py`; [runtime](../processing-runtime.md) |
+| Procesar documentos / audio / capas | Documentos en `src/use_cases/processing/`; audio permanece en `src/use_cases/process_audio_note.py` hasta etapa 3 | `tests/integration/test_extractor_jobs.py`; [jobs](../extractor-jobs.md) |
 | Otros extractores / proveedores | `src/extractors/registry.py`, módulos de emociones/embeddings; ciclo y contratos compartidos canónicos en las filas del piloto | `tests/test_emotion_extractor.py`, `tests/test_document_embedding_extractor.py`, `tests/test_document_title_extractor.py` |
 | Laboratorio / ejes | `src/extractors/personal_axes/`, `src/use_cases/axis_previews.py`, `process_axis_preview.py`, `process_axis_history.py` | `tests/test_personal_axis_extractor.py`, `tests/test_laboratory_access.py`, `tests/integration/test_axis_previews.py`; [API](../personal-axes-api.md) |
 | Lecturas / proyecciones de grafo | `src/graph/contracts.py`, `src/graph/emotion_exploration.py`, `src/graph/arcadedb/`, `src/query/`, `src/api/routes/graph.py` | `tests/test_graph_navigation.py`, `tests/test_emotion_projection.py`; [grafo](../../src/graph/README.md) |
@@ -42,16 +45,16 @@ referencias de Docker, Alembic, empaquetado, scripts y pruebas a conservar al mi
 `src/domain/`, los módulos de títulos de `src/extractors/`, los stores de documentos
 y artefactos anteriores reexportan las implementaciones canónicas del piloto.
 Para cambiar su comportamiento empezar por `core`, los casos agrupados y sus
-adaptadores; evitar editar los shims. El puerto `TitleScheduling` permite mantener
-la aceptación SQL de `src/use_cases/backfill_document_titles.py` hasta la etapa 2.
+adaptadores; evitar editar los shims. Backfill y aceptación durable usan puertos
+transaccionales; sus implementaciones SQL viven en `adapters/storage/postgres`.
 
 Los casos migrados sólo reciben puertos/configuración explícita. Bootstrap compone
-títulos y lectura diferida; `src/dependencies.py`, `src/workspaces/dependencies.py`,
-`src/processing/workflows.py` y dependencias de otras familias todavía conectan
+títulos, lectura diferida y procesamiento durable; `src/dependencies.py`,
+`src/workspaces/dependencies.py` y dependencias de otras familias todavía conectan
 entrypoints y responsabilidades pendientes. El store de grafo heredado delega su
 escritura base al adaptador nuevo y mantiene navegación/borrado.
 
-No centralizar toda la composición en un único archivo: `workflows.py` compone
+No centralizar toda la composición en un único archivo: `bootstrap/workflows.py` compone
 ejecución de workers y el runtime del workspace compone el acceso por usuario.
 `src/graph/arcadedb/` conserva cliente, esquema y navegación; las capas todavía no
 migradas mantienen persistencia propia en `src/extractors/`.

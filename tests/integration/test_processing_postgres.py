@@ -91,6 +91,31 @@ async def job(store, resource_id=None):
     )
 
 
+async def test_application_snapshot_cannot_rewrite_accepted_configuration_when_advancing(store):
+    from src.adapters.storage.postgres.state import PostgresExecutionStore
+    from src.core.processing.models import ProcessingJob
+
+    repository, owner = store
+    accepted = await repository.create(
+        user_id=owner,
+        workflow="test",
+        stage="extract",
+        resource_kind="document",
+        resource_id=uuid4(),
+        config={"provider": {"model": "accepted-model"}},
+    )
+    port = PostgresExecutionStore(repository)
+    state = await port.acquire(accepted.id, accepted.generation, "synthetic-worker")
+    assert isinstance(state, ProcessingJob)
+    state.config["provider"]["model"] = "changed-in-memory"
+    await port.advance(state, "embed", {"artifact": "durable"})
+    await port.finish(state)
+    current = await repository.get(accepted.id, owner)
+    assert current.config == {"provider": {"model": "accepted-model"}}
+    assert current.stage == "embed" and current.checkpoints == {"artifact": "durable"}
+    assert current.status == "completed"
+
+
 def executor(repository, run, transitions=()):
     registry = WorkflowRegistry()
     registry.register("test", 1, WorkflowDefinition(run, frozenset(transitions)))

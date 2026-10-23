@@ -1,0 +1,64 @@
+"""Application transactions express state changes, never SQL sessions or statements."""
+
+from contextlib import AbstractAsyncContextManager
+from datetime import datetime
+from typing import Protocol
+from uuid import UUID
+
+from src.core.processing.models import ProcessingJob, SubmissionReceipt
+
+
+class ProcessingTransaction(Protocol):
+    now: datetime
+
+    async def receipt(self, owner: UUID, operation: str, key: UUID) -> SubmissionReceipt | None: ...
+
+    async def reserve_mutation(
+        self, owner: UUID, operation: str, key: UUID, request_hash: str, resource_id: UUID
+    ) -> SubmissionReceipt: ...
+
+    async def job(self, identifier: UUID, *, locked: bool = True) -> ProcessingJob | None: ...
+
+    async def children(self, parent_id: UUID, owner: UUID) -> list[ProcessingJob]: ...
+
+    async def create_jobs(self, jobs: list[ProcessingJob]) -> None: ...
+
+    def event(self, job: ProcessingJob) -> None: ...
+
+    def schedule(self, job: ProcessingJob) -> None: ...
+
+    async def wake_parent(self, child: ProcessingJob) -> None: ...
+
+    async def configuration_for(self, owner: UUID, baseline: dict) -> dict: ...
+
+    async def deleted(self, owner: UUID, identifier: UUID) -> bool: ...
+
+    async def jobs_for_resources(
+        self, owner: UUID, identifiers: list[UUID]
+    ) -> list[ProcessingJob]: ...
+
+    async def receipts_for_resources(
+        self, owner: UUID, identifiers: list[UUID]
+    ) -> list[SubmissionReceipt]: ...
+
+
+class ProcessingRequests(Protocol):
+    def transaction(self) -> AbstractAsyncContextManager[ProcessingTransaction]: ...
+
+    def lock_resource(
+        self, owner: UUID, resource_id: UUID
+    ) -> AbstractAsyncContextManager[bool]: ...
+
+    def lock_resources(
+        self, owner: UUID, resource_ids: list[UUID]
+    ) -> AbstractAsyncContextManager[bool]: ...
+
+    def lock_extractor(
+        self, owner: UUID, resource_id: UUID, branch_id: UUID
+    ) -> AbstractAsyncContextManager[bool]: ...
+
+    async def assert_inactive(self, owner: UUID, resource_id: UUID, exclude=()) -> None: ...
+
+    async def get(self, identifier: UUID, owner: UUID) -> ProcessingJob | None: ...
+
+    async def latest(self, owner: UUID, resource_id: UUID, kind: str) -> ProcessingJob | None: ...

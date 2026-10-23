@@ -136,3 +136,35 @@ Eliminar después sólo los contenedores/volúmenes desechables de la ejecución
 usar la configuración privada del Compose habitual ni un `down -v` sobre el proyecto.
 Si el runner se bloquea dentro de un sandbox, detenerlo antes de repetir fuera del
 aislamiento permitido; no presentar un bloqueo del entorno como regresión del producto.
+
+## Regresión de procesamiento durable
+
+La etapa 2 conserva los comandos/imports de procesos anteriores y mueve las
+implementaciones según el [mapa](repository-map.md). Primero validar aplicación
+sin motores; la prueba de imports bloquea infraestructura explícitamente:
+
+```bash
+.venv/bin/python -m pytest tests/test_processing_application.py tests/test_processing_transport.py
+```
+
+Con las bases desechables anteriores, agregar `PROCESSING_TEST_RABBITMQ_URL` de un
+broker exclusivo de prueba para acreditar workers reales, ACK y escalado. Los
+subprocesos de esas pruebas toman también `DATABASE_URL`, las variables del grafo
+y el `PYTHONPATH` de sus fixtures; no usar un Compose con datos de personas.
+
+```bash
+.venv/bin/python -m pytest \
+  tests/integration/test_processing_postgres.py tests/integration/test_processing_events.py \
+  tests/integration/test_extractor_jobs.py tests/integration/test_reprocess_notes.py \
+  tests/integration/test_deferred_ingestion.py tests/integration/test_document_title_processing.py \
+  tests/integration/test_document_titles_on_read.py tests/integration/test_title_backfill.py \
+  tests/integration/test_personal_axis_processing.py tests/integration/test_axis_history.py \
+  tests/integration/test_axis_previews.py tests/integration/test_document_embedding_processing.py \
+  tests/integration/test_audio_invitation_processing.py -rs
+# Sólo contra el SQL desechable migrado, para detectar diferencias de modelos:
+.venv/bin/python -m alembic check
+```
+
+Próximo alcance: etapa 3, audio, capas restantes, navegación y respaldos. Conservar
+los bridges exactos de ejes, identidad/workspace e invitaciones indicados en el plan;
+no copiar sus dependencias SQL a la aplicación nueva.

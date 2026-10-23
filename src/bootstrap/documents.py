@@ -13,7 +13,9 @@ from src.use_cases.extraction.document_title import DocumentTitleExtractor
 def build_title_provider(api_key, model, client=None, *, max_retries=2):
     settings = get_settings()
     return OpenAIDocumentTitleProvider(
-        api_key, model, client,
+        api_key,
+        model,
+        client,
         timeout_seconds=settings.provider_timeout_seconds,
         max_concurrency=settings.provider_max_concurrency,
         max_retries=max_retries,
@@ -32,17 +34,13 @@ def build_document_title_extractor(runtime, specification, *, provider=None):
 
 
 def build_title_scheduler(repository, runtime):
-    # Stage 2 will replace this implementation of TitleScheduling. Keep its SQL transaction,
-    # resource guard, accepted snapshots and outbox together until that migration.
-    from src.use_cases.backfill_document_titles import BackfillDocumentTitles
+    from src.bootstrap.processing import build_title_backfill
 
     settings = get_settings()
     policy = TitleReadPolicy(
         limit=settings.document_title_read_limit,
         enabled=bool(
-            settings.llm_provider == "openai"
-            and settings.openai_model
-            and settings.openai_api_key
+            settings.llm_provider == "openai" and settings.openai_model and settings.openai_api_key
         ),
     )
-    return EnsureDocumentTitles(BackfillDocumentTitles(repository, runtime), policy)
+    return EnsureDocumentTitles(build_title_backfill(repository, runtime), policy)

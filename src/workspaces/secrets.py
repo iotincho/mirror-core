@@ -8,10 +8,7 @@ import hashlib
 from cryptography.fernet import Fernet, InvalidToken
 
 from src.config import Settings
-
-
-class WorkspaceSecretError(RuntimeError):
-    """Raised when a workspace credential cannot be protected or recovered."""
+from src.core.workspaces.errors import WorkspaceSecretError as WorkspaceSecretError
 
 
 class WorkspaceSecretCipher:

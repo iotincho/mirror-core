@@ -20,6 +20,7 @@ git diff --check
 | Cuenta / workspace | `tests/test_signup_flow.py`, `tests/test_workspace_dependencies.py`, `tests/test_workspaces.py` | Integración PostgreSQL/provisioning si cambia persistencia |
 | Extractor | Test de la capa y configuración | Persistir artefacto sin proveedor, reemplazo y aislamiento de capas |
 | Runtime / locks / outbox | `tests/test_processing_transport.py`, `tests/test_processing_artifacts.py` | `tests/integration/test_processing_postgres.py` y jobs afectados |
+| Aplicación durable / transacciones | `tests/test_processing_application.py` con puertos en memoria e imports de infraestructura bloqueados | Reprocess, jobs, backfill e histórico de ejes con PostgreSQL/ArcadeDB aislados |
 | Grafo | Test de proyección/navegación afectado | Integración ArcadeDB con esquema y transacciones reales |
 | Migración | Revisión de head + integración de migración | Upgrade/recuperación con base aislada |
 | Docker / publicación | `tests/test_local_deploy.py`, configuración Compose | Build o smoke aislado si cambia comportamiento del contenedor |

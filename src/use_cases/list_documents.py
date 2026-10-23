@@ -1,13 +1,3 @@
-from src.services.document_store import Document, DocumentStore
+"""Compatibility imports; canonical implementation: src.use_cases.documents.list_documents."""
 
-
-class ListDocuments:
-    def __init__(self, documents: DocumentStore, ensure_titles=None):
-        self._documents = documents
-        self._ensure_titles = ensure_titles
-
-    async def execute(self) -> list[Document]:
-        documents = await self._documents.list()
-        if self._ensure_titles is not None:
-            await self._ensure_titles.execute(documents)
-        return documents
+from src.use_cases.documents.list_documents import ListDocuments as ListDocuments

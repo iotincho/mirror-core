@@ -1,8 +1,9 @@
 # Plan de migración a arquitectura hexagonal
 
-Estado: arquitectura y organización acordadas el 2026-10-23; migración funcional
-no iniciada. Este documento planifica el trabajo; no autoriza su ejecución,
-publicación ni despliegue. Revalidar el árbol y las pruebas al iniciar cada etapa.
+Estado al 2026-10-23: etapas 0 y 1 completadas localmente; etapa 2 pendiente.
+Se implementaron los controles y el piloto de documentos/títulos. No se publicaron
+cambios ni se desplegaron entornos. Revalidar el árbol y las pruebas al iniciar
+cada etapa; la ejecución de etapas siguientes requiere su alcance autorizado.
 
 Las reglas y estructura objetivo se mantienen en [ARCHITECTURE.md](../../ARCHITECTURE.md).
 El [mapa](repository-map.md) identifica el código actual. Los contratos funcionales
@@ -63,31 +64,49 @@ resultados y compatibilidad pendiente. Mantener aquí sólo estado y decisiones.
 
 ### Etapa 0 — Línea de base y control de fronteras
 
-- [ ] Inventariar imports, puntos de composición, comandos de proceso y usos de
+- [x] Inventariar imports, puntos de composición, comandos de proceso y usos de
   las rutas que se moverán: tests, Alembic, empaquetado, Docker y scripts incluidos.
-- [ ] Seleccionar y ejecutar la regresión base del primer recorrido, con servicios
+- [x] Seleccionar y ejecutar la regresión base del primer recorrido, con servicios
   aislados cuando corresponda; registrar skips y limitaciones.
-- [ ] Incorporar un chequeo de dependencias para las rutas migradas: prohibir
+- [x] Incorporar un chequeo de dependencias para las rutas migradas: prohibir
   imports de infraestructura desde core/aplicación y de bootstrap desde otras capas.
   Contemplar imports relativos y locales; revisar aparte carga dinámica.
-- [ ] Registrar excepciones heredadas por archivo/arista y motivo, sin permitir
+- [x] Registrar excepciones heredadas por archivo/arista y motivo, sin permitir
   un paquete entero. El chequeo debe impedir nuevas violaciones y acompañar CI.
 
 Salida: inventario verificable y controles que pueden aplicarse gradualmente.
 No crear toda la estructura vacía ni declarar limpio el código todavía heredado.
+
+Implementación: `scripts/check_architecture.py`, política de excepciones exactas
+en `config/architecture-exceptions.json` y workflow independiente de CI.
+Inventario reproducible y puntos de composición/consumo en la
+[guía del chequeo](architecture-checks.md). El inventario inicial comprende
+186 módulos y 1.764 imports; registra 211 aristas heredadas y 159 ubicaciones
+preexistentes, sin desactivar las reglas para paquetes enteros. La búsqueda de
+carga dinámica en `src/` no encontró llamadas que requieran excepción.
+
+Validación local: 45 pruebas focalizadas del recorrido, 41 integraciones verificadas
+con PostgreSQL 17/ArcadeDB 26.9.1 desechables y 28 pruebas del chequeo. Una integración
+opcional de worker real quedó omitida por no configurar RabbitMQ; no se acredita
+ese transporte. El caso de grafo inmediato pasó tras preparar su base de prueba
+`processing_test`. Los motores desechables se eliminaron al finalizar. No se
+movió código funcional ni se cambiaron datos de usuarios; CI remoto no ejecutado.
+Ruff aprueba `src`, tests y el chequeo nuevo. El comando global sobre todos los
+scripts conserva un E501 preexistente en `scripts/ingest_alex_diary_resumable.py:24`,
+verificado contra `HEAD` y fuera de este alcance.
 
 ### Etapa 1 — Recorrido piloto: documentos y títulos
 
 Depende de etapa 0. Títulos es el primer extractor por contar ya con un puerto de
 persistencia separado. Emociones y embeddings mantienen su ejecución actual.
 
-- [ ] Ubicar Document/AudioNote y puertos mínimos de documentos, proyección base
+- [x] Ubicar Document/AudioNote y puertos mínimos de documentos, proyección base
   y artefactos, con adaptadores filesystem/ArcadeDB.
-- [ ] Migrar lectura/ingestión básica y extracción/persistencia de títulos a las
+- [x] Migrar lectura/ingestión básica y extracción/persistencia de títulos a las
   nuevas fronteras. Inyectar dependencias y configuración, sin leer settings globales.
-- [ ] Componer el recorrido desde bootstrap y conectarlo a los entrypoints vigentes.
+- [x] Componer el recorrido desde bootstrap y conectarlo a los entrypoints vigentes.
   Un wrapper temporal puede conservar un import; no duplicar implementación.
-- [ ] Mantener la selección de capas y el coordinador actuales mediante compatibilidad
+- [x] Mantener la selección de capas y el coordinador actuales mediante compatibilidad
   hasta etapa 2. No cambiar los snapshots de jobs ya aceptados.
 
 Salida: recorrido HTTP → aplicación → puertos → adaptadores, con pruebas de core
@@ -99,6 +118,44 @@ Pruebas de referencia: `test_ingest_document.py`, `test_documents_route.py`,
 `test_document_title_extractor.py`, `test_lazy_document_titles.py` y las integraciones
 `test_deferred_ingestion.py`, `test_document_title_processing.py`,
 `test_document_titles_on_read.py`. Reevaluar selección al fijar cada entrega.
+
+Implementación canónica y compatibilidad:
+
+| Responsabilidad | Ubicación vigente |
+| --- | --- |
+| Originales Document/AudioNote | `src/core/domain/` |
+| DocumentStore, proyección base y política/puerto de programación de títulos | `src/core/documents/` |
+| Contratos de extracción, títulos y artefactos | `src/core/extractors/` |
+| Ingestión de texto/archivo, listado y programación acotada al leer | `src/use_cases/documents/` |
+| Ciclo común y extracción/persistencia de títulos | `src/use_cases/extraction/` |
+| JSON, publicación durable y artefactos inmutables | `src/adapters/storage/filesystem/` |
+| Proyección base y actualización del título | `src/adapters/storage/arcadedb/` |
+| Proveedor de títulos y ciclo de vida de clientes OpenAI | `src/adapters/providers/openai/` |
+| Configuración inyectada y conexión al runtime vigente | `src/bootstrap/documents.py` |
+
+Los imports anteriores reexportan la misma implementación/modelos/errores o adaptan
+argumentos en un constructor de compatibilidad. El store de grafo heredado delega
+la escritura base al adaptador nuevo; sus lecturas/borrado siguen para la etapa 3.
+Audio sólo mueve su modelo, no su procesamiento ni almacenamiento.
+
+Decisión de transición: `TitleScheduling` mantiene `BackfillDocumentTitles` como
+implementación heredada de aceptación SQL. Su separación transaccional se realizará
+con el motor durable en etapa 2, sin mover SQL a los casos nuevos ni separar ahora
+locks/recibo/job/outbox. Sus cinco excepciones pasan explícitamente de etapa 1 a 2.
+Tres imports exactos hacia bootstrap permiten los constructores de compatibilidad
+y el registro vigente. No hay excepciones en core, casos canónicos ni adaptadores
+nuevos. El control registra 223 módulos, 1.834 imports y 203 aristas heredadas.
+
+Validación: 343 pruebas sin integraciones aprobadas; seis omitidas de Web Push por
+`pywebpush` ausente. 83 integraciones aprobadas con PostgreSQL 17/ArcadeDB 26.9.1
+desechables: aceptación/replay, títulos, programación concurrente al leer, backfill,
+jobs, emociones, embeddings y compatibilidad de ejes. Se corrigió la configuración
+de la ejecución de embeddings y sus tres casos inicialmente omitidos pasaron.
+Permanece omitido un caso de worker RabbitMQ real. Las nuevas pruebas de aplicación
+usan sólo puertos en memoria; las del proveedor verifican configuración explícita,
+propiedad/cierre de clientes y errores recuperables con SDK simulado. Sin LLM real,
+evaluación editorial, publicación ni despliegue. Servicios desechables eliminados
+al finalizar; no se requieren migraciones de esquema nuevas.
 
 ### Etapa 2 — Procesamiento durable y aceptación transaccional
 

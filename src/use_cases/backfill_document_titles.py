@@ -1,14 +1,14 @@
 """Preview and enqueue only missing titles, reusing durable jobs across invocations."""
 
 from collections import Counter
-from dataclasses import asdict, dataclass
-from uuid import UUID, uuid4, uuid5
+from uuid import uuid4, uuid5
 
 from sqlalchemy import select
 
+from src.core.documents.ports import DocumentNotFoundError
+from src.core.documents.title_scheduling import TitleBackfillResult as TitleBackfillResult
 from src.processing.models import ProcessingReceipt, ProcessingRecord
 from src.processing.submissions import SubmissionConflict, SubmissionRepository
-from src.services.document_store import DocumentNotFoundError
 from src.use_cases.request_processing import RequestProcessing
 from src.use_cases.submit_processing import document_title_specification
 
@@ -20,19 +20,6 @@ class TitleAlreadyPresent(ValueError):
 class TitleWorkPresent(ValueError):
     def __init__(self, result):
         self.result = result
-
-
-@dataclass(frozen=True)
-class TitleBackfillResult:
-    document_id: UUID
-    status: str
-    processing_id: UUID | None = None
-
-    def serializable(self):
-        return {
-            key: str(value) if isinstance(value, UUID) else value
-            for key, value in asdict(self).items()
-        }
 
 
 class BackfillDocumentTitles:

@@ -6,8 +6,9 @@ import pytest
 from pydantic import ValidationError
 
 from src.config import Settings
+from src.core.documents.title_scheduling import TitleReadPolicy
 from src.use_cases.backfill_document_titles import TitleBackfillResult
-from src.use_cases.ensure_document_titles import EnsureDocumentTitles
+from src.use_cases.documents.ensure_document_titles import EnsureDocumentTitles
 from src.use_cases.list_documents import ListDocuments
 
 
@@ -17,23 +18,14 @@ def anyio_backend():
 
 
 @pytest.fixture
-def scheduler(monkeypatch):
-    settings = SimpleNamespace(
-        document_title_read_limit=2,
-        llm_provider="openai",
-        openai_model="test",
-        openai_api_key="unused-fake-key",
-    )
+def scheduler():
     backfill = SimpleNamespace(
         owner=uuid4(),
         unavailable=AsyncMock(return_value={}),
         execute=AsyncMock(side_effect=lambda doc, **_: TitleBackfillResult(doc, "queued")),
     )
-    monkeypatch.setattr("src.use_cases.ensure_document_titles.get_settings", lambda: settings)
-    monkeypatch.setattr(
-        "src.use_cases.ensure_document_titles.BackfillDocumentTitles", lambda *_: backfill
-    )
-    return EnsureDocumentTitles(None, None), settings, backfill
+    policy = TitleReadPolicy(limit=2, enabled=True)
+    return EnsureDocumentTitles(backfill, policy), policy, backfill
 
 
 def document(title=None):
@@ -78,11 +70,10 @@ async def test_enqueue_failure_is_best_effort_and_logs_no_private_material(sched
 
 @pytest.mark.anyio
 async def test_disabled_or_unconfigured_scheduling_performs_no_coordination(scheduler):
-    ensure, settings, backfill = scheduler
-    settings.document_title_read_limit = 0
+    ensure, _, backfill = scheduler
+    ensure.policy = TitleReadPolicy(limit=0, enabled=True)
     await ensure.execute([document()])
-    settings.document_title_read_limit = 2
-    settings.openai_api_key = None
+    ensure.policy = TitleReadPolicy(limit=2, enabled=False)
     await ensure.execute([document()])
     backfill.unavailable.assert_not_called()
     backfill.execute.assert_not_called()

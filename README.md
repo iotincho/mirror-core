@@ -100,6 +100,7 @@ y aplica migraciones. No usarlo como comprobación de documentación.
 
 ```bash
 .venv/bin/python scripts/check_repo_docs.py
+.venv/bin/python scripts/check_architecture.py
 .venv/bin/python -m ruff check src tests scripts
 # Ejemplo acotado; elegir la suite según el cambio.
 .venv/bin/python -m pytest tests/test_health.py tests/test_config.py tests/test_openapi_docs.py

@@ -4,6 +4,7 @@ import json
 from contextlib import AbstractAsyncContextManager
 from typing import Any, Protocol
 
+from src.adapters.storage.arcadedb.documents import ArcadeDBDocumentProjection
 from src.domain.documents import Document
 from src.graph.arcadedb import queries
 from src.graph.arcadedb.client import AsyncArcadeDBHTTPClient
@@ -62,33 +63,7 @@ class ArcadeDBGraphStore(GraphBackend):
         return self._client
 
     async def persist_document(self, document: Document) -> None:
-        try:
-            async with self._client.transaction() as transaction:
-                rows = self._rows(
-                    await transaction.command(
-                        queries.DOCUMENT,
-                        {
-                            "id": str(document.id),
-                            "content": document.content,
-                            "source": document.source,
-                            "title": document.title,
-                            "metadata_json": json.dumps(
-                                document.metadata, ensure_ascii=False, sort_keys=True
-                            ),
-                            "created_at": document.created_at.isoformat(),
-                            "authored_at": document.authored_at.isoformat()
-                            if document.authored_at
-                            else None,
-                        },
-                        language="cypher",
-                    )
-                )
-                if rows != [{"id": str(document.id), "content": document.content}]:
-                    raise GraphPersistenceError("Document write could not be verified")
-        except GraphPersistenceError:
-            raise
-        except Exception as error:
-            raise GraphPersistenceError("ArcadeDB document persistence failed") from error
+        await ArcadeDBDocumentProjection(self._client).persist_document(document)
 
     async def delete_document(self, document_id: str) -> None:
         try:

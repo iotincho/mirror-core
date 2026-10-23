@@ -9,8 +9,9 @@ contexto. Las guías describen código implementado; no acreditan despliegue.
 - [Mapa de módulos y pruebas](development/repository-map.md).
 - [Reglas de implementación y fronteras](development/implementation.md).
 - [Arquitectura, responsabilidades y criterios para nuevos módulos](../ARCHITECTURE.md).
-- [Plan de migración hexagonal](development/hexagonal-migration-plan.md): pendiente
-  de ejecución, con ejes fuera del refactor interno inicial.
+- [Plan de migración hexagonal](development/hexagonal-migration-plan.md): etapa 0
+  completada, piloto pendiente y ejes fuera del refactor interno inicial.
+- [Chequeo de fronteras e inventario](development/architecture-checks.md).
 - [Verificación y servicios aislados](development/testing.md).
 - [Configuración de agentes y presupuesto de contexto](development/agents.md).
 - [Instrucciones comunes](../AGENTS.md) y [README del proyecto](../README.md).

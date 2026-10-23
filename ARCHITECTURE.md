@@ -1,7 +1,8 @@
 # Arquitectura del backend
 
-Estado: arquitectura objetivo acordada el 2026-10-23. El código actual todavía
-no cumple todas estas fronteras. El [mapa del repositorio](docs/development/repository-map.md)
+Estado: arquitectura objetivo acordada el 2026-10-23; piloto de documentos y títulos
+migrado, con puentes al coordinador durable. El resto del código todavía no cumple
+todas estas fronteras. El [mapa del repositorio](docs/development/repository-map.md)
 describe el árbol existente; el [plan de migración](docs/development/hexagonal-migration-plan.md)
 define cómo llegar a esta organización sin cambiar el comportamiento del producto.
 
@@ -231,14 +232,26 @@ global donde mezclar responsabilidades sin dueño.
 
 ## Comprobación y transición
 
-La migración agrega controles de imports para los recorridos convertidos y
-excepciones heredadas acotadas por archivo/arista. Su implementación está pendiente
-en el plan; el chequeo documental no prueba las fronteras del código.
+La etapa 0 incorpora [controles de imports](docs/development/architecture-checks.md)
+para núcleo, aplicación y adaptadores, con excepciones heredadas por archivo/import.
+También impide agregar ubicaciones nuevas fuera del árbol objetivo. Los módulos
+heredados sin migrar no se declaran limpios; su inventario y compatibilidad siguen
+el plan. El chequeo documental es independiente de este control de código.
 
 Un recorrido cumple esta arquitectura cuando puede ejecutar su caso de uso con
 puertos falsos sin iniciar FastAPI, ORM, broker o proveedor real; las pruebas de
 adaptadores e integración comprueban después la infraestructura y la atomicidad.
 Una prueba con mocks no acredita locks o transacciones de motores reales.
+
+El piloto ubica originales y puertos en `core/domain`, `core/documents` y
+`core/extractors`; los casos en `use_cases/documents` y `use_cases/extraction`;
+persistencia en `adapters/storage/{filesystem,arcadedb}` y el proveedor de títulos
+en `adapters/providers/openai`. `bootstrap/documents.py` conecta esos componentes.
+`TitleReadPolicy` entrega configuración sin credenciales a la aplicación.
+`TitleScheduling` aísla la aceptación durable: por ahora bootstrap le conecta
+`BackfillDocumentTitles`, que conserva sus transacciones heredadas hasta la etapa 2.
+Las rutas HTTP, el workspace y el registro de workflows actuales siguen siendo
+los entrypoints; los módulos de compatibilidad delegan, sin duplicar algoritmos.
 
 Mover archivos no basta si persisten sesiones SQL en los casos de uso o clientes
 concretos detrás de un runtime. Durante la transición se mantienen puentes de import

@@ -1,7 +1,10 @@
 # Extractores independientes
 
-- Partir de `base.py`, `contracts.py` y la capa afectada. Registro en `registry.py`;
-  composición concreta en `../processing/workflows.py`.
+- Ciclo común en `../use_cases/extraction/base.py`; contratos en `../core/extractors/`.
+  Títulos se compone en `../bootstrap/documents.py`. `base.py`, `contracts.py` y
+  módulos de títulos de esta carpeta conservan imports de compatibilidad.
+  Las demás capas y el registro siguen aquí; `../processing/workflows.py` conecta
+  el registro durable hasta la etapa 2.
 - Separar extracción y persistencia. `dry_run` no escribe el grafo; conservar
   artefacto, profile, configuración y hashes para persistir sin repetir proveedor.
 - Validar citas/offsets contra el original completo. No normalizar el texto fuente

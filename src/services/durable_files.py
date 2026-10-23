@@ -1,14 +1,3 @@
-"""Flush published originals and metadata before acknowledging durable storage."""
+"""Compatibility imports; use the canonical adapter for new code."""
 
-import os
-from pathlib import Path
-
-
-def sync_published(path: Path):
-    with path.open("rb") as stream:
-        os.fsync(stream.fileno())
-    descriptor = os.open(path.parent, os.O_DIRECTORY)
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
+from src.adapters.storage.filesystem.durable_files import sync_published as sync_published

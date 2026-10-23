@@ -1,15 +1,6 @@
 """Document storage and graph visualization queries."""
 
-DOCUMENT = """
-MERGE (document:Document {id: $id})
-SET document.content = $content,
-    document.source = $source,
-    document.title = $title,
-    document.metadata_json = $metadata_json,
-    document.created_at = $created_at,
-    document.authored_at = $authored_at
-RETURN document.id AS id, document.content AS content
-"""
+from src.adapters.storage.arcadedb.documents import DOCUMENT as DOCUMENT
 
 DELETE_DOCUMENT = """
 MATCH (node)

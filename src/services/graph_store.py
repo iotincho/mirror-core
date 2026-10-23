@@ -2,7 +2,8 @@
 
 from typing import Protocol
 
-from src.domain.documents import Document
+from src.core.documents.ports import DocumentProjection
+from src.core.documents.ports import GraphPersistenceError as GraphPersistenceError
 from src.graph.contracts import (
     EmotionCatalog,
     EmotionExploration,
@@ -12,17 +13,11 @@ from src.graph.contracts import (
 )
 
 
-class GraphPersistenceError(RuntimeError):
-    """Raised when document storage or graph navigation fails."""
-
-
 class EmotionNotFoundError(LookupError):
     """The requested emotion label has no reported occurrences in this workspace."""
 
 
-class GraphStore(Protocol):
-    async def persist_document(self, document: Document) -> None: ...
-
+class GraphStore(DocumentProjection, Protocol):
     async def delete_document(self, document_id: str) -> None: ...
 
 

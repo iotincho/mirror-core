@@ -3,6 +3,21 @@
 Contrato del extractor, actualización de títulos en la PWA y generación para
 documentos anteriores sin título, sin repetir otras capas.
 
+## Ubicación del código
+
+El piloto hexagonal mantiene el contrato funcional y separa sus responsabilidades:
+modelos/profile/puertos en `src/core/extractors/document_title.py`; ciclo y escritura
+coordinada en `src/use_cases/extraction/`; programación acotada al leer en
+`src/use_cases/documents/ensure_document_titles.py`; implementaciones filesystem,
+ArcadeDB y OpenAI en `src/adapters/`. `src/bootstrap/documents.py` inyecta
+configuración y dependencias del workspace. Los módulos anteriores de títulos
+conservan imports/constructores de compatibilidad, con una sola implementación.
+
+`TitleReadPolicy` contiene límite/habilitación, sin claves. `TitleScheduling`
+expone programación durable sin sesiones SQL al caso de lectura; bootstrap lo
+conecta al backfill actual. Ese puente y el registro de workflows se separarán
+con procesamiento durable en la etapa 2 del [plan](development/hexagonal-migration-plan.md).
+
 ## Contrato y ejecución
 
 `Document.title` sigue siendo un atributo opcional del documento, con máximo de

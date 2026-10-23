@@ -15,6 +15,7 @@ git diff --check
 | Cambio | Primera verificación | Ampliar cuando corresponda |
 | --- | --- | --- |
 | Documentación / instrucciones | `python3 scripts/check_repo_docs.py` | Revisar ejemplos contra código/config; no ejecutar servicios |
+| Fronteras / movimientos de módulos | `python3 scripts/check_architecture.py` y `tests/test_architecture_boundaries.py` | [Inventario y línea de base del piloto](architecture-checks.md) |
 | Ruta / schema público | Test HTTP de la ruta + `tests/test_openapi_docs.py` | Autenticación, ownership y casos de error |
 | Cuenta / workspace | `tests/test_signup_flow.py`, `tests/test_workspace_dependencies.py`, `tests/test_workspaces.py` | Integración PostgreSQL/provisioning si cambia persistencia |
 | Extractor | Test de la capa y configuración | Persistir artefacto sin proveedor, reemplazo y aislamiento de capas |

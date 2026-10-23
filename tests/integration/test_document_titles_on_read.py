@@ -50,7 +50,7 @@ async def reads(titled, monkeypatch):
         openai_api_key="unused-fake-key",
     )
     monkeypatch.setattr(
-        "src.use_cases.ensure_document_titles.get_settings", lambda: env.read_settings
+        "src.bootstrap.documents.get_settings", lambda: env.read_settings
     )
     monkeypatch.setattr(routes, "get_repository", lambda: env.repo)
     monkeypatch.setattr("src.processing.runtime.get_repository", lambda: env.repo)

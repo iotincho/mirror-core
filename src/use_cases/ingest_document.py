@@ -1,20 +1,3 @@
-"""Register original material before any interpretation is performed."""
+"""Compatibility imports; canonical implementation: src.use_cases.documents.ingest_document."""
 
-from src.domain.documents import Document, NewDocument, build_document
-from src.services.document_store import DocumentStore
-
-
-class IngestDocument:
-    """Create and persist one source document through the storage port."""
-
-    def __init__(self, document_store: DocumentStore) -> None:
-        self._document_store = document_store
-
-    async def execute(self, new_document: NewDocument) -> Document:
-        document = build_document(new_document)
-        await self._document_store.save(document)
-        return document
-
-    async def get(self, document_id: object) -> Document:
-        """Retrieve already stored material for a retryable processing flow."""
-        return await self._document_store.get(document_id)
+from src.use_cases.documents.ingest_document import IngestDocument as IngestDocument

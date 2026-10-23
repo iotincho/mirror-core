@@ -260,7 +260,7 @@ services:
     <<: *processing
     command: >-
       taskiq worker src.processing.broker:broker src.processing.tasks
-      --workers 1 --max-async-tasks ${PROCESSING_CONCURRENCY:-4}
+      --workers 10 --max-async-tasks ${PROCESSING_CONCURRENCY:-4}
       --max-prefetch 0 --ack-type manual
 
   processing-dispatcher:

@@ -102,7 +102,9 @@ RabbitMQ usa una imagen fija `4.3.6-management-alpine`, un hostname estable y
 volumen persistente. Este Compose es de desarrollo y usa una instancia con colas
 clásicas durables; no ofrece alta disponibilidad del broker. El despliegue de
 producción, métricas, retención de eventos/outbox y estrategia HA corresponden
-a etapa 6. La API no requiere iniciar RabbitMQ hasta conectar los uploads.
+a una etapa operativa aparte. La aceptación HTTP usa PostgreSQL/outbox sin
+depender de RabbitMQ disponible; el dispatcher necesita el broker para entregar
+los trabajos al worker.
 
 ## Validación
 

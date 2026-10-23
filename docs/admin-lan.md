@@ -2,12 +2,36 @@
 
 La API administrativa se ejecuta desde `src.admin_main:app`. No está montada en `src.main:app`, no comparte su ciclo de arranque y no inicia reconciliación de workspaces, workers, proveedores ni conexiones a ArcadeDB. Esta entrega conserva la decisión de uso LAN sin autenticación administrativa.
 
-El panel ya está iniciado en esta máquina usando imágenes locales y los volúmenes
-existentes. Ver [acceso y operación del workspace](admin-workspace.md).
-
 Para ejecutar imágenes compiladas y los tres servicios con Docker, seguir el
-[runbook LAN de mirror-deploy](../../mirror-deploy/ADMIN-LAN.md). El Compose principal, con el perfil `admin-lan`, incluye redes, proxy, sincronización y migración previa; los pasos de
+runbook `mirror-deploy/ADMIN-LAN.md`. El Compose principal, con el perfil `admin-lan`, incluye redes, proxy, sincronización y migración previa; los pasos de
 abajo corresponden a desarrollo sin contenedores.
+
+## Operación con el Compose local
+
+El helper `admin-local.sh` selecciona el proyecto `mirror-core`, el perfil
+`admin-lan` y `.env` para interpolación. Configurar hosts, puertos, base e
+intervalos del destino usando `.env.example`; no asumir IPs o inventarios de
+sesiones anteriores. Los datos residen en los volúmenes del proyecto compartido.
+
+```sh
+./admin-local.sh status
+./admin-local.sh logs
+./admin-local.sh check
+./admin-local.sh stop
+./admin-local.sh build
+./admin-local.sh start
+```
+
+`stop` detiene sólo los tres servicios administrativos. `start` espera PostgreSQL,
+migraciones y healthchecks; no inicia PWA, API pública, workers o Cloudflare.
+`check` requiere el script del checkout hermano `mirror-deploy` y usa el puerto
+loopback efectivo. No ejecutar `down -v` sobre el proyecto con datos existentes.
+Para migraciones del core completo, detener también los escritores públicos.
+
+Laboratorio requiere el mismo `PERSONAL_AXES_ENABLED` en API pública, workers,
+dispatcher y admin-api, además del permiso por cuenta. Si no aparece un control
+recién implementado, verificar las versiones de las imágenes y recrear los
+servicios afectados; recargar el panel no actualiza un contenedor viejo.
 
 ## Iniciar con la base de la plataforma
 

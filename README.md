@@ -1,420 +1,113 @@
-# El Espejo
+# El Espejo · backend
 
-> Un instrumento de introspección personal asistido por IA.
+Instrumento de introspección personal asistido por IA. Conserva las notas y el
+audio originales y permite explorar extracciones con evidencia del propio material.
+Las interpretaciones deben distinguirse de los hechos y conservar su procedencia.
 
-El flujo actual conserva documentos y transcribe audio mediante procesamiento
-durable `/v2` con PostgreSQL, Taskiq/RabbitMQ y SSE. La extracción genérica
-exploratoria, sus embeddings y las funciones de búsqueda/reflexión/Constelación
-se retiraron. Se conserva el visor de la PWA y la API de lectura del grafo. Los documentos se guardan en ArcadeDB de forma
-independiente, sin generar título mediante un modelo.
+Este repositorio contiene la API pública, la API administrativa y el procesamiento
+durable. Las interfaces viven en `mirror-pwa` y `mirror-admin`; el despliegue de
+producción se configura en `mirror-deploy`.
 
-El [retiro y procedimiento de limpieza](docs/extraction-retirement.md) documenta
-la migración masiva automática pendiente de ejecutar al desplegar. El [plan de extracción por capas](docs/extraction-layers-requirements-plan.md)
-define los extractores independientes a incorporar después.
+## Empezar aquí
 
-El [respaldo e importación de documentos](docs/document-archives.md) permite
-descargar JSON desde la PWA y restaurar originales después de recrear las bases.
-Incluye una herramienta administrativa independiente de los motores para
-exportar antes de un reset si la API no puede arrancar.
+- **Implementar con un agente:** [AGENTS.md](AGENTS.md).
+- **Encontrar código y pruebas:** [mapa del repositorio](docs/development/repository-map.md).
+- **Agregar o modificar comportamiento:** [guía de implementación](docs/development/implementation.md).
+- **Ejecutar verificaciones:** [guía de pruebas](docs/development/testing.md).
+- **Buscar un contrato o procedimiento:** [índice de documentación](docs/README.md).
+- **Configurar agentes y reducir contexto:** [guía de agentes](docs/development/agents.md).
 
-Los documentos de [contratos diferidos](docs/deferred-processing.md),
-[pipeline async](docs/async-pipeline.md), [runtime durable](docs/processing-runtime.md),
-[uploads diferidos](docs/deferred-ingestion.md) y [PWA/SSE](docs/processing-pwa-events.md)
-conservan las etapas previas; sus referencias al pipeline de extracción v1 son
-históricas. Las secciones de visión y experimentos de este README describen el
-objetivo del producto y exploraciones anteriores, no capacidades activas.
+## Capacidades implementadas
 
-El [extractor de emociones de prueba](docs/emotion-extractor.md) implementa el
-contrato común de capas y permite extraer en dry run o persistir un artefacto
-más tarde. Las notas nuevas ejecutan automáticamente el workflow de documento v4:
-`document_persistence → extractor_processing → done`, con un trabajo independiente
-por capa (`extraction → persistence → done`). Incluye los
-documentos creados desde audio; los trabajos históricos v2 siguen guardando sólo
-documentos. Se requieren `LLM_PROVIDER=openai`, `OPENAI_API_KEY` y `OPENAI_MODEL`.
+| Área | Comportamiento | Referencia |
+| --- | --- | --- |
+| Acceso | Email/contraseña, Google OAuth, sesiones revocables y recuperación | [Registro](docs/signup.md), [recuperación](docs/password-recovery.md) |
+| Aislamiento | Workspace por usuario con archivos y credenciales de grafo propios | [Mapa](docs/development/repository-map.md) |
+| Notas y audio | Ingestión `/v2`, transcripción, reintentos, SSE y originales recuperables | [Ingestión](docs/deferred-ingestion.md), [respaldos](docs/document-archives.md) |
+| Extractores | Emociones, embeddings de documentos y títulos como trabajos independientes | [Coordinación](docs/extractor-jobs.md) |
+| Exploración | Lectura del grafo y navegación por emociones con citas | [Grafo](src/graph/README.md) |
+| Laboratorio | Ejes personales, pruebas temporales y versiones aceptadas | [Contrato](docs/personal-axes-api.md) |
+| Invitaciones | Preguntas diarias voluntarias, centro de notificaciones y respuestas de voz | [Notificaciones](docs/notification-center.md), [audio](docs/audio-invitation-replies.md) |
+| Administración | Proceso separado para inventario, métricas y permisos | [Administración](docs/admin-lan.md) |
 
-Para transcribir WebM, el backend requiere `ffmpeg` con el codificador `libmp3lame`
-(incluido en las imágenes Docker de desarrollo y producción). Conserva el audio
-original y genera una copia temporal MP3 mono de 16 kHz a 64 kb/s antes de enviarla
-a OpenAI. La copia se
-elimina después de leerla, incluso si falla la conversión; el SDK recibe sus bytes
-y un nombre `.mp3`. Los demás formatos se envían directamente. La conversión
-usa `PROVIDER_TIMEOUT_SECONDS` como tiempo máximo y rechaza MP3 de más de 25 MB.
-Los WebM ya guardados usan el mismo flujo al reintentar su procesamiento.
-Si falta `ffmpeg`, el error `transcription_configuration` admite reintento manual
-después de corregir la imagen del worker, sin reintentos automáticos.
-El [procedimiento de recuperación desde el servidor](docs/audio-transcription-recovery.md)
-también cubre tareas anteriores marcadas como no reintentables por falta de ffmpeg.
+Laboratorio requiere `PERSONAL_AXES_ENABLED` y permiso por cuenta. Email y Web Push
+requieren configurar sus proveedores. Una capacidad implementada no acredita
+que esté habilitada o validada en producción.
 
-## Contexto
+La extracción genérica anterior, búsqueda/reflexión HTTP y Constelación exploratoria
+se retiraron; no confundirlas con los embeddings actuales ni el visor de emociones.
+Consultar [migraciones de datos](docs/data-migrations.md) antes de tocar compatibilidad.
 
-El Espejo es una prueba de concepto (POC) para explorar si la IA puede ayudar a una persona a observar, recorrer y comprender sus propios pensamientos a lo largo del tiempo.
-
-No busca ser un psicólogo virtual, un sistema de diagnóstico de salud mental, otra aplicación genérica de notas, ni un chatbot con historial largo. Busca ser un **espejo personal**: un lugar donde volcar pensamientos, ideas, decisiones, reflexiones y experiencias, y desde el cual explorar patrones, recurrencias, tensiones, conflictos y cambios a partir de evidencia en el propio material.
-
-Ejemplos de preguntas que debería poder explorar:
-
-- ¿Qué ideas aparecen recurrentemente?
-- ¿Qué tensiones o conflictos vuelven a aparecer?
-- ¿Cómo cambió mi pensamiento sobre el trabajo durante los últimos meses?
-- ¿Qué conceptos parecen conectados aunque nunca los haya vinculado explícitamente?
-- ¿Qué creencias o afirmaciones cambiaron con el tiempo?
-- ¿En qué material se basa esta observación?
-
-El sistema debe reflejar **lo que puede observarse e inferirse del material expresado**, no presentar una interpretación como verdad psicológica.
-
-## Idea central
-
-> Un espejo personal asistido por IA: un sistema que construye una representación navegable, temporal y respaldada por evidencia de los pensamientos expresados por una persona, y le permite explorarla.
+## Arquitectura en breve
 
 ```text
-Notas / audio / material importado
-               |
-               v
-     Normalización y extracción estructurada
-               |
-       +-------+--------+
-       |                |
-       v                v
-Grafo cognitivo    Embeddings
-       |                |
-       +-------+--------+
-               |
-               v
-     Recuperación + evidencia + LLM
-               |
-               v
-          Reflexión para el usuario
+PWA → API pública → sesión y workspace → casos de uso
+                       ├─ originales en archivos + Document en ArcadeDB
+                       └─ aceptación PostgreSQL: recibo + job + evento + outbox
+                                                ↓
+                                    dispatcher → RabbitMQ → worker
+                                                ↓
+                                 checkpoints + artefactos + proyecciones
+
+Panel admin → API administrativa separada → inventario / métricas / permisos
 ```
 
-El grafo no representa la mente ni la identidad objetiva de la persona. Representa aquello que el sistema pudo extraer y relacionar desde los registros originales.
+PostgreSQL conserva identidad y estado durable; RabbitMQ transporta entregas;
+ArcadeDB conserva documentos y proyecciones. Los volúmenes de archivos contienen
+originales y artefactos. Ninguno reemplaza el respaldo de los otros.
 
-## Grafo y embeddings
+Stack: Python ≥3.11 (Docker de desarrollo: 3.14; producción: 3.13), FastAPI/Pydantic,
+SQLAlchemy/Alembic,
+PostgreSQL, Taskiq/RabbitMQ, ArcadeDB y proveedores OpenAI. WebM requiere `ffmpeg`
+con `libmp3lame`, incluido en ambos Dockerfiles.
 
-No son alternativas ni uno se deriva necesariamente del otro.
+## Desarrollo local
 
-```text
-                    TEXTO
-                      |
-          +-----------+-----------+
-          |                       |
-          v                       v
-     Embedding               Extracción
-          |                       |
-          v                       v
-  Similitud semántica   Conceptos, entidades,
-  y búsqueda vectorial  afirmaciones y relaciones
-                                  |
-                                  v
-                                Grafo
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -e '.[dev]'
+cp .env.example .env.local
 ```
 
-Los embeddings ayudan a responder: “¿Qué notas son semánticamente parecidas a esta idea?”. El grafo permite responder: “¿Qué conceptos están conectados, cómo y con qué evidencia?”.
+Editar `.env.local` antes de iniciar: configurar `AUTH_SESSION_SECRET`, proveedores
+y las variables requeridas por Compose. Para HTTP local, `AUTH_COOKIE_SECURE=false`;
+mantenerlo en `true` cuando se expone por HTTPS. Las rutas locales y credenciales
+del ejemplo son para desarrollo.
 
-```text
-AUTONOMÍA -- relacionada con --> TRABAJO
-     |                                |
-     +--- en tensión con --- ESTABILIDAD
+Compose lee `.env.local` para los contenedores; `--env-file` también lo usa para
+interpolar el YAML. La PWA requiere el checkout hermano y su propio `.env`.
+
+```bash
+docker compose --env-file .env.local config --quiet
+docker compose --env-file .env.local up -d --build
 ```
 
-No hay un único grafo correcto. La representación útil depende de las preguntas que se quieran hacer.
+El stack incluye API, PWA, proxy, PostgreSQL, ArcadeDB, RabbitMQ, migraciones,
+worker y dispatcher. Por defecto el proxy publica `http://localhost:8080` y
+Swagger `http://localhost:8080/api/docs`. La API usa `root_path=/api`;
+las rutas internas no duplican ese prefijo. El perfil administrativo y el túnel
+tienen configuración adicional: ver [LAN](docs/admin-lan.md).
 
-| Pregunta | Representación posible |
-|---|---|
-| ¿Sobre qué temas pienso? | Temas y conceptos |
-| ¿Qué parece importante para mí? | Conceptos y afirmaciones |
-| ¿Qué contradicciones aparecen? | Afirmaciones, relaciones y tiempo |
-| ¿Cómo cambió una idea? | Afirmaciones con marcas temporales |
-| ¿Qué pensamientos se parecen? | Embeddings |
-| ¿Qué conceptos están relacionados? | Grafo de conocimiento |
-| ¿Qué ideas se repiten? | Frecuencia, grafo y tiempo |
+Si se ejecuta Python directamente, `Settings` lee `.env` o el entorno del proceso,
+no `.env.local`. Usar [pruebas y ejecución por proceso](docs/development/testing.md).
 
-La POC debe permitir experimentar con distintas estrategias de extracción, sin congelar prematuramente una ontología.
+Para actualizar un entorno con datos existentes, seguir el orden de migraciones de
+[implementación](docs/development/implementation.md); `deploy.sh` detiene procesos
+y aplica migraciones. No usarlo como comprobación de documentación.
 
-## Modelo inicial
+## Verificación y contribución
 
-El modelo se mantendrá deliberadamente pequeño.
-
-### Document
-
-Material original, que siempre debe preservarse.
-
-```text
-Document
-- id
-- content
-- created_at (fecha de inserción en El Espejo)
-- authored_at (fecha en que el usuario redactó la nota, si se conoce)
-- source
+```bash
+.venv/bin/python scripts/check_repo_docs.py
+.venv/bin/python -m ruff check src tests scripts
+# Ejemplo acotado; elegir la suite según el cambio.
+.venv/bin/python -m pytest tests/test_health.py tests/test_config.py tests/test_openapi_docs.py
 ```
 
-Fuentes futuras posibles: Markdown, texto plano, transcripciones de audio, exportaciones de ChatGPT, WhatsApp, Telegram u otros materiales importados.
-
-### Concept
-
-Idea abstracta identificada en el material.
-
-```text
-Concept
-- id
-- name
-```
-
-Ejemplos: autonomía, estabilidad, creatividad, dinero, aprendizaje, trabajo y libertad.
-
-### Entity
-
-Elemento concreto e identificable.
-
-```text
-Entity
-- id
-- name
-- type
-```
-
-Ejemplos: una empresa, un proyecto, una persona o un lugar.
-
-### Claim
-
-Una afirmación expresada explícitamente por la persona.
-
-```text
-Claim
-- id
-- text
-- type
-- timestamp
-```
-
-Tipos iniciales tentativos: `belief`, `desire`, `concern`, `observation`, `decision`, `preference` y `hypothesis`. Son descripciones operativas, no categorías psicológicas definitivas.
-
-## Relaciones iniciales
-
-Empezar con un conjunto mínimo:
-
-```text
-MENTIONS
-CONTAINS
-ABOUT
-RELATES_TO
-SUPPORTS
-CONTRADICTS
-EXPRESSES
-```
-
-Ejemplo:
-
-```text
-Document -- MENTIONS --> Concept(work)
-Document -- CONTAINS --> Claim("Quiero más autonomía")
-Claim    -- ABOUT    --> Concept(autonomía)
-```
-
-Relaciones futuras —solo si los experimentos muestran que son útiles—: `CAUSES`, `ASSOCIATED_WITH`, `EVOLVED_INTO`, `DEPENDS_ON`, `CONFLICTS_WITH`, `SIMILAR_TO`, `PRECEDES`.
-
-## Evidencia y procedencia
-
-Este es un requisito central. El sistema debe poder responder “¿por qué pensás eso?”. Cada concepto, relación o inferencia debe poder conducir al material original que la respalda.
-
-```text
-Concept: autonomía
-  |
-  +-- evidencia --> Document 183
-  +-- evidencia --> Document 213
-  +-- evidencia --> Document 271
-```
-
-Las respuestas deben distinguir siempre entre:
-
-- **Observado:** “El concepto ‘autonomía’ aparece en 17 documentos.”
-- **Extraído:** “El sistema identificó ‘autonomía’ como un concepto.”
-- **Inferido:** “Autonomía parece asociarse frecuentemente con trabajo.”
-
-Una inferencia nunca debe presentarse silenciosamente como hecho.
-
-## Extractores por propósito
-
-Cada extractor define sus modelos, validaciones, entidades, relaciones y escritura
-en el grafo. El contrato común está en `src/extractors`; la prueba inicial es el
-[extractor de emociones](docs/emotion-extractor.md), que usa citas del documento
-completo y admite extracción sin escritura y persistencia posterior.
-
-El pipeline automático guarda primero el documento y luego ejecuta emociones. La
-extracción genérica, sus embeddings y la implementación anterior de Constelación
-se retiraron. La PWA conserva el visor y `GET /documents/{id}/links` conserva la
-respuesta de navegación paginada del grafo. El análisis de nuevas relaciones
-queda pendiente de refactorización.
-
-## Recuperación y reflexión (diseño futuro)
-
-Una consulta futura combinará recuperación vectorial, recorrido del grafo y documentos originales:
-
-```text
-Pregunta
-   |
-   +-- búsqueda vectorial --> notas semánticamente cercanas
-   |
-   +-- búsqueda en grafo --> conceptos y afirmaciones conectadas
-   |
-   v
-Contexto con evidencia
-   |
-   v
-LLM
-   |
-   v
-Respuesta reflexiva y auditable
-```
-
-Ejemplo de salida deseada:
-
-> Aparece una tensión recurrente entre autonomía y estabilidad. La asociación se observa en los documentos 183, 213 y 271, y fue más frecuente en los últimos tres meses.
-
-## Stack inicial propuesto
-
-```text
-Python
-FastAPI
-Pydantic
-ArcadeDB
-OpenAI API
-Docker Compose
-pytest
-```
-
-`Ollama` queda como experimento opcional para modelos y embeddings locales. La máquina de desarrollo cuenta con una RTX 2060 de aproximadamente 6 GB de VRAM: sirve para experimentar con modelos pequeños cuantizados, pero la primera POC debería priorizar una API para reducir complejidad.
-
-ArcadeDB, FastAPI y la orquestación no requieren GPU.
-
-LlamaIndex no es requisito inicial. La aplicación mantiene contratos propios para no acoplar los
-casos de uso a un framework de RAG ni a un motor de grafo concreto.
-
-## Estrategia de entrada
-
-No empezar por una aplicación móvil. El primer formato debe ser simple:
-
-```text
-data/
-  notes/
-    001.md
-    002.md
-    003.md
-```
-
-Esto permite aprender rápido antes de construir interfaz, autenticación, sincronización o despliegue.
-
-La entrada de audio será una etapa posterior:
-
-```text
-Audio --> Speech-to-text --> Document --> Extracción
-```
-
-Una futura PWA o app móvil solo debería escribir, grabar, consultar y explorar; la inferencia principal vive en el backend.
-
-## Estructura actual
-
-```text
-el_espejo/
-├── src/
-│   ├── domain/
-│   ├── extractors/
-│   ├── graph/
-│   ├── processing/
-│   └── use_cases/
-├── data/
-│   └── notes/
-├── tests/
-├── docker-compose.yml
-├── pyproject.toml
-└── README.md
-```
-
-La arquitectura debe mantenerse limpia y tipada, pero sin sobreingeniería mientras se descubre el modelo conceptual.
-
-La persistencia de grafo se conecta mediante contratos de aplicación. Los casos de uso no
-importan drivers ni adaptadores concretos. La implementación de ArcadeDB se organiza así:
-
-```text
-src/graph/
-├── arcadedb/
-│   ├── client.py      # cliente HTTP y transacciones
-│   ├── store.py       # implementación de los contratos y mapeo al dominio
-│   ├── schema.py      # tipos, propiedades, constraints e índices
-│   └── queries.py     # SQL y Cypher propios de ArcadeDB
-└── README.md
-```
-
-`dependencies.py` es el único punto que selecciona y construye el adaptador. El schema se
-inicializa y versiona por separado de las operaciones normales del store. El directorio
-`arcadedb/` contiene el adaptador activo; esta frontera permite reemplazar el motor sin modificar
-los casos de uso.
-
-## Etapas actuales
-
-La transición y sus criterios de aceptación están en el
-[plan de extracción por capas](docs/extraction-layers-requirements-plan.md).
-El retiro del proceso exploratorio y las etapas durables de emociones están implementados.
-Los trabajos por capa, su ejecución paralela y los retries independientes están
-implementados; ver [coordinación durable](docs/extractor-jobs.md). Quedan la selección
-de extractores por API y las consultas de varias capas simultáneas. La persistencia y la respuesta del visor están documentadas
-en el [README de grafo](src/graph/README.md).
-
-## Evaluación
-
-La POC no se evalúa por lo vistoso o técnicamente complejo del grafo. Las preguntas importantes son:
-
-- ¿Refleja algo significativo del material de la persona?
-- ¿Revela conexiones que no eran evidentes?
-- ¿Ayuda a formular mejores preguntas?
-- ¿Muestra evidencia suficiente?
-- ¿Evita inventar patrones?
-- ¿Qué representaciones no aportan valor?
-
-Preguntas iniciales de prueba:
-
-- ¿Qué temas aparecen recurrentemente?
-- ¿Qué preocupaciones se repiten?
-- ¿Qué tensiones aparecen en mis pensamientos?
-- ¿Qué ideas cambiaron con el tiempo?
-- ¿Qué afirmaciones parecen contradictorias?
-- ¿Qué proyectos o ideas regresan una y otra vez?
-- ¿Por qué el sistema considera importante este concepto?
-
-## No objetivos iniciales
-
-No construir en esta POC:
-
-- diagnóstico o recomendaciones de salud mental;
-- terapia, perfiles psicológicos o puntajes de personalidad;
-- conclusiones psicológicas autónomas;
-- producto multiusuario, autenticación o despliegue cloud;
-- interfaz móvil compleja;
-- microservicios, Kubernetes o escalabilidad de producción.
-
-## Principio rector
-
-La IA no debe decir: “esto es quien sos”. Debe decir cosas como:
-
-- “Esta idea aparece frecuentemente en tus notas.”
-- “Estas dos afirmaciones parecen entrar en conflicto.”
-- “Estos conceptos suelen aparecer juntos.”
-- “Tus documentos muestran evidencia de un cambio en esta idea.”
-- “Esta es una interpretación basada en estos documentos.”
-
-La POC existe para descubrir qué representación de pensamientos personales resulta útil para una reflexión genuina. La prioridad no es completar una arquitectura: es aprender.
-
-## Títulos de documentos
-
-Se conservan los títulos existentes, incluidos los recuperados desde archivos de
-respaldo. La ingestión no llama modelos para crear ni modificar títulos. Los
-documentos sin título siguen siendo válidos; la PWA muestra un nombre a partir
-del contenido. Reprocesar con `/v2/documents/{id}/processing` vuelve a persistir
-el original y crea una nueva ejecución de emociones con la configuración actual.
-
-## Invitaciones voluntarias para escribir
-
-El backend ofrece preguntas generales diarias y pruebas manuales mediante Web
-Push, con programación durable en el dispatcher/worker existentes. La activación
-es voluntaria y requiere una suscripción vigente y configuración VAPID.
-Ver [configuración, arquitectura y contrato API](docs/exteriorization-notifications.md).
-La integración del service worker y editor de la PWA corresponde a la siguiente etapa.
+La [matriz de pruebas](docs/development/testing.md) indica cuándo ampliar a
+integraciones con servicios aislados. Actualizar código, prueba de comportamiento
+y contrato en la misma entrega. Publicar imágenes usa
+[el workflow de este repositorio](docs/production-image-publishing.md).
+
+Los [pendientes consolidados](docs/pending.md) reúnen funciones diferidas y
+validaciones abiertas; no definen capacidades activas ni autorizan implementación.

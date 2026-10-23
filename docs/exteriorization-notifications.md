@@ -299,7 +299,7 @@ sin una cookie vigente o sin conexión HTTP, y descartar un push demorado de otr
 sesión/cuenta. No habilita acceso a APIs: consultar o responder sigue requiriendo
 autenticación y propiedad. Aplicar `20261013_09` antes de usar esta PWA.
 
-## Cierre de integración — etapa 3
+## Validaciones abiertas
 
-Ver [informe de integración y entrega](notifications-integration-report.md) para
-los comandos reproducibles, resultados y límites de la validación entre repositorios.
+Las comprobaciones manuales y con dispositivos reales se consolidan en
+[pendientes](pending.md). Las pruebas determinísticas no acreditan entrega push real.

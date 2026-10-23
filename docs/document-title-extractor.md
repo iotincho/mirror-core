@@ -1,10 +1,7 @@
 # Títulos de documentos
 
-Plan aprobado el 2026-10-15:
-
-- [x] Etapa 1: backend, extractor independiente, persistencia recuperable y compatibilidad de respaldos.
-- [x] Etapa 2: actualización inmediata de títulos en material, lector, búsqueda, caché local y constelaciones.
-- [x] Etapa 3: generación específica para documentos anteriores sin título, sin repetir otros extractores.
+Contrato del extractor, actualización de títulos en la PWA y generación para
+documentos anteriores sin título, sin repetir otras capas.
 
 ## Contrato y ejecución
 
@@ -241,11 +238,3 @@ una subida, fallo de encolado sin perder la lectura, aislamiento de workspace,
 reintentos agotados que no se reinician al consultar y nueva comprobación bajo
 guard tras una vista previa desactualizada. Ruff y diff sin errores. Sin despliegue
 ni generación sobre notas reales; se usaron proveedores determinísticos de prueba.
-
-## Publicación para revisión — 2026-10-15
-
-Ramas publicadas y PR abiertos hacia `develop`:
-[backend #33](https://github.com/iotincho/mirror-core/pull/33) y
-[PWA #28](https://github.com/iotincho/mirror-pwa/pull/28). Los PR contienen la
-validación local y los límites pendientes. Sin merge, despliegue ni generación
-sobre notas reales; los resultados locales no acreditan el estado de CI remoto.

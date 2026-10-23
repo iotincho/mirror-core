@@ -1,5 +1,10 @@
 # Persistencia y navegación del grafo
 
+Implementación canónica: [adaptador ArcadeDB](../adapters/storage/arcadedb/),
+[contratos y puertos](../core/graph/), [caso de lectura](../use_cases/graph/read_graph.py)
+y [composición](../bootstrap/graph.py). Esta carpeta mantiene compatibilidad de
+imports; para modificar consultas o transacciones editar el adaptador.
+
 `ArcadeDBGraphStore` conserva y borra documentos originales, expone el puerto de
 comandos de la base del workspace y lee vecindarios para el visor de la PWA.
 No ejecuta extracción, embeddings, reflexión ni análisis de Constelación.

@@ -4,25 +4,28 @@ from contextlib import asynccontextmanager
 from functools import lru_cache
 from uuid import UUID
 
+from src.adapters.storage.arcadedb.document_embeddings import ArcadeDBDocumentEmbeddingStore
+from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
+from src.bootstrap.audio import build_audio_processor as ProcessAudioNote
+from src.bootstrap.audio import build_transcriber as OpenAITranscriptionProvider
 from src.bootstrap.documents import build_document_title_extractor as compose_title_extractor
+from src.bootstrap.documents import build_title_provider as OpenAIDocumentTitleProvider
+from src.bootstrap.extraction import (
+    build_document_embeddings_provider as OpenAIDocumentEmbeddingProvider,
+)
+from src.bootstrap.extraction import build_embedding_extractor as DocumentEmbeddingExtractor
+from src.bootstrap.extraction import build_emotion_extractor as EmotionExtractor
+from src.bootstrap.extraction import build_emotions_provider as OpenAIEmotionProvider
+from src.bootstrap.extractor_registry import ExtractorRegistry
 from src.config import get_settings
+from src.core.extractors.contracts import ExtractorProfile
+from src.core.extractors.document_embeddings import EmbeddingConfiguration
 from src.core.processing.errors import WorkflowFailure
-from src.extractors.artifacts import LayerArtifacts
-from src.extractors.contracts import ExtractorProfile
-from src.extractors.document_embedding_store import ArcadeDBDocumentEmbeddingStore
-from src.extractors.document_embeddings import DocumentEmbeddingExtractor, EmbeddingConfiguration
-from src.extractors.emotions import EmotionExtractor
-from src.extractors.openai_document_embeddings import OpenAIDocumentEmbeddingProvider
-from src.extractors.openai_document_title import OpenAIDocumentTitleProvider
-from src.extractors.openai_emotions import OpenAIEmotionProvider
 from src.extractors.personal_axes.dependencies import (
     build_personal_axis_extractor,
     close_axis_providers,
     get_axis_provider,
 )
-from src.extractors.registry import ExtractorRegistry
-from src.services.openai_transcription_provider import OpenAITranscriptionProvider
-from src.use_cases.process_audio_note import ProcessAudioNote
 from src.use_cases.process_document import ProcessDocument
 from src.use_cases.process_document_extractors import ProcessDocumentExtractors
 from src.use_cases.process_document_layers import ProcessDocumentLayers

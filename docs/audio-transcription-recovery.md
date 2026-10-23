@@ -1,5 +1,12 @@
 # Recuperar un audio que falló por falta de ffmpeg
 
+Ubicaciones vigentes: puertos en `src/core/audio/ports.py`, coordinación en
+`src/use_cases/audio/`, originales/preparación en `src/adapters/storage/filesystem/`
+y cliente de transcripción en `src/adapters/providers/openai/transcription.py`.
+`src/bootstrap/audio.py` conecta configuración, preparación y artefactos; los
+imports operativos anteriores siguen disponibles. La conversión usa temporales,
+conserva el original y no vuelve a transcribir si ya existe un checkpoint válido.
+
 La imagen publicada por CI se construye con `Dockerfile.prod`. Tanto esa imagen
 como la de desarrollo requieren ffmpeg con libmp3lame para normalizar WebM a MP3.
 

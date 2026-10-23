@@ -45,5 +45,3 @@ class DocumentTitleProvider(Protocol):
 class DocumentTitleStore(Protocol):
     async def update_title(self, document: Document) -> None:
         """Patch the existing graph document, checking its original text."""
-
-

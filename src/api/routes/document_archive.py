@@ -7,6 +7,7 @@ from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
 from src.config import get_settings
+from src.core.processing.errors import StorageUnavailable
 from src.processing.runtime import get_repository
 from src.processing.submissions import SubmissionConflict
 from src.services.document_store import FileDocumentStore
@@ -85,7 +86,7 @@ async def import_documents(
         ).import_archive(archive)
     except (ArchiveConflict, SubmissionConflict) as error:
         raise HTTPException(409, str(error)) from error
-    except SQLAlchemyError as error:
+    except (StorageUnavailable, SQLAlchemyError) as error:
         raise HTTPException(
             503, "No se pudo encolar la extracción. Reintentá el mismo archivo."
         ) from error

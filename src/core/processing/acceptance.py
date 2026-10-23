@@ -12,6 +12,10 @@ class Submissions(Protocol):
 
     async def get(self, owner: UUID, operation: str, key: UUID) -> SubmissionReceipt | None: ...
 
+    async def accepted(
+        self, owner: UUID, operation: str, key: UUID, request_hash: str
+    ) -> SubmissionReceipt | None: ...
+
     async def reserve(
         self,
         *,

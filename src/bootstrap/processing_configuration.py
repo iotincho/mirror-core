@@ -1,8 +1,8 @@
 """Snapshot provider choices and profiles from explicit environment settings."""
 
+from src.core.extractors.document_embeddings import EMBEDDINGS_PROFILE, EmbeddingConfiguration
 from src.core.extractors.document_title import TITLE_PROFILE
-from src.extractors.document_embeddings import EMBEDDINGS_PROFILE, EmbeddingConfiguration
-from src.extractors.emotions import EMOTIONS_PROFILE
+from src.core.extractors.emotions import EMOTIONS_PROFILE
 
 
 def document_title_specification(settings):

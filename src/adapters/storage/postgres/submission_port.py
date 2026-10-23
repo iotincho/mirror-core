@@ -16,6 +16,12 @@ class PostgresSubmissions:
         async with database_errors():
             return receipt_snapshot(await self._submissions.get(owner, operation, key))
 
+    async def accepted(self, owner, operation, key, request_hash):
+        async with database_errors():
+            return receipt_snapshot(
+                await self._submissions.accepted(owner, operation, key, request_hash)
+            )
+
     async def reserve(self, **request):
         async with database_errors():
             return receipt_snapshot(

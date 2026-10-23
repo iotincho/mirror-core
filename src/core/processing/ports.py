@@ -5,8 +5,8 @@ from contextlib import AbstractAsyncContextManager
 from typing import Protocol
 from uuid import UUID
 
+from src.core.audio.ports import AudioNoteStore as AudioOriginals
 from src.core.documents.ports import DocumentProjection, DocumentStore
-from src.core.domain.audio_notes import AudioNote
 from src.core.processing.models import OutboxDelivery, ProcessingJob
 
 
@@ -72,16 +72,6 @@ class WorkflowContext(Protocol):
 
 class WorkspaceIdentity(Protocol):
     user_id: UUID
-
-
-class AudioOriginals(Protocol):
-    async def create(self, note: AudioNote, content: bytes) -> None: ...
-
-    async def get(self, identifier: UUID) -> AudioNote: ...
-
-    async def restore_metadata(self, note: AudioNote) -> None: ...
-
-    async def verify_original(self, note: AudioNote, *, size_bytes: int, sha256: str) -> None: ...
 
 
 class ProcessingWorkspace(Protocol):

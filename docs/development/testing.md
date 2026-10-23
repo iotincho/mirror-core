@@ -21,6 +21,7 @@ git diff --check
 | Extractor | Test de la capa y configuración | Persistir artefacto sin proveedor, reemplazo y aislamiento de capas |
 | Runtime / locks / outbox | `tests/test_processing_transport.py`, `tests/test_processing_artifacts.py` | `tests/integration/test_processing_postgres.py` y jobs afectados |
 | Aplicación durable / transacciones | `tests/test_processing_application.py` con puertos en memoria e imports de infraestructura bloqueados | Reprocess, jobs, backfill e histórico de ejes con PostgreSQL/ArcadeDB aislados |
+| Audio / emociones / embeddings / respaldos | `tests/test_stage3_application.py` y suite de la capacidad | Replay sin proveedor, transacciones reales de capas y navegación; [comandos](architecture-checks.md#regresión-de-audio-extractores-grafo-y-respaldos) |
 | Grafo | Test de proyección/navegación afectado | Integración ArcadeDB con esquema y transacciones reales |
 | Migración | Revisión de head + integración de migración | Upgrade/recuperación con base aislada |
 | Docker / publicación | `tests/test_local_deploy.py`, configuración Compose | Build o smoke aislado si cambia comportamiento del contenedor |
@@ -47,6 +48,7 @@ skips; no significa que la integración haya pasado.
 - PostgreSQL migrado: `PROCESSING_TEST_DATABASE_URL`.
 - Transporte real: `PROCESSING_TEST_RABBITMQ_URL`, broker/vhost separado.
 - Grafo de capas: `EMOTIONS_TEST_ARCADEDB_URL` y `EMOTIONS_TEST_ARCADEDB_PASSWORD`.
+- Embeddings: `EMBEDDINGS_TEST_ARCADEDB_URL` y `EMBEDDINGS_TEST_ARCADEDB_PASSWORD`.
 - Otras familias pueden requerir variables adicionales: leer el encabezado y
   fixtures del test seleccionado antes de ejecutarlo.
 

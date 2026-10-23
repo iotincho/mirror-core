@@ -110,9 +110,12 @@ válido. El error público de workflow sigue siendo `extraction_invalid_response
 
 ## Contrato y encapsulamiento
 
-`src/extractors/base.py` define `Extractor` como clase abstracta. La implementación
-define `produce`, `validate_payload` y `write_layer`: algoritmo, modelo y lógica
-de guardado pertenecen a la capa. `EmotionProvider` es su puerto de generación;
+`src/use_cases/extraction/base.py` define `Extractor` como clase abstracta.
+`src/use_cases/extraction/emotions.py` coordina producción, validación y persistencia
+por puertos. Modelos, evidencia y reglas viven en `src/core/extractors/`;
+`src/adapters/storage/arcadedb/emotions.py` posee esquema, consultas y reemplazo
+atómico. `src/bootstrap/extraction.py` conecta esas piezas; los imports anteriores
+son compatibles. `EmotionProvider` es su puerto de generación;
 `OpenAIEmotionProvider` usa el schema de respuesta propio `EmotionResponse`. Otro extractor puede
 usar un proceso distinto sin heredar esa dependencia de LLM.
 

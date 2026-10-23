@@ -1,5 +1,8 @@
 # Grafo y adaptador ArcadeDB
 
+- Implementación en `../adapters/storage/arcadedb/`, contratos en `../core/graph/`,
+  lectura en `../use_cases/graph/` y composición en `../bootstrap/graph.py`.
+  Esta carpeta conserva imports y el comando de esquema compatibles.
 - Leer [README local](README.md) y el contrato afectado. El store base conserva
   documentos y lecturas; cada extractor posee su esquema y proyección.
 - Mantener SQL/Cypher y detalles ArcadeDB dentro del adaptador/persistencia de capa.

@@ -1,7 +1,8 @@
 # Plan de migración a arquitectura hexagonal
 
-Estado al 2026-10-23: etapas 0, 1 y 2 completadas localmente; etapa 3 pendiente.
-Se implementaron los controles, el piloto de documentos/títulos y procesamiento durable.
+Estado al 2026-10-23: etapas 0–3 completadas localmente; etapa 4 pendiente.
+Se implementaron controles, documentos/títulos, procesamiento durable y separación
+de audio, emociones, embeddings, grafo y respaldos.
 No se publicaron
 cambios ni se desplegaron entornos. Revalidar el árbol y las pruebas al iniciar
 cada etapa; la ejecución de etapas siguientes requiere su alcance autorizado.
@@ -217,7 +218,7 @@ invitaciones heredados, hasta etapas 4/5. Los casos canónicos y core no tienen
 excepciones; los shims tienen retiro indicado en la política. El workflow específico
 de audio conserva diez imports heredados hasta la etapa 3, junto con preparación,
 transcripción y artefactos; su handoff ya usa el motor/puerto durable migrado.
-Inventario actual:
+Inventario al cerrar etapa 2:
 268 módulos, 1.989 imports y 162 aristas heredadas.
 
 Validación: 351 pruebas sin servicios aprobadas; seis pruebas de Web Push omitidas
@@ -231,18 +232,18 @@ detected`; no hay revisiones de esquema nuevas. Tras el ajuste final de sincroni
 40 casos focalizados de aplicación/lotes/jobs/backfill/histórico volvieron a pasar.
 Ruff, fronteras y enlaces pasan.
 Sin proveedores reales, publicación ni despliegue; servicios desechables eliminados
-al finalizar. El commit `452f005` conserva etapas 0/1 en la misma rama; los cambios
-de esta etapa quedan separados en el árbol de trabajo.
+al finalizar. El commit `452f005` conserva etapas 0/1; `2515bb6` conserva etapa 2
+en la misma rama, sin push.
 
 ### Etapa 3 — Audio, demás extractores, grafo y respaldos
 
 Depende de etapa 2; dividir por capacidad.
 
-- [ ] Extraer esquema, queries y transacciones de emociones a su adaptador ArcadeDB.
-- [ ] Ubicar contratos/reglas de embeddings y proveedores en sus capas definitivas.
-- [ ] Migrar transcripción y preparación de audio por puertos; cerrar clientes y
+- [x] Extraer esquema, queries y transacciones de emociones a su adaptador ArcadeDB.
+- [x] Ubicar contratos/reglas de embeddings y proveedores en sus capas definitivas.
+- [x] Migrar transcripción y preparación de audio por puertos; cerrar clientes y
   temporales en adaptadores conservando artefactos y originales.
-- [ ] Migrar navegación/proyecciones, borrado y exportación/importación de archivos.
+- [x] Migrar navegación/proyecciones, borrado y exportación/importación de archivos.
   No alterar evidencia, IDs, paginación, truncamiento o formato de respaldos.
 
 Salida: ningún extractor migrado ejecuta consultas del motor ni construye archivos;
@@ -252,6 +253,56 @@ sin retranscribir al recuperar fallos posteriores.
 Pruebas: suites de emociones, embeddings, transcripción, archivo y navegación;
 integraciones de capas, `test_emotion_processing.py`,
 `test_document_embedding_processing.py` y `test_audio_invitation_processing.py`.
+
+Implementación canónica:
+
+| Responsabilidad | Ubicación vigente |
+| --- | --- |
+| Puertos de audio y preparación/transcripción | `src/core/audio/` |
+| Evidencia, perfiles, configuración y reglas de emociones/embeddings | `src/core/extractors/` |
+| Contratos de navegación y respaldo | `src/core/graph/`, `src/core/documents/archive.py` |
+| Audio, extracción, navegación, borrado y respaldo por puertos | `src/use_cases/{audio,extraction,graph,documents}/` |
+| Esquema, consultas, navegación y proyecciones atómicas | `src/adapters/storage/arcadedb/` |
+| Originales de audio, preparación ffmpeg y temporales | `src/adapters/storage/filesystem/{audio_notes,audio_transcoding}.py` |
+| Clientes OpenAI y conteo tiktoken | `src/adapters/providers/openai/` |
+| Normalización técnica y política de fallos | `src/adapters/providers/http/failures.py`, `src/core/processing/failures.py` |
+| Composición y registro concreto | `src/bootstrap/{audio,extraction,extractor_registry,graph,graph_schema,archives,failures}.py` |
+
+Las reglas de evidencia y perfiles permanecen iguales. La persistencia de emociones
+posee su transacción de reemplazo/verificación; el algoritmo sólo llama a su puerto.
+Embeddings recibe el contador de tokens, sin cargar tiktoken en aplicación. Audio
+recibe una fuente preparable y un puerto de artefactos: no usa paths, ffmpeg,
+SDK ni configuración global. Los adaptadores conservan original, cierre de clientes
+y limpieza por fallo/cancelación; recuperar escritura no vuelve a transcribir.
+
+Los hashes de procesamiento mantienen su serialización histórica, distinta del
+digest compacto de extracción. Los respaldos preservan formato v1, IDs, fechas,
+títulos canónicos y el snapshot de aceptación anterior, sin resolver configuración
+adicional de ejes. Los errores SQL se convierten en `StorageUnavailable`, que la
+ruta traduce al mismo 503. Navegación verifica el original antes de leer su grafo;
+conserva evidencia, límites, truncamiento y precedencia del título canónico.
+
+Los nombres anteriores delegan en la implementación canónica o adaptan constructores
+en bootstrap. Los consumidores HTTP/workspace/CLI pendientes conservan puentes
+exactos hasta su migración y consolidación; no hay excepciones de core ni aplicación
+canónicos. Ejes conserva internals y sus hooks previos. El inventario registra
+309 módulos, 2.141 imports y 153 aristas heredadas exactas; no se agregan
+frameworks, proveedores ni revisiones de esquema.
+
+Validación: 354 pruebas sin servicios aprobadas; seis de Web Push omitidas por
+`pywebpush` ausente. Los nuevos casos con puertos en memoria recuperan emociones,
+embeddings y audio sin repetir proveedor; el control de imports también bloquea
+tiktoken. 156 integraciones aprobadas, sin skips en esa selección, con PostgreSQL 17,
+ArcadeDB 26.9.1 y RabbitMQ desechables: capas, navegación, audio/invitación,
+aceptación/replay de respaldos, títulos, jobs, reprocess, feed, backfill y ejes,
+incluidos workers reales. Alembic confirmó `No new upgrade operations detected`.
+La fixture histórica de exploración fallaba también contra el commit `2515bb6`:
+esperaba dos ejecuciones aunque la extracción reemplaza la anterior. Ahora inserta
+el escenario histórico explícitamente y conserva la prueba de deduplicación y
+proveniencia, sin modificar el reemplazo de producción. Ruff, fronteras y enlaces
+pasan. Los servicios desechables se eliminaron al finalizar. Los cambios de etapa 3
+quedan sin commit; no hay publicación ni despliegue. Próximo paso: etapa 4, identidad,
+recuperación y workspaces; conservar los contratos y puentes de ejes existentes.
 
 ### Etapa 4 — Identidad, recuperación y workspaces
 

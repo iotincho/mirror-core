@@ -3,6 +3,7 @@
 # ruff: noqa: F811
 
 import os
+from uuid import uuid4
 
 import pytest
 from test_emotion_layer import layer_database  # noqa: F401
@@ -57,8 +58,31 @@ async def test_levels_group_labels_deduplicate_runs_and_preserve_evidence(layer_
             {"label": "alegría", "quotes": ["También sentí alegría."]},
         ],
     )
-    # Another execution has independent source nodes but must not add notes or repeat quotes.
-    await extractor.extract(a, dry_run=False)
+    # Seed historical duplicate runs explicitly. New extractions replace the previous run;
+    # the read projection must still deduplicate older graphs without losing provenance.
+    historical_run = str(uuid4())
+    evidence = (await client.query(
+        "MATCH (d:Document {id:$id})-[:HAS_EMOTION_EXTRACTION]->"
+        "(r:EmotionExtraction)-[e:HAS_EMOTION]->(n:Emotion) "
+        "RETURN n.id AS emotion_id, n.label AS label, e.quote AS quote, "
+        "e.start_char AS start_char, e.end_char AS end_char",
+        {"id": str(a.id)}, language="cypher",
+    ))["result"]
+    for row in evidence:
+        await client.command(
+            "MATCH (d:Document {id:$document_id}) "
+            "MERGE (r:EmotionExtraction {id:$run_id}) "
+            "SET r.document_id=$document_id, r.run_id=$run_id "
+            "MERGE (d)-[:HAS_EMOTION_EXTRACTION {id:$run_edge}]->(r) "
+            "MERGE (n:Emotion {id:$emotion_id}) "
+            "SET n.document_id=$document_id, n.run_id=$run_id, n.label=$label "
+            "CREATE (r)-[:HAS_EMOTION {id:$edge_id, quote:$quote, "
+            "start_char:$start_char, end_char:$end_char}]->(n)",
+            {**row, "document_id": str(a.id), "run_id": historical_run,
+             "run_edge": f"{historical_run}:document", "edge_id": str(uuid4()),
+             "emotion_id": f"{historical_run}:{row['emotion_id']}"},
+            language="cypher",
+        )
     b = await add(
         "Nota B",
         "Tengo miedo de salir.",

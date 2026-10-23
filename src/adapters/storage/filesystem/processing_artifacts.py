@@ -1,13 +1,13 @@
 """Immutable, hash-checked artifacts for replaying external effects."""
 
 import asyncio
-import hashlib
 import json
 import os
 from pathlib import Path
 from uuid import uuid4
 
 from src.core.extractors.artifacts import ArtifactCorrupted
+from src.core.processing.artifacts import artifact_digest
 
 
 class ProcessingArtifacts:
@@ -26,11 +26,7 @@ class ProcessingArtifacts:
 
         return await asyncio.to_thread(read)
 
-    @staticmethod
-    def digest(payload):
-        return hashlib.sha256(
-            json.dumps(payload, sort_keys=True, ensure_ascii=False).encode()
-        ).hexdigest()
+    digest = staticmethod(artifact_digest)
 
     async def write(self, name: str, identity: str, payload):
         def write():

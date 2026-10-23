@@ -41,13 +41,18 @@ import importlib.abc
 import sys
 class BlockInfrastructure(importlib.abc.MetaPathFinder):
     def find_spec(self, fullname, path=None, target=None):
-        if fullname.split('.')[0] in {'sqlalchemy', 'taskiq', 'openai', 'httpx', 'fastapi'}:
+        blocked = {'sqlalchemy', 'taskiq', 'openai', 'httpx', 'fastapi', 'tiktoken'}
+        if fullname.split('.')[0] in blocked:
             raise AssertionError('Infrastructure imported: ' + fullname)
 sys.meta_path.insert(0, BlockInfrastructure())
 from src.use_cases.processing import execute, request_processing, submit_processing
 from src.use_cases.processing import process_extractor, process_document_extractors
 from src.use_cases.processing import process_document, process_document_layers
-from src.use_cases.documents import backfill_document_titles
+from src.use_cases.documents import backfill_document_titles, archive, delete_document
+from src.use_cases.audio import process_audio_note, create_audio_note
+from src.use_cases.extraction import emotions, document_embeddings
+from src.use_cases.graph import read_graph
+from src.core.processing import failures
 """
     subprocess.run([sys.executable, "-c", code], check=True, capture_output=True, text=True)
 

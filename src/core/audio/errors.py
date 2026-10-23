@@ -7,3 +7,11 @@ class AudioNoteAlreadyExistsError(Exception):
 
 class AudioNoteNotFoundError(Exception):
     pass
+
+
+class AudioPreparationError(RuntimeError):
+    """Audio could not be prepared for transcription."""
+
+
+class AudioTranscoderUnavailable(AudioPreparationError):
+    """The worker needs its audio conversion dependency installed."""

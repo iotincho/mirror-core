@@ -165,6 +165,31 @@ y el `PYTHONPATH` de sus fixtures; no usar un Compose con datos de personas.
 .venv/bin/python -m alembic check
 ```
 
-Próximo alcance: etapa 3, audio, capas restantes, navegación y respaldos. Conservar
-los bridges exactos de ejes, identidad/workspace e invitaciones indicados en el plan;
-no copiar sus dependencias SQL a la aplicación nueva.
+## Regresión de audio, extractores, grafo y respaldos
+
+Etapa 3: los casos migrados usan puertos de audio, persistencia de emociones,
+embeddings, lectura/borrado y aceptación de respaldos. La prueba de imports incluye
+esas aplicaciones y bloquea también tiktoken. Primero:
+
+```bash
+.venv/bin/python -m pytest tests/test_stage3_application.py tests/test_processing_application.py \
+  tests/test_emotion_extractor.py tests/test_document_embedding_extractor.py \
+  tests/test_openai_transcription_provider.py tests/test_document_archive.py \
+  tests/test_graph_navigation.py tests/test_emotion_projection.py
+```
+
+Con los servicios desechables anteriores, configurar también
+`EMBEDDINGS_TEST_ARCADEDB_URL` y `EMBEDDINGS_TEST_ARCADEDB_PASSWORD` al mismo
+servidor de prueba. Agregar a la regresión durable:
+
+```bash
+.venv/bin/python -m pytest tests/integration/test_emotion_layer.py \
+  tests/integration/test_document_embedding_layer.py tests/integration/test_emotion_processing.py \
+  tests/integration/test_graph_navigation_live.py tests/integration/test_emotion_exploration.py -rs
+```
+
+La fixture de exploración inserta ejecuciones históricas duplicadas explícitamente;
+las extracciones actuales reemplazan su capa. Así se prueba deduplicación de lectura
+sin cambiar el reemplazo atómico para satisfacer una expectativa antigua.
+Conservar los puentes exactos de ejes, identidad/workspace e invitaciones del plan.
+Próximo alcance: etapa 4, identidad, recuperación y workspaces.

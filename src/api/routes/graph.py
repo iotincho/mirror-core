@@ -5,16 +5,17 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from src.dependencies import get_document_store, get_graph_store
-from src.graph.contracts import (
+from src.core.documents.ports import DocumentNotFoundError, DocumentStore
+from src.core.graph.contracts import (
     EmotionCatalog,
     EmotionExploration,
     ExtractionGraph,
     LinkNeighborhood,
     LinkType,
 )
-from src.services.document_store import DocumentNotFoundError, DocumentStore
-from src.services.graph_store import EmotionNotFoundError, GraphBackend, GraphPersistenceError
+from src.core.graph.ports import EmotionNotFoundError, GraphBackend, GraphPersistenceError
+from src.dependencies import get_document_store, get_graph_store
+from src.use_cases.graph.read_graph import ReadGraph
 
 router = APIRouter(tags=["graph"])
 
@@ -29,16 +30,14 @@ async def neighborhood(
     relation_type: LinkType | None = None,
 ):
     try:
-        await documents.get(document_id)
-    except DocumentNotFoundError as error:
-        raise HTTPException(404, "Document not found") from error
-    try:
-        return await graph.get_link_neighborhood(
-            str(document_id),
+        return await ReadGraph(graph, documents).neighborhood(
+            document_id,
             offset=offset,
             limit=limit,
             relation_type=relation_type,
         )
+    except DocumentNotFoundError as error:
+        raise HTTPException(404, "Document not found") from error
     except GraphPersistenceError as error:
         raise HTTPException(502, "Graph navigation is unavailable") from error
 
@@ -51,28 +50,11 @@ async def extraction_graph(
     layer: str | None = Query(default=None, min_length=1, max_length=80),
 ):
     try:
-        document = await documents.get(document_id)
+        return await ReadGraph(graph, documents).extraction_graph(document_id, layer=layer)
     except DocumentNotFoundError as error:
         raise HTTPException(404, "Document not found") from error
-    try:
-        result = await graph.get_extraction_graph(str(document_id), layer=layer)
     except GraphPersistenceError as error:
         raise HTTPException(502, "Graph navigation is unavailable") from error
-    label = document.title or document.metadata.get("title") or document.metadata.get("filename")
-    label = (
-        label
-        or next((line.strip() for line in document.content.splitlines() if line.strip()), "Nota")[
-            :80
-        ]
-    )
-    return result.model_copy(
-        update={
-            "nodes": [
-                node.model_copy(update={"label": label}) if node.id == result.root_id else node
-                for node in result.nodes
-            ]
-        }
-    )
 
 
 @router.get("/graph/emotions", response_model=EmotionCatalog)
@@ -82,7 +64,7 @@ async def emotion_catalog(
     limit: int = Query(default=100, ge=1, le=200),
 ):
     try:
-        return await graph.list_emotions(offset=offset, limit=limit)
+        return await ReadGraph(graph).emotion_catalog(offset=offset, limit=limit)
     except GraphPersistenceError as error:
         raise HTTPException(502, "Emotion catalog is unavailable") from error
 
@@ -97,7 +79,7 @@ async def emotion_exploration(
     if not emotion.strip():
         raise HTTPException(422, "Emotion must not be blank")
     try:
-        return await graph.explore_emotion(emotion, depth=depth, limit=limit)
+        return await ReadGraph(graph).emotion_exploration(emotion, depth=depth, limit=limit)
     except EmotionNotFoundError as error:
         raise HTTPException(404, "Emotion not found") from error
     except GraphPersistenceError as error:
@@ -112,10 +94,8 @@ async def document_emotion_neighborhood(
     limit: int = Query(default=100, ge=2, le=500),
 ):
     try:
-        await documents.get(document_id)
+        return await ReadGraph(graph, documents).document_emotions(document_id, limit=limit)
     except DocumentNotFoundError as error:
         raise HTTPException(404, "Document not found") from error
-    try:
-        return await graph.explore_document_emotions(str(document_id), limit=limit)
     except GraphPersistenceError as error:
         raise HTTPException(502, "Document emotions are unavailable") from error

@@ -1,7 +1,8 @@
 # Arquitectura del backend
 
-Estado: arquitectura objetivo acordada el 2026-10-23; documentos, títulos y aplicación
-de procesamiento durable migrados, con puentes explícitos a áreas pendientes.
+Estado: arquitectura objetivo acordada el 2026-10-23; documentos, audio, extractores
+de títulos/emociones/embeddings, grafo, respaldos y procesamiento durable migrados,
+con puentes explícitos a áreas pendientes.
 El resto del código todavía no cumple todas estas fronteras.
 El [mapa del repositorio](docs/development/repository-map.md)
 describe el árbol existente; el [plan de migración](docs/development/hexagonal-migration-plan.md)
@@ -50,6 +51,8 @@ src/                              # Backend; estructura objetivo tras la migraci
 ├── core/                         # Modelos, reglas y contratos internos
 │   ├── domain/                   # Document, AudioNote y valores compartidos
 │   ├── documents/                # Reglas y puertos propios de documentos
+│   ├── audio/                    # Originales, preparación y puerto de transcripción
+│   ├── graph/                    # Contratos de navegación y proyecciones de lectura
 │   ├── processing/               # Estados, transiciones y contratos durables
 │   ├── extractors/               # Perfiles, resultados, evidencia y puertos
 │   ├── notifications/            # Vigencia y reglas del centro de notificaciones
@@ -62,6 +65,7 @@ src/                              # Backend; estructura objetivo tras la migraci
 │   ├── audio/                    # Aceptar audio y obtener su documento derivado
 │   ├── processing/               # Coordinar jobs, checkpoints, retry y reprocess
 │   ├── extraction/               # Ejecutar extractores y recuperar persistencia
+│   ├── graph/                    # Consultar proyecciones y verificar originales
 │   ├── notifications/            # Consultar y marcar notificaciones leídas
 │   ├── workspaces/               # Preparar, resolver y reconciliar espacios
 │   ├── auth/                     # Login, recuperación y revocación de sesiones
@@ -267,13 +271,31 @@ registro, configuración aceptada, recursos y limpieza del dispatcher/worker.
 Las rutas HTTP y el workspace actuales siguen siendo entrypoints; los módulos
 anteriores delegan, sin duplicar algoritmos.
 
+Emociones separa evidencia/perfiles en core, coordinación en aplicación y reemplazo
+atómico en `adapters/storage/arcadedb/emotions.py`. Embeddings recibe su contador de
+tokens como dependencia; tiktoken y OpenAI quedan en adaptadores. Cada capa sigue
+siendo dueña de sus artefactos y de la sustitución de su proyección.
+
+Audio usa `AudioNoteStore`, `TranscriptionSource` y `TranscriptionProvider`:
+la aplicación conserva checkpoints y deriva documentos sin manejar paths ni SDK.
+El adaptador filesystem prepara el upload y limpia temporales; el proveedor gestiona
+su cliente y concurrencia. La composición conecta estos puertos sin dependencias
+directas entre los adaptadores de archivos y OpenAI. Los hashes históricos no cambian.
+
+`ReadGraph` verifica originales y coordina las lecturas; los contratos viven en
+`core/graph` y las consultas/proyecciones en el adaptador ArcadeDB. Respaldos y
+borrado usan puertos de originales, proyección y procesamiento transaccional.
+`FailureFacts` separa hechos técnicos normalizados en el adaptador de la política
+de errores/retry del núcleo. Bootstrap conecta esas responsabilidades por capacidad.
+
 Ejes mantiene dos puentes explícitos en bootstrap: preparación/orden de escritura
 y clasificación de fallos privados para el extractor; contexto SQL sólo para sus
 workflows experimentales de preview/histórico. El procesador genérico no conoce
 el nombre de ejes ni accede a sesiones. Los modelos de workspace/identidad y
 el enlace transaccional de invitaciones conservan dependencias exactas de
-compatibilidad hasta sus etapas 4/5. Audio y respaldo mantienen sus coordinaciones
-específicas para etapa 3; usan el runner y los modelos SQL canónicos actuales.
+compatibilidad hasta sus etapas 4/5. Los consumidores HTTP, workspace y comandos
+heredados conservan constructores/imports compatibles hasta su consolidación;
+los casos canónicos no reciben ORM ni leen configuración global.
 
 Mover archivos no basta si persisten sesiones SQL en los casos de uso o clientes
 concretos detrás de un runtime. Durante la transición se mantienen puentes de import

@@ -186,7 +186,7 @@ async def test_partial_layer_write_rolls_back_and_retry_reuses_artifact(layer_da
 
                 yield Transaction()
 
-    extractor.graph = PartialWrite()
+    extractor.store.graph = PartialWrite()
     verification = "nodes" if failure == "node" else "edges"
     with pytest.raises(ValueError, match=f"{verification}_verification_failed"):
         await extractor.persist(output)
@@ -194,7 +194,7 @@ async def test_partial_layer_write_rolls_back_and_retry_reuses_artifact(layer_da
     assert (await client.query("SELECT id FROM EmotionExtraction"))["result"] == [
         {"id": str(previous.run_id)}
     ]
-    extractor.graph = client
+    extractor.store.graph = client
     await extractor.persist(output)
     assert provider.calls == 2
     assert len((await client.query("SELECT FROM Emotion"))["result"]) == 2

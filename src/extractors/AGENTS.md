@@ -1,10 +1,11 @@
 # Extractores independientes
 
 - Ciclo común en `../use_cases/extraction/base.py`; contratos en `../core/extractors/`.
-  Títulos se compone en `../bootstrap/documents.py`. `base.py`, `contracts.py` y
-  módulos de títulos de esta carpeta conservan imports de compatibilidad.
-  Las demás capas y el registro siguen aquí; `../processing/workflows.py` conecta
-  el registro durable hasta la etapa 2.
+  Títulos se compone en `../bootstrap/documents.py`; emociones/embeddings en
+  `../bootstrap/extraction.py`, con persistencia en `../adapters/storage/arcadedb/`
+  y proveedores en `../adapters/providers/openai/`. El registro concreto vive en
+  `../bootstrap/extractor_registry.py`; esta carpeta conserva compatibilidad.
+  `personal_axes/` mantiene su implementación interna pendiente de otro alcance.
 - Separar extracción y persistencia. `dry_run` no escribe el grafo; conservar
   artefacto, profile, configuración y hashes para persistir sin repetir proveedor.
 - Validar citas/offsets contra el original completo. No normalizar el texto fuente

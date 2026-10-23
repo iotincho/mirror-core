@@ -69,7 +69,7 @@ def test_extraction_factory_uses_accepted_model_and_prompt(monkeypatch, tmp_path
     assert captured == [("openai", "accepted-model")]
     assert extractor.profile.instructions == "Accepted prompt"
     assert extractor.profile.id == "accepted-profile"
-    assert extractor.graph is runtime.graph_store.database_client
+    assert extractor.store.graph is runtime.graph_store.database_client
 
 
 def test_persistence_factory_has_no_provider_dependency(monkeypatch, tmp_path):

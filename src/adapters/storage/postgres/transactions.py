@@ -222,3 +222,7 @@ class PostgresProcessingRequests:
     async def latest(self, owner, resource_id, kind):
         async with database_errors():
             return snapshot(await self._repository.latest(owner, resource_id, kind))
+
+    async def mark_deleted(self, owner, resource_id):
+        async with database_errors():
+            await self._repository.mark_deleted(owner, resource_id)

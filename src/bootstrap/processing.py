@@ -58,7 +58,7 @@ def protected_runtime(runtime_factory):
 
 
 def build_document_coordinator(runtime_factory, *, keyed=False):
-    from src.processing.failures import failure_for
+    from src.bootstrap.failures import failure_for
     from src.use_cases.processing.process_document_extractors import ProcessDocumentExtractors
 
     return ProcessDocumentExtractors(
@@ -67,7 +67,7 @@ def build_document_coordinator(runtime_factory, *, keyed=False):
 
 
 def build_source_processor(runtime_factory):
-    from src.processing.failures import failure_for
+    from src.bootstrap.failures import failure_for
     from src.use_cases.processing.process_document import ProcessDocument
 
     return ProcessDocument(protected_runtime(runtime_factory), failure_for=failure_for)
@@ -75,7 +75,7 @@ def build_source_processor(runtime_factory):
 
 def build_legacy_layers_processor(runtime_factory, extractor_factory):
     from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
-    from src.processing.failures import failure_for
+    from src.bootstrap.failures import failure_for
     from src.use_cases.processing.process_document_layers import ProcessDocumentLayers
 
     return ProcessDocumentLayers(
@@ -101,8 +101,8 @@ async def prepare_extractor_persistence(extractor, context):
 
 
 def extractor_failure(error, record, service):
+    from src.bootstrap.failures import failure_for
     from src.core.processing.errors import FailureDecision, WorkflowFailure
-    from src.processing.failures import failure_for
 
     failure = failure_for(error, record.stage_attempts, service)
     private = record.extractor_name == "personal_axis"

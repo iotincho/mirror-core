@@ -931,6 +931,7 @@ async def test_archive_pending_receipt_recovers_after_accept_failure(ingestion, 
 
     from sqlalchemy.exc import OperationalError
 
+    from src.core.processing.errors import StorageUnavailable
     from src.domain.documents import Document
     from src.use_cases.document_archive import DocumentArchive, DocumentArchiveTransfer
 
@@ -952,8 +953,9 @@ async def test_archive_pending_receipt_recovers_after_accept_failure(ingestion, 
         raise OperationalError("commit", {}, RuntimeError("SQL unavailable"))
 
     monkeypatch.setattr(SubmissionRepository, "accept", failed)
-    with pytest.raises(OperationalError):
+    with pytest.raises(StorageUnavailable) as failure:
         await transfer.import_archive(archive)
+    assert isinstance(failure.value.__cause__, OperationalError)
     assert await env.runtime.document_store.get(original.id) == original
     monkeypatch.setattr(SubmissionRepository, "accept", accept)
     await recover_submissions(env.submissions, env.factory)

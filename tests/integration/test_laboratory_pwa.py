@@ -19,6 +19,7 @@ from test_emotion_processing import pipeline, run  # noqa: F401
 from test_personal_axis_processing import active  # noqa: F401
 from test_processing_postgres import store  # noqa: F401
 
+from src.adapters.access.api.public.personal_axes.errors import axis_status
 from src.adapters.access.api.public.routes import processing
 from src.adapters.storage.postgres.accounts import AccessToken, User
 from src.adapters.storage.postgres.models import ProcessingRecord
@@ -45,8 +46,8 @@ from src.bootstrap.public_dependencies import get_public_processing, get_upload_
 from src.bootstrap.settings import get_settings
 from src.bootstrap.workspaces import get_workspace_runtime
 from src.core.domain.documents import NewDocument, build_document
+from src.core.extractors.personal_axes.models import AxisError
 from src.core.processing.errors import ResourceBusy
-from src.extractors.personal_axes.contracts import AxisError
 
 pytestmark = [
     pytest.mark.anyio,
@@ -133,7 +134,7 @@ async def test_browser_real_laboratory_cycle(active, monkeypatch):
     app.dependency_overrides[get_async_session] = session
     app.dependency_overrides[get_workspace_runtime] = runtime
     app.dependency_overrides[get_axis_history] = lambda: build_axis_history(env.repo, env.runtime)
-    app.dependency_overrides[get_preview_cases] = lambda: env.previews.case
+    app.dependency_overrides[get_preview_cases] = lambda: env.previews
     app.dependency_overrides[get_axis_definitions] = lambda: build_axis_definitions(
         env.repo.sessions, env.owner
     )
@@ -143,7 +144,7 @@ async def test_browser_real_laboratory_cycle(active, monkeypatch):
 
     @app.exception_handler(AxisError)
     async def axis_error(_, error):
-        return JSONResponse({"detail": error.code}, status_code=error.status)
+        return JSONResponse({"detail": error.code}, status_code=axis_status(error))
 
     app.mount("/", StaticFiles(directory=os.environ["LABORATORY_PWA_DIST"], html=True))
     async with env.repo.sessions.begin() as sql:

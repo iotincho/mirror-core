@@ -27,7 +27,7 @@ filesystem implementan las transacciones y archivos. La composición está en
 `use_cases/personal_axes/{history,process_history}.py`, con composición propia en
 `bootstrap/personal_axes_history.py`. Sus estados tipados no exponen ORM, sesiones
 ni un contenedor de previews; el lector de cobertura es el caso canónico de exploración.
-La consolidación pendiente se sigue en el [plan](development/personal-axes-migration-plan.md).
+Las fixtures usan estos mismos casos y adaptadores, sin una implementación alternativa.
 
 Las reservas automáticas leen versiones habilitadas dentro de la transacción de
 aceptación; PostgreSQL aplica el permiso por cuenta y devuelve hechos a la política

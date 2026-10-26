@@ -1,14 +1,10 @@
 {
   "version": 1,
-  "description": "Etapa 4: ejes canónicos sin excepciones. Sólo entrypoints externos de mirror-deploy; fachadas restantes consumidas por fixtures hasta etapa 5.",
+  "description": "Migración hexagonal completada. Sólo quedan los nueve imports exactos de entrypoints externos consumidos por mirror-deploy.",
   "legacy_files": [
     "src/admin_main.py",
     "src/administration/__init__.py",
     "src/administration/sync.py",
-    "src/extractors/__init__.py",
-    "src/extractors/personal_axes/__init__.py",
-    "src/extractors/personal_axes/contracts.py",
-    "src/extractors/personal_axes/repository.py",
     "src/graph/__init__.py",
     "src/graph/arcadedb/__init__.py",
     "src/graph/arcadedb/schema.py",

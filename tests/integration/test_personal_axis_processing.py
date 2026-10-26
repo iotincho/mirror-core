@@ -14,14 +14,16 @@ from test_emotion_layer import layer_database  # noqa: F401
 from test_emotion_processing import pipeline, run, upload  # noqa: F401
 from test_processing_postgres import store  # noqa: F401
 
+from src.adapters.access.api.public.personal_axes.responses import axis_response
 from src.adapters.storage.arcadedb.personal_axes import ArcadeDBAxisStore
 from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
 from src.adapters.storage.postgres.accounts import User
+from src.adapters.storage.postgres.personal_axes.definitions import PostgresAxisDefinitions
 from src.bootstrap.acceptance import SubmitAudioNote
 from src.bootstrap.archives import build_delete_document as DeleteDocument
 from src.bootstrap.auth import require_authenticated
-from src.bootstrap.personal_axes_compat import AxisPreviews
 from src.bootstrap.personal_axes_dependencies import get_preview_cases
+from src.bootstrap.personal_axes_previews import build_axis_previews
 from src.bootstrap.personal_axes_reads import (
     build_axis_definitions,
     build_axis_exploration,
@@ -40,7 +42,6 @@ from src.core.extractors.personal_axes.models import (
     FindingsResponse,
     PreviewRequest,
 )
-from src.extractors.personal_axes.repository import AxisRepository
 from src.use_cases.extraction.personal_axis import PersonalAxisExtractor
 
 pytestmark = [
@@ -71,8 +72,10 @@ async def approve(env, title="Valores", previous=None):
         profile=ExtractorProfile(id=f"{title}/{uuid4()}", instructions="Reconocer valores e ideas"),
         model="test",
     )
-    return await env.axes.accept(
-        env.owner, uuid4(), request, spec, datetime.now(UTC) + timedelta(hours=1)
+    return axis_response(
+        await env.axes.accept(
+            env.owner, uuid4(), request, spec, datetime.now(UTC) + timedelta(hours=1)
+        )
     )
 
 
@@ -84,7 +87,7 @@ async def active(pipeline, monkeypatch):
             update(User).where(User.id == env.owner).values(laboratory_enabled=True)
         )
     monkeypatch.setattr(get_settings(), "personal_axes_enabled", True)
-    env.axes = AxisRepository(env.repo.sessions)
+    env.axes = PostgresAxisDefinitions(env.repo.sessions)
     env.calls, env.fail, env.empty = Counter(), set(), set()
     legacy = env.registry.definitions[("document", 3)].run.__self__
 
@@ -134,7 +137,7 @@ async def active(pipeline, monkeypatch):
         1,
         ProcessExtractor(legacy.runtime_factory, factory, repository=env.repo).definition,
     )
-    env.previews = AxisPreviews(env.repo, env.runtime, get_settings())
+    env.previews = build_axis_previews(env.repo, env.runtime, get_settings())
     env.explore = build_axis_exploration(env.repo.sessions, env.runtime, owner=env.previews.owner)
     return env
 
@@ -348,7 +351,7 @@ async def test_version_trace_zero_findings_and_http_contract(active):
     record = await RequestProcessing(env.repo, env.runtime).reprocess_document(first.id, uuid4())
     await finish(env, record)
     assert (await env.explore.tags(axis, old))["items"] == []
-    app.dependency_overrides[get_preview_cases] = lambda: env.previews.case
+    app.dependency_overrides[get_preview_cases] = lambda: env.previews
     app.dependency_overrides[get_axis_definitions] = lambda: build_axis_definitions(
         env.repo.sessions, env.owner
     )

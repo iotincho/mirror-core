@@ -2,8 +2,8 @@
 
 Organización vigente al 2026-10-26 para el alcance migrado: núcleo, aplicación,
 adaptadores y composición separados y validados con motores aislados e imagen de
-producción. La gestión de ejes continúa en migración; los comandos externos
-que siguen en uso mantienen puentes mínimos documentados. El
+producción. Ejes también usa estas capas, incluidos previews, histórico y reservas.
+Los comandos externos que siguen en uso mantienen puentes mínimos documentados. El
 [mapa](docs/development/repository-map.md) ubica las implementaciones actuales.
 
 Este documento es la referencia de responsabilidades, dependencias y crecimiento
@@ -173,9 +173,9 @@ definir, probar y aceptar versiones pertenecen a aplicación; sus reglas y tipos
 al núcleo de extracción, y HTTP/ORM/proveedores a sus adaptadores. El alcance
 actual ya separa núcleo, extractor, proveedor y proyección, además de definiciones,
 acceso, exploración, previews/aceptación/limpieza, histórico y reservas automáticas.
-La consolidación final continúa según su
-[plan](docs/development/personal-axes-migration-plan.md),
-manteniendo compatibilidad y reglas de versionado/evidencia.
+La implementación conserva las reglas de versionado/evidencia y una sola
+representación de cada contrato; sus pruebas consumen los mismos casos y
+adaptadores que producción, sin fachadas de compatibilidad.
 
 ### Procesamiento durable y transacciones
 
@@ -290,7 +290,7 @@ y la política que compone su configuración es pura. `AxisWriteContexts` obtien
 la prioridad y la reserva original; aplicación entrega el contexto inmutable a
 persistencia por llamada. El extractor no se modifica desde un binder SQL.
 La clasificación de errores de ejes conserva su privacidad como política del núcleo.
-Sólo quedan fachadas usadas por fixtures, a retirar en la consolidación final.
+No hay otra implementación de ejes ni paquetes de compatibilidad para sus fixtures.
 
 Los entrypoints antiguos aún usados por `mirror-deploy` sólo delegan a bootstrap.
 Su consumidor, motivo y condición de retiro constan en el [mapa](docs/development/repository-map.md)

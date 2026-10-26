@@ -14,6 +14,7 @@ from test_processing_postgres import store  # noqa: F401
 
 from src.adapters.access.api.public.personal_axes.errors import axis_status
 from src.adapters.access.api.public.personal_axes.history_schemas import HistoryRequest
+from src.adapters.access.api.public.personal_axes.responses import axis_response
 from src.adapters.storage.postgres.models import ProcessingEvent, ProcessingRecord
 from src.adapters.storage.postgres.personal_axes.history_models import (
     AxisHistoryBatch,
@@ -116,7 +117,7 @@ async def test_history_is_pinned_idempotent_isolated_and_counts_empty_results(hi
     assert result["status"] == "completed"
     assert result["counts"] == {"completed": 2}
     assert (await env.history.notes(id))["remaining"] == 0
-    assert (await env.axes.get(env.owner, id))["enabled"] is False
+    assert (axis_response(await env.axes.get(env.owner, id)))["enabled"] is False
     duplicate = await env.history.start(id, body, uuid4())
     assert duplicate["counts"] == {"skipped": 2}
     assert not await jobs(env, duplicate)

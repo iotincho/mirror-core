@@ -27,7 +27,7 @@ Cobertura actual:
 - Ningún módulo exterior a `src/bootstrap/` importa bootstrap sin una excepción
   puntual de transición. Las ubicaciones nuevas deben pertenecer al árbol objetivo.
 
-Las ubicaciones heredadas que permanecen son ejes y entrypoints externos usados
+Las ubicaciones heredadas que permanecen son entrypoints externos usados
 por mirror-deploy. `legacy_files` los identifica individualmente; no desactiva el
 veto a importar bootstrap ni permite crear otros módulos fuera del árbol objetivo.
 
@@ -83,8 +83,36 @@ Puntos de composición y consumo que revisar al mover rutas:
 | Empaquetado | `pyproject.toml` descubre `src*` y empaqueta `src.adapters.access.cli/announcements.json`; comprobar wheel desde fuentes limpias |
 
 El inventario se genera bajo demanda y sus contadores no representan porcentaje
-de deuda resuelta. Las únicas excepciones actuales corresponden a ejes pospuesto
-y a comandos externos documentados; no hay excepciones en capas canónicas migradas.
+de deuda resuelta. Las únicas nueve excepciones de import corresponden a comandos
+externos documentados; no hay excepciones en core, aplicación ni adaptadores.
+
+## Regresión de ejes y procesamiento
+
+Las pruebas consumen los casos canónicos, con definiciones tipadas y traducción
+HTTP en acceso; no se admiten fachadas de compatibilidad para fixtures.
+Verificar fingerprints/artefactos anteriores y recuperación sin proveedor con
+`tests/test_personal_axis_application.py`. Los puertos en memoria se ejercitan en
+`test_personal_axis_history.py`, `test_personal_axis_previews.py` y
+`test_personal_axis_reads.py`.
+
+Con PostgreSQL/ArcadeDB/RabbitMQ desechables preparados y sus variables de
+[pruebas](testing.md), ejecutar la regresión conjunta:
+
+```bash
+.venv/bin/python -m pytest tests/integration/test_axis_history.py \
+  tests/integration/test_personal_axis_processing.py tests/integration/test_axis_previews.py \
+  tests/integration/test_personal_axis_layer.py tests/integration/test_extractor_jobs.py \
+  tests/integration/test_reprocess_notes.py tests/integration/test_audio_invitation_processing.py \
+  tests/integration/test_processing_postgres.py -ra
+```
+
+El último archivo incluye workers Taskiq reales, mensajes duplicados y recuperación
+tras pérdida de un worker. No contar un skip por falta de RabbitMQ como validación.
+Al retirar paquetes comprobar también wheel, recurso CLI, imports con Python 3.13
+y arranque/cierre de API, worker y dispatcher sobre el entorno aislado. La tarea
+sigue siendo `processing.execute`; las versiones de workflows no se cambian por
+mover sus implementaciones. Validar salud/autorización HTTP y un job sintético por
+outbox antes de apagar procesos; comprobar cierre de recursos sin llamadas LLM.
 
 ## Regresión de consolidación
 

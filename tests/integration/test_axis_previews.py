@@ -13,6 +13,8 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import DBAPIError, IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from src.adapters.access.api.public.personal_axes.errors import axis_status
+from src.adapters.access.api.public.personal_axes.responses import axis_response
 from src.adapters.storage.filesystem.documents import FileDocumentStore
 from src.adapters.storage.postgres.accounts import User
 from src.adapters.storage.postgres.models import (
@@ -25,19 +27,27 @@ from src.adapters.storage.postgres.personal_axes.models import PersonalAxis, Per
 from src.adapters.storage.postgres.repository import ProcessingRepository
 from src.adapters.storage.postgres.workspace_models import UserWorkspace
 from src.bootstrap.auth import require_authenticated
-from src.bootstrap.personal_axes_compat import AxisPreviews
 from src.bootstrap.personal_axes_dependencies import get_preview_cases
-from src.bootstrap.personal_axes_previews import build_preview_workflow, expire_axis_previews
+from src.bootstrap.personal_axes_previews import (
+    build_axis_previews,
+    build_preview_workflow,
+    configuration,
+    expire_axis_previews,
+)
 from src.bootstrap.personal_axes_reads import build_axis_definitions, get_axis_definitions
 from src.bootstrap.processing import build_executor as ExecuteProcessing
 from src.bootstrap.public_api import app
 from src.bootstrap.settings import Settings
 from src.core.domain.documents import NewDocument, build_document
 from src.core.extractors.contracts import ProviderMetadata
-from src.core.extractors.personal_axes.models import Criterion, FindingsResponse, PreviewRequest
+from src.core.extractors.personal_axes.models import (
+    AxisError,
+    Criterion,
+    FindingsResponse,
+    PreviewRequest,
+)
 from src.core.processing.errors import StorageUnavailable
 from src.core.processing.workflows import WorkflowRegistry
-from src.extractors.personal_axes.contracts import AxisError
 
 pytestmark = [
     pytest.mark.anyio,
@@ -148,8 +158,8 @@ async def laboratory(tmp_path):
         provider=provider,
         documents=documents,
         settings=settings,
-        service=AxisPreviews(processing, runtimes[owners[0]], settings),
-        other=AxisPreviews(processing, runtimes[owners[1]], settings),
+        service=build_axis_previews(processing, runtimes[owners[0]], settings),
+        other=build_axis_previews(processing, runtimes[owners[1]], settings),
         execute=ExecuteProcessing(processing, registry),
     )
     try:
@@ -192,7 +202,7 @@ async def run(lab, preview):
 async def test_full_http_refinement_exact_approval_and_no_document_events(laboratory):
     lab = laboratory
     app.dependency_overrides[require_authenticated] = lambda: None
-    app.dependency_overrides[get_preview_cases] = lambda: lab.service.case
+    app.dependency_overrides[get_preview_cases] = lambda: lab.service
     app.dependency_overrides[get_axis_definitions] = lambda: build_axis_definitions(
         lab.sessions, lab.service.owner
     )
@@ -330,7 +340,7 @@ async def test_partial_failure_retry_only_missing_note_and_key_is_idempotent(lab
     assert partial["status"] == "retrying"
     assert [item["status"] for item in partial["notes"]].count("completed") == 4
     with pytest.raises(AxisError, match="incomplete"):
-        await lab.service.accept(UUID(preview["id"]), preview["revision_hash"])
+        axis_response(await lab.service.accept(UUID(preview["id"]), preview["revision_hash"]))
     async with lab.sessions.begin() as session:
         await session.execute(
             update(ProcessingRecord)
@@ -351,6 +361,7 @@ async def test_empty_sample_can_be_accepted_and_repeat_keeps_specification(labor
     original = request(lab)
     first = await run(lab, await lab.service.request(original, uuid4()))
     lab.settings.openai_model = None  # Repeating freezes the complete evaluated configuration.
+    lab.service.configuration = configuration(lab.settings)
     repeated = request(
         lab,
         **{
@@ -366,7 +377,7 @@ async def test_empty_sample_can_be_accepted_and_repeat_keeps_specification(labor
     results = await lab.service.results(UUID(second["id"]))
     assert all(not item["findings"] for item in results["documents"])
     assert len(results["graph"]["nodes"]) == 6  # Root plus five isolated sample notes.
-    accepted = await lab.service.accept(UUID(second["id"]), second["revision_hash"])
+    accepted = axis_response(await lab.service.accept(UUID(second["id"]), second["revision_hash"]))
     assert accepted["version"]["number"] == 1
 
 
@@ -374,7 +385,7 @@ async def test_expiry_cleanup_and_lost_approval_response(laboratory):
     lab = laboratory
     completed = await run(lab, await lab.service.request(request(lab), uuid4()))
     identifier = UUID(completed["id"])
-    accepted = await lab.service.accept(identifier, completed["revision_hash"])
+    accepted = axis_response(await lab.service.accept(identifier, completed["revision_hash"]))
     async with lab.sessions.begin() as session:
         await session.execute(
             update(ProcessingRecord)
@@ -383,11 +394,13 @@ async def test_expiry_cleanup_and_lost_approval_response(laboratory):
         )
     with pytest.raises(AxisError) as expired:
         await lab.service.snapshot(identifier)
-    assert expired.value.status == 410
+    assert axis_status(expired.value) == 410
     await expire_axis_previews(lab.processing, lab.settings)
     assert not lab.service.store(identifier).root.exists()
     assert await lab.processing.get(identifier, lab.owners[0]) is None
-    assert await lab.service.accept(identifier, completed["revision_hash"]) == accepted
+    assert (
+        axis_response(await lab.service.accept(identifier, completed["revision_hash"])) == accepted
+    )
     await lab.execute(identifier, 1)  # A late broker message cannot resurrect deleted state.
     assert not lab.service.store(identifier).root.exists()
 
@@ -403,7 +416,7 @@ async def test_cross_user_ids_are_not_authority_and_samples_change_explicitly(la
     ):
         with pytest.raises(AxisError) as unknown:
             await operation
-        assert unknown.value.status == 404
+        assert axis_status(unknown.value) == 404
     with pytest.raises(AxisError):
         await lab.other.request(original, uuid4())
     changed = request(
@@ -429,7 +442,7 @@ async def test_source_deletion_invalidates_preview_and_cleanup(laboratory):
     await lab.processing.mark_deleted(lab.owners[0], lab.documents[0].id)
     await lab.runtimes[lab.owners[0]].document_store.delete(lab.documents[0].id)
     with pytest.raises(AxisError, match="source_unavailable"):
-        await lab.service.accept(identifier, completed["revision_hash"])
+        axis_response(await lab.service.accept(identifier, completed["revision_hash"]))
     await expire_axis_previews(lab.processing, lab.settings)
     assert not lab.service.store(identifier).root.exists()
 
@@ -437,7 +450,7 @@ async def test_source_deletion_invalidates_preview_and_cleanup(laboratory):
 async def test_approval_version_conflict_and_database_immutability(laboratory):
     lab = laboratory
     original = await run(lab, await lab.service.request(request(lab), uuid4()))
-    axis = await lab.service.accept(UUID(original["id"]), original["revision_hash"])
+    axis = axis_response(await lab.service.accept(UUID(original["id"]), original["revision_hash"]))
     requests = [
         request(
             lab,
@@ -448,10 +461,14 @@ async def test_approval_version_conflict_and_database_immutability(laboratory):
         for index in range(2)
     ]
     previews = [await run(lab, await lab.service.request(item, uuid4())) for item in requests]
-    approved = await lab.service.accept(UUID(previews[0]["id"]), previews[0]["revision_hash"])
+    approved = axis_response(
+        await lab.service.accept(UUID(previews[0]["id"]), previews[0]["revision_hash"])
+    )
     assert approved["version"]["number"] == 2
     with pytest.raises(AxisError, match="base_version_conflict"):
-        await lab.service.accept(UUID(previews[1]["id"]), previews[1]["revision_hash"])
+        axis_response(
+            await lab.service.accept(UUID(previews[1]["id"]), previews[1]["revision_hash"])
+        )
     with pytest.raises(DBAPIError):
         async with lab.sessions.begin() as session:
             await session.execute(
@@ -483,6 +500,7 @@ async def test_interrupted_enqueue_reuses_orphan_input_and_config(laboratory, mo
         await lab.service.request(original, key)
     monkeypatch.setattr(lab.processing, "schedule", schedule)
     lab.settings.openai_model = "changed-after-interruption"
+    lab.service.configuration = configuration(lab.settings)
     completed = await run(lab, await lab.service.request(original, key))
     saved = await lab.service.store(UUID(completed["id"])).read("specification")
     assert saved["specification"]["model"] == "test-model"
@@ -535,7 +553,7 @@ async def test_changed_request_key_and_stale_revision_never_create_an_axis(labor
     with pytest.raises(AxisError, match="idempotency_conflict"):
         await lab.service.request(original.model_copy(update={"purpose": "otra finalidad"}), key)
     with pytest.raises(AxisError, match="revision_conflict"):
-        await lab.service.accept(UUID(first["id"]), "a" * 64)
+        axis_response(await lab.service.accept(UUID(first["id"]), "a" * 64))
     async with lab.sessions() as session:
         assert await session.scalar(select(func.count()).select_from(PersonalAxis)) == 0
 
@@ -544,16 +562,18 @@ async def test_source_locks_exclude_deletion_without_exhausting_small_pool(labor
     lab = laboratory
     first = await run(lab, await lab.service.request(request(lab), uuid4()))
     identifier = UUID(first["id"])
-    _, value = await lab.service.case.live(identifier)
-    async with lab.service.case.source_guard(value, identifier):
+    _, value = await lab.service.live(identifier)
+    async with lab.service.source_guard(value, identifier):
         for document in lab.documents[:5]:
             async with lab.processing.lock_resource(lab.owners[0], document.id) as locked:
                 assert not locked
     async with lab.processing.lock_resource(lab.owners[0], lab.documents[0].id) as locked:
         assert locked
         with pytest.raises(AxisError, match="source_busy"):
-            await lab.service.accept(identifier, first["revision_hash"])
-    assert (await lab.service.accept(identifier, first["revision_hash"]))["version"]["number"] == 1
+            axis_response(await lab.service.accept(identifier, first["revision_hash"]))
+    assert (axis_response(await lab.service.accept(identifier, first["revision_hash"])))["version"][
+        "number"
+    ] == 1
 
 
 async def test_generation_failure_does_not_log_private_provider_payload(laboratory, caplog):
@@ -578,7 +598,7 @@ async def test_modified_source_requires_explicit_new_sample(laboratory):
     path = lab.runtimes[lab.owners[0]].context.filesystem_root / "documents" / f"{document.id}.json"
     path.write_text(changed.model_dump_json(), encoding="utf-8")
     with pytest.raises(AxisError, match="source_changed"):
-        await lab.service.accept(UUID(first["id"]), first["revision_hash"])
+        axis_response(await lab.service.accept(UUID(first["id"]), first["revision_hash"]))
     refinement = original.model_copy(
         update={"revision": 2, "mode": "refine", "previous_preview_id": UUID(first["id"])}
     )
@@ -649,6 +669,7 @@ async def test_database_interruption_preserves_lease_and_prompt_checkpoint(labor
 async def test_concurrent_preview_quota_commits_one_receipt_job_and_outbox(laboratory):
     lab = laboratory
     lab.settings.personal_axes_max_pending_previews = 1
+    lab.service.configuration = configuration(lab.settings)
     requests = [request(lab, document_ids=[document.id]) for document in lab.documents[:2]]
     results = await asyncio.gather(
         *(lab.service.request(body, uuid4()) for body in requests), return_exceptions=True
@@ -656,7 +677,7 @@ async def test_concurrent_preview_quota_commits_one_receipt_job_and_outbox(labor
     accepted = [result for result in results if isinstance(result, dict)]
     rejected = [result for result in results if isinstance(result, AxisError)]
     assert len(accepted) == len(rejected) == 1
-    assert rejected[0].code == "axis_preview_limit" and rejected[0].status == 429
+    assert rejected[0].code == "axis_preview_limit" and axis_status(rejected[0]) == 429
     async with lab.sessions() as session:
         for model in (ProcessingRecord, ProcessingReceipt):
             assert (

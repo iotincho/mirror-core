@@ -195,10 +195,10 @@ async def test_process_composition_reuses_provider_and_closes_it_once(monkeypatc
     shared.close.assert_awaited_once()
 
 
-def test_canonical_error_is_semantic_and_legacy_http_translation_remains_available():
-    from src.extractors.personal_axes.contracts import AxisError as LegacyAxisError
+def test_axis_errors_are_semantic_and_http_translation_belongs_to_access():
+    from src.adapters.access.api.public.personal_axes.errors import axis_status
 
-    assert not hasattr(AxisError("axis_preview_expired"), "status")
-    legacy = LegacyAxisError("axis_preview_expired", 410)
-    assert isinstance(legacy, AxisError)
-    assert legacy.status == 410 and legacy.code == "axis_preview_expired"
+    error = AxisError("axis_preview_expired")
+    assert not hasattr(error, "status")
+    assert error.code == "axis_preview_expired"
+    assert axis_status(error) == 410

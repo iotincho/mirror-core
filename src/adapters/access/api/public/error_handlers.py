@@ -13,6 +13,36 @@ from src.adapters.access.api.public.diagnostics import report_issue
 
 logger = logging.getLogger(__name__)
 
+_OAUTH_ERROR_CODES = frozenset({
+    "invalid_grant", "invalid_client", "invalid_request", "unauthorized_client",
+    "unsupported_grant_type", "redirect_uri_mismatch", "access_denied",
+    "temporarily_unavailable", "server_error",
+})
+
+
+async def oauth_callback_exception_handler(request: Request, error: HTTPException) -> Response:
+    # Only retain protocol codes: provider descriptions and exception chains can
+    # contain credentials, authorization codes or other untrusted content.
+    code = "unknown"
+    response = getattr(error, "response", None)
+    if response is not None:
+        try:
+            payload = response.json()
+        except ValueError:
+            payload = None
+        candidate = payload.get("error") if isinstance(payload, dict) else None
+        if isinstance(candidate, str) and candidate in _OAUTH_ERROR_CODES:
+            code = candidate
+    status_code = 400 if code == "invalid_grant" or error.status_code == 400 else 502
+    request.state.error_type = "OAuthCallbackError"
+    logger.warning(
+        "oauth_callback_failed path=%s request_id=%s provider_error=%s status_code=%s",
+        request.url.path, getattr(request.state, "request_id", "unavailable"), code, status_code,
+    )
+    return JSONResponse(status_code=status_code, content={
+        "detail": "oauth_authorization_invalid" if status_code == 400 else "oauth_unavailable",
+    })
+
 
 def _log_server_error(request: Request, error: Exception, status_code: int) -> None:
     report_issue(

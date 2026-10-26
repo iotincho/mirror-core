@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from httpx_oauth.integrations.fastapi import OAuth2AuthorizeCallbackError
 from starlette.exceptions import HTTPException
 from starlette.requests import ClientDisconnect
 from starlette.responses import JSONResponse
@@ -14,6 +15,7 @@ from src.adapters.access.api.public.error_handlers import (
     client_disconnect_handler,
     logged_http_exception_handler,
     logged_validation_exception_handler,
+    oauth_callback_exception_handler,
     unexpected_exception_handler,
 )
 from src.adapters.access.api.public.errors import (
@@ -82,6 +84,7 @@ async def axis_error_handler(request: Request, error: AxisError) -> JSONResponse
 app.add_exception_handler(InvitationError, invitation_error_handler)
 app.add_exception_handler(NotificationError, notification_error_handler)
 
+app.add_exception_handler(OAuth2AuthorizeCallbackError, oauth_callback_exception_handler)
 app.add_exception_handler(HTTPException, logged_http_exception_handler)
 app.add_exception_handler(RequestValidationError, logged_validation_exception_handler)
 app.add_exception_handler(ClientDisconnect, client_disconnect_handler)

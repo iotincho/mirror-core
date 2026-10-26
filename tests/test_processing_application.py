@@ -66,7 +66,7 @@ from src.use_cases.auth import authorize_stream
 from src.use_cases.documents import resolve_originals
 from src.use_cases.processing import public
 from src.use_cases.extraction import run_command, personal_axis
-from src.use_cases.personal_axes import build_specification
+from src.use_cases.personal_axes import build_specification, definitions, exploration, laboratory
 from src.core.extractors.personal_axes import models, policies, profiles, ports
 from src.use_cases.maintenance import data_migrations, cleanup_extractions, extraction_cleanup
 """

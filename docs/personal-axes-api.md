@@ -13,8 +13,15 @@ canónico en `src/use_cases/extraction/personal_axis.py`; generación de criteri
 se implementan en sus adaptadores `personal_axes.py`, compuestos por
 `src/bootstrap/personal_axes.py`. Los perfiles, hashes y formatos conservan sus bytes.
 
-Rutas, definiciones SQL, previews e histórico todavía viven en la familia anterior;
-su separación continúa según el [plan](development/personal-axes-migration-plan.md).
+Definiciones, acceso/contexto/preferencias y exploración viven en
+`use_cases/personal_axes/`, con puertos semánticos. PostgreSQL mantiene su ORM y
+consultas en `adapters/storage/postgres/personal_axes/`; ArcadeDB implementa las
+lecturas en `adapters/storage/arcadedb/personal_axis_reads.py`. Rutas, schemas y
+estados HTTP están en `adapters/access/api/public/personal_axes/`; bootstrap los
+conecta sin usar `AxisPreviews` como contenedor. Previews y lotes históricos aún
+viven en la familia anterior; su separación continúa según el
+[plan](development/personal-axes-migration-plan.md). El histórico reutiliza sólo el
+lector semántico de cobertura, sin exponer transacciones del grafo.
 El binder de reservas mantiene temporalmente su API, traducida al contexto tipado
 de escritura. Este movimiento no modifica el contrato funcional siguiente.
 

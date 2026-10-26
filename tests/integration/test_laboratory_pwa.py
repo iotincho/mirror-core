@@ -25,6 +25,13 @@ from src.adapters.storage.postgres.models import ProcessingRecord
 from src.bootstrap.auth import get_authenticated_user
 from src.bootstrap.auth import router as auth_router
 from src.bootstrap.database import get_async_session
+from src.bootstrap.personal_axes_api import router as axes_router
+from src.bootstrap.personal_axes_reads import (
+    build_axis_definitions,
+    build_axis_exploration,
+    get_axis_definitions,
+    get_axis_exploration,
+)
 from src.bootstrap.processing import get_repository
 from src.bootstrap.public_channels import activity_router
 from src.bootstrap.public_dependencies import get_public_processing, get_upload_limits
@@ -35,7 +42,6 @@ from src.core.processing.errors import ResourceBusy
 from src.extractors.personal_axes.contracts import AxisError
 from src.extractors.personal_axes.dependencies import get_axis_previews
 from src.extractors.personal_axes.history_models import AxisHistoryBatch
-from src.extractors.personal_axes.routes import router as axes_router
 from src.use_cases.process_axis_history import ProcessAxisHistory
 from src.use_cases.process_axis_preview import ProcessAxisPreview
 
@@ -121,6 +127,12 @@ async def test_browser_real_laboratory_cycle(active, monkeypatch):
     app.dependency_overrides[get_async_session] = session
     app.dependency_overrides[get_workspace_runtime] = runtime
     app.dependency_overrides[get_axis_previews] = lambda: env.previews
+    app.dependency_overrides[get_axis_definitions] = lambda: build_axis_definitions(
+        env.repo.sessions, env.owner
+    )
+    app.dependency_overrides[get_axis_exploration] = lambda: build_axis_exploration(
+        env.repo.sessions, env.runtime
+    )
 
     @app.exception_handler(AxisError)
     async def axis_error(_, error):

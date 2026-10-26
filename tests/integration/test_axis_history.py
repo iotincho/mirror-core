@@ -13,6 +13,7 @@ from test_personal_axis_processing import active, approve  # noqa: F401
 from test_processing_postgres import store  # noqa: F401
 
 from src.adapters.storage.postgres.models import ProcessingEvent, ProcessingRecord
+from src.adapters.storage.postgres.personal_axes.models import PersonalAxisVersion
 from src.bootstrap.processing import build_executor as ExecuteProcessing
 from src.core.domain.documents import NewDocument, build_document
 from src.core.extractors.contracts import content_hash
@@ -23,7 +24,6 @@ from src.extractors.personal_axes.contracts import AxisError
 from src.extractors.personal_axes.history import AxisHistory
 from src.extractors.personal_axes.history_models import AxisHistoryBatch, AxisHistoryItem
 from src.extractors.personal_axes.history_schemas import HistoryRequest
-from src.extractors.personal_axes.models import PersonalAxisVersion
 from src.use_cases.process_axis_history import ProcessAxisHistory
 
 pytestmark = [
@@ -317,9 +317,9 @@ async def test_history_http_authorization_validation_and_recovery(history, monke
     from src.adapters.storage.postgres.accounts import User
     from src.bootstrap.auth import get_authenticated_user
     from src.bootstrap.database import get_async_session
+    from src.bootstrap.personal_axes_api import router
     from src.bootstrap.workspaces import get_workspace_runtime
     from src.core.auth.identity import AuthenticatedUser
-    from src.extractors.personal_axes.routes import router
 
     env = history
     axis = await approve(env)

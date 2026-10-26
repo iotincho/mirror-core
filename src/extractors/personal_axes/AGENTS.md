@@ -4,8 +4,10 @@
   Para trabajo diferido consultar [pendientes](../../../docs/pending.md).
 - Núcleo en `../../core/extractors/personal_axes/`, extractor en
   `../../use_cases/extraction/personal_axis.py`, proveedor/proyección en adaptadores
-  y composición en `../../bootstrap/personal_axes.py`. Esta carpeta conserva gestión,
-  rutas y persistencia SQL pendientes; no reintroducir el extractor o SDK aquí.
+  y composición en `../../bootstrap/personal_axes.py`. Definiciones/Laboratorio/lecturas
+  están en `../../use_cases/personal_axes/`, HTTP y SQL en sus adaptadores. Esta carpeta
+  conserva previews, planificación histórica y puentes temporales; no duplicar
+  consultas ni reintroducir el extractor o SDK aquí.
 - Secuencia vigente: [plan](../../../docs/development/personal-axes-migration-plan.md).
 - Acceso exige interruptor global y permiso por cuenta. Consultar autorización
   antes de abrir el workspace o reservar jobs; no exponer esta mutación en API pública.

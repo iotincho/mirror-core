@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Personal axes etapa 1: núcleo/extractor/adaptadores canónicos sin excepciones. Sólo compatibilidad restante de etapas 2-4 y entrypoints externos de mirror-deploy.",
+  "description": "Personal axes etapa 2: lecturas/acceso canónicos sin excepciones; puentes explícitos para previews/histórico de etapas 3/4 y entrypoints externos.",
   "legacy_files": [
     "src/admin_main.py",
     "src/administration/__init__.py",
@@ -15,14 +15,12 @@
     "src/extractors/personal_axes/history.py",
     "src/extractors/personal_axes/history_models.py",
     "src/extractors/personal_axes/history_schemas.py",
-    "src/extractors/personal_axes/models.py",
     "src/extractors/personal_axes/pagination.py",
     "src/extractors/personal_axes/persistence.py",
     "src/extractors/personal_axes/preview_projection.py",
     "src/extractors/personal_axes/preview_store.py",
     "src/extractors/personal_axes/repository.py",
     "src/extractors/personal_axes/routes.py",
-    "src/extractors/personal_axes/schemas.py",
     "src/graph/__init__.py",
     "src/graph/arcadedb/__init__.py",
     "src/graph/arcadedb/schema.py",
@@ -46,24 +44,6 @@
       "target": "src.bootstrap.inventory_sync.main",
       "reason": "Entrypoint consumido por ../mirror-deploy/docker-compose.yml o deploy.sh. Sólo reexporta composición, sin lógica. Retirar cuando mirror-deploy use bootstrap y se valide su arranque.",
       "remove_in": "actualización de comandos de mirror-deploy"
-    },
-    {
-      "source": "src/extractors/personal_axes/access.py",
-      "target": "src.bootstrap.auth.get_authenticated_user",
-      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
-      "remove_in": "personal-axes-migration-plan.md: etapa 2"
-    },
-    {
-      "source": "src/extractors/personal_axes/access.py",
-      "target": "src.bootstrap.database.get_async_session",
-      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
-      "remove_in": "personal-axes-migration-plan.md: etapa 2"
-    },
-    {
-      "source": "src/extractors/personal_axes/access.py",
-      "target": "src.bootstrap.settings.get_settings",
-      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
-      "remove_in": "personal-axes-migration-plan.md: etapa 2"
     },
     {
       "source": "src/extractors/personal_axes/dependencies.py",
@@ -91,21 +71,9 @@
     },
     {
       "source": "src/extractors/personal_axes/routes.py",
-      "target": "src.bootstrap.auth.get_authenticated_user",
-      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
-      "remove_in": "personal-axes-migration-plan.md: etapa 2"
-    },
-    {
-      "source": "src/extractors/personal_axes/routes.py",
-      "target": "src.bootstrap.database.get_async_session",
-      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
-      "remove_in": "personal-axes-migration-plan.md: etapa 2"
-    },
-    {
-      "source": "src/extractors/personal_axes/routes.py",
       "target": "src.bootstrap.public_security.require_same_origin",
       "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
-      "remove_in": "personal-axes-migration-plan.md: etapa 2"
+      "remove_in": "personal-axes-migration-plan.md: etapas 3/4"
     },
     {
       "source": "src/graph/arcadedb/schema.py",
@@ -340,6 +308,24 @@
       "target": "src.extractors.personal_axes.contracts.AxisError",
       "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
       "remove_in": "personal-axes-migration-plan.md: etapa 3"
+    },
+    {
+      "source": "src/extractors/personal_axes/access.py",
+      "target": "src.bootstrap.laboratory.laboratory_available",
+      "reason": "Alias de disponibilidad para reservas/histórico dentro de su transacción SQL; eliminar con esos consumidores.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 4"
+    },
+    {
+      "source": "src/extractors/personal_axes/access.py",
+      "target": "src.bootstrap.laboratory.require_laboratory_access",
+      "reason": "Identidad de dependencia compartida con rutas de previews aún no migradas; no duplica autorización.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 3"
+    },
+    {
+      "source": "src/extractors/personal_axes/exploration.py",
+      "target": "src.bootstrap.personal_axes_reads.build_axis_exploration",
+      "reason": "Puente del histórico legado al lector semántico canónico; no expone transacciones ni duplica consultas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 4"
     }
   ]
 }

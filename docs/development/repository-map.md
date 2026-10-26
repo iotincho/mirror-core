@@ -3,8 +3,8 @@
 Estado contrastado con código al 2026-10-26. La migración del alcance acordado
 está completada y validada con PostgreSQL, ArcadeDB, RabbitMQ e imagen de producción.
 La [arquitectura](../../ARCHITECTURE.md) define responsabilidades y criterios de crecimiento.
-El núcleo y extractor de ejes completaron la primera etapa de su
-[migración](personal-axes-migration-plan.md); gestión, previews e histórico siguen
+El núcleo, extractor, definiciones y exploración de ejes completaron las etapas 1–2
+de su [migración](personal-axes-migration-plan.md); previews e histórico siguen
 pendientes. Abajo se identifican sus puentes y los entrypoints externos necesarios.
 Leer la fila del área afectada y sus pruebas, no todos los módulos.
 
@@ -28,7 +28,8 @@ Leer la fila del área afectada y sus pruebas, no todos los módulos.
 | Comandos de extracción / backfill | `src/adapters/access/cli/{extraction,title_backfill}.py`, `src/use_cases/extraction/run_command.py`; `src/bootstrap/{extraction_cli,title_backfill}.py` | `tests/test_title_backfill_cli.py`; contratos de cada extractor |
 | Settings / diagnóstico | `src/bootstrap/{settings,logging,observability}.py`; middleware HTTP en acceso; Sentry en `src/adapters/providers/telemetry/`; `.env.example` | `tests/test_config.py`, `test_request_logging.py`, `test_observability.py`; [Sentry](../sentry.md) |
 | Extractor de ejes | `src/core/extractors/personal_axes/`, `src/use_cases/extraction/personal_axis.py`, `src/use_cases/personal_axes/build_specification.py`; adaptadores OpenAI/ArcadeDB `personal_axes.py`; `src/bootstrap/personal_axes.py` | `tests/test_personal_axis_application.py`, `test_personal_axis_extractor.py`; [contrato](../personal-axes-api.md) |
-| Laboratorio / gestión de ejes pendiente | `src/extractors/personal_axes/`, casos `src/use_cases/*axis*.py`; puentes `src/bootstrap/{processing,failures}.py` | Suites de previews/histórico; [plan](personal-axes-migration-plan.md) |
+| Laboratorio / definiciones y exploración | `src/use_cases/personal_axes/{laboratory,definitions,exploration}.py`; HTTP `adapters/access/api/public/personal_axes/`; PostgreSQL `adapters/storage/postgres/personal_axes/`; grafo `adapters/storage/arcadedb/personal_axis_reads.py`; composición `bootstrap/{laboratory,personal_axes_reads,personal_axes_api}.py` | `tests/test_laboratory_access.py`, `test_laboratory_context.py`, `test_personal_axis_reads.py`; integraciones de procesamiento de ejes |
+| Previews / histórico pendiente | `src/extractors/personal_axes/`, casos `src/use_cases/*axis*.py`; puentes `src/bootstrap/{processing,failures}.py` | Suites de previews/histórico; [plan](personal-axes-migration-plan.md) |
 | Imagen / arranque | `Dockerfile`, `Dockerfile.prod`, `docker-compose.yml`, `deploy.sh`, `.github/workflows/` | `tests/test_local_deploy.py`; [imágenes](../production-image-publishing.md) |
 
 ## Compatibilidad y dependencias
@@ -44,7 +45,9 @@ Se conservan exclusivamente los entrypoints externos que todavía consume
 Sus archivos sólo delegan a bootstrap. Retirarlos exige actualizar y validar esos
 comandos externos. La política registra cada import exacto y su condición de retiro.
 
-La gestión de ejes sigue heredada. `AxisHistoryRequests` adapta su reset SQL y los
+Previews y planificación/ejecución histórica siguen heredadas. El lector histórico
+de cobertura delega al caso canónico mediante un puente temporal, sin queries ni
+transacciones expuestas. `AxisHistoryRequests` adapta su reset SQL y los
 hooks de procesamiento conservan el orden de escritura y errores privados.
 `bootstrap/personal_axes.py` compone el extractor/proveedor canónicos. El binder
 anterior traduce sus atributos a un contexto tipado hasta migrarse en etapa 4.

@@ -20,6 +20,12 @@ from src.adapters.storage.postgres.accounts import User
 from src.bootstrap.acceptance import SubmitAudioNote
 from src.bootstrap.archives import build_delete_document as DeleteDocument
 from src.bootstrap.auth import require_authenticated
+from src.bootstrap.personal_axes_reads import (
+    build_axis_definitions,
+    build_axis_exploration,
+    get_axis_definitions,
+    get_axis_exploration,
+)
 from src.bootstrap.processing import build_document_coordinator as ProcessDocumentExtractors
 from src.bootstrap.processing import build_extractor_processor as ProcessExtractor
 from src.bootstrap.processing import build_processing_requests as RequestProcessing
@@ -340,6 +346,12 @@ async def test_version_trace_zero_findings_and_http_contract(active):
     await finish(env, record)
     assert (await env.explore.tags(axis, old))["items"] == []
     app.dependency_overrides[get_axis_previews] = lambda: env.previews
+    app.dependency_overrides[get_axis_definitions] = lambda: build_axis_definitions(
+        env.repo.sessions, env.owner
+    )
+    app.dependency_overrides[get_axis_exploration] = lambda: build_axis_exploration(
+        env.repo.sessions, env.runtime
+    )
     app.dependency_overrides[require_authenticated] = lambda: "owner"
     try:
         async with httpx.AsyncClient(

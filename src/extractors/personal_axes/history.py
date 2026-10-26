@@ -7,8 +7,8 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 
-from src.adapters.storage.arcadedb.personal_axes import rows
 from src.adapters.storage.postgres.models import ProcessingReceipt, ProcessingRecord
+from src.adapters.storage.postgres.personal_axes.models import PersonalAxis, PersonalAxisVersion
 from src.bootstrap.processing import AxisHistoryRequests as RequestProcessing
 from src.core.documents.ports import DocumentNotFoundError
 from src.core.extractors.contracts import content_hash, digest
@@ -17,7 +17,6 @@ from src.extractors.personal_axes.access import laboratory_available
 from src.extractors.personal_axes.contracts import AxisError
 from src.extractors.personal_axes.exploration import AxisExploration
 from src.extractors.personal_axes.history_models import AxisHistoryBatch, AxisHistoryItem
-from src.extractors.personal_axes.models import PersonalAxis, PersonalAxisVersion
 
 ACTIVE = ("queued", "running", "retrying", "waiting")
 TERMINAL = {"completed", "skipped", "stopped", "changed", "deleted", "superseded", "failed"}
@@ -49,36 +48,7 @@ class AxisHistory:
         self.axes = previews.axes
 
     async def coverage(self, axis_id, document_id=None):
-        async with AxisExploration(self.previews).read(axis_id, None) as tx:
-            if tx is None:
-                return {}
-            params = {"axis_id": str(axis_id)}
-            condition = "axis_id=:axis_id"
-            if document_id:
-                condition += " AND document_id=:document_id"
-                params["document_id"] = str(document_id)
-            runs = rows(
-                await tx.query(
-                    "SELECT document_id, version_id, content_hash, profile_hash "
-                    "FROM AxisExtraction "
-                    f"WHERE {condition} LIMIT 100001",
-                    params,
-                )
-            )
-            counts = rows(
-                await tx.query(
-                    "SELECT document_id, count(*) AS total FROM AxisFinding "
-                    f"WHERE {condition} GROUP BY document_id LIMIT 100001",
-                    params,
-                )
-            )
-            if len(runs) > 100000 or len(counts) > 100000:
-                raise AxisError("axis_catalogue_limit", 422)
-        findings = {row["document_id"]: row["total"] for row in counts}
-        return {
-            row["document_id"]: {**row, "findings_count": findings.get(row["document_id"], 0)}
-            for row in runs
-        }
+        return await AxisExploration(self.previews).coverage(axis_id, document_id)
 
     async def active_documents(self, session, axis_id):
         historical = set(

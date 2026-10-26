@@ -20,6 +20,7 @@ from src.adapters.access.api.public.errors import (
     invitation_error_handler,
     notification_error_handler,
 )
+from src.adapters.access.api.public.personal_axes.errors import axis_status
 from src.adapters.access.api.public.request_logging import RequestLoggingMiddleware
 from src.bootstrap.database import close_database
 from src.bootstrap.logging import configure_logging
@@ -28,8 +29,8 @@ from src.bootstrap.public_router import api_router
 from src.bootstrap.settings import get_settings
 from src.bootstrap.workspaces import reconcile_active_workspaces
 from src.core.exteriorization.models import InvitationError
+from src.core.extractors.personal_axes.models import AxisError
 from src.core.notifications.rules import NotificationError
-from src.extractors.personal_axes.contracts import AxisError
 
 logger = logging.getLogger(__name__)
 initialize_sentry("api")
@@ -73,7 +74,9 @@ app.add_middleware(RequestLoggingMiddleware, report_issue=report_issue)
 
 @app.exception_handler(AxisError)
 async def axis_error_handler(request: Request, error: AxisError) -> JSONResponse:
-    return JSONResponse({"detail": error.code}, status_code=error.status)
+    return JSONResponse(
+        {"detail": error.code}, status_code=getattr(error, "status", axis_status(error.code))
+    )
 
 
 app.add_exception_handler(InvitationError, invitation_error_handler)

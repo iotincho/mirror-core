@@ -1,6 +1,7 @@
 # Migración de personal axes a arquitectura hexagonal
 
-Estado al 2026-10-26: etapa 1 completada localmente; etapa 2 pendiente.
+Estado al 2026-10-26: etapa 1 en commit `cd7760c`; etapa 2 completada localmente;
+etapa 3 pendiente.
 No se publicaron cambios ni se desplegaron entornos. Cada etapa conserva su alcance.
 
 Referencia de responsabilidades: [arquitectura](../../ARCHITECTURE.md).
@@ -128,15 +129,15 @@ Las rutas, cuotas y SQL de previews/histórico no se declararon migrados.
 
 Depende de 1. No migrar aún planificación de previews/lotes completos.
 
-- [ ] Ubicar ORM y consultas de definiciones/versiones en PostgreSQL. Devolver
+- [x] Ubicar ORM y consultas de definiciones/versiones en PostgreSQL. Devolver
   estados tipados independientes del ORM; acceso construye las respuestas HTTP.
-- [ ] Separar autorización, contexto y preferencias de Laboratorio del SQL de rutas.
+- [x] Separar autorización, contexto y preferencias de Laboratorio del SQL de rutas.
   Reutilizar identidad/cuentas existentes, sin crear un sistema genérico de permisos.
-- [ ] Migrar catálogo, lectura de versiones y habilitar/pausar a casos de uso.
-- [ ] Separar consultas de cobertura/hallazgos/vecinos en ArcadeDB de la coordinación
+- [x] Migrar catálogo, lectura de versiones y habilitar/pausar a casos de uso.
+- [x] Separar consultas de cobertura/hallazgos/vecinos en ArcadeDB de la coordinación
   de lecturas: propiedad, originales, hashes y paginación. No devolver clientes ni
   transacciones del grafo a los casos de uso.
-- [ ] Conectar routers por inyección y traducir errores semánticos en acceso.
+- [x] Conectar routers por inyección y traducir errores semánticos en acceso.
   Mantener lectores aún usados por histórico hasta migrar su último consumidor.
 
 **Cierre:** recorridos migrados de lectura/permisos sin SQL, queries del grafo ni
@@ -147,6 +148,35 @@ factories concretas en rutas/casos. Exploración deja de obtener dependencias de
 de `test_personal_axis_processing.py` y cobertura de `test_axis_history.py`.
 Comprobar otro dueño/instancia, acceso deshabilitado, ejes pausados, versiones reales,
 cursores de otro scope, evidencia vigente, truncamiento y grafo incompleto.
+
+Implementación vigente: `use_cases/personal_axes/{definitions,laboratory,exploration}.py`
+recibe puertos de definiciones, cuentas, originales y lecturas semánticas del grafo.
+PostgreSQL conserva ORM/consultas en `adapters/storage/postgres/personal_axes/`;
+ArcadeDB encapsula consultas y transacciones en `personal_axis_reads.py`. Acceso
+HTTP contiene schemas, serialización y traducción de errores, sin SQL ni factories
+concretas. Bootstrap verifica Laboratorio antes de abrir el workspace y compone
+lecturas independientes de previews.
+
+Se retiraron los anteriores `models.py` y `schemas.py`. Los archivos heredados de
+repositorio/exploración/acceso sólo adaptan a sus consumidores pendientes, sin
+consultas duplicadas. `AxisHistory.coverage` delega al lector semántico; su
+planificación, SQL transaccional y ejecución siguen pendientes de la etapa 4.
+Aceptación mantiene una sola implementación SQL detrás del puente hasta la etapa 3.
+
+Validación: 407 pruebas locales distintas y 41 integraciones de ejes aprobadas con
+PostgreSQL/ArcadeDB desechables y proveedores determinísticos. Incluye HTTP de
+catálogo/versiones/pausa para otro dueño, acceso revocado antes de workspace,
+preferencia monótona, evidencia/procedencia inválidas, originales modificados,
+cursores, cobertura vacía, grafo incompleto y truncado. Un test local de workspace
+se repitió con su configuración esperada tras detectar un valor de instancia
+inyectado por el entorno de integración. No se cambió su implementación.
+
+Alembic no detectó cambios de esquema; no se reescribieron revisiones aplicadas.
+La imagen de producción se construyó desde fuentes limpias y, sin red, importó
+362 módulos con Python 3.13 y verificó hashes/rutas OpenAPI. El chequeo arquitectónico
+conserva 49 excepciones exactas heredadas, ninguna en los módulos canónicos nuevos.
+La fixture HTTP/PWA usa la composición nueva; no se ejecutó su recorrido de navegador.
+No hubo llamadas LLM reales, publicación ni despliegue.
 
 ### Etapa 3 — Previews, aceptación y limpieza
 

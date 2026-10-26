@@ -19,10 +19,10 @@ from src.bootstrap.administration import router as admin_router
 from src.bootstrap.administration_settings import get_admin_settings
 from src.bootstrap.auth import get_authenticated_user
 from src.bootstrap.database import get_async_session
+from src.bootstrap.personal_axes_api import router
 from src.bootstrap.settings import get_settings
 from src.bootstrap.workspaces import get_workspace_runtime
 from src.core.auth.identity import AuthenticatedUser
-from src.extractors.personal_axes.routes import router
 
 
 @pytest.fixture

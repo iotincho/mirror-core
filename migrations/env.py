@@ -19,9 +19,9 @@ from src.adapters.storage.postgres import (
     models as processing_models,  # noqa: F401
 )
 from src.adapters.storage.postgres.accounts import Base
+from src.adapters.storage.postgres.personal_axes import models as axis_models  # noqa: F401
 from src.bootstrap.settings import get_settings
 from src.extractors.personal_axes import history_models as axis_history_models  # noqa: F401
-from src.extractors.personal_axes import models as axis_models  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:

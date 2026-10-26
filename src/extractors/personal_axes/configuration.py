@@ -4,9 +4,9 @@ from copy import deepcopy
 
 from sqlalchemy import select
 
+from src.adapters.storage.postgres.personal_axes.models import PersonalAxis, PersonalAxisVersion
 from src.core.extractors.personal_axes.models import AxisSpecification
 from src.extractors.personal_axes.access import laboratory_available
-from src.extractors.personal_axes.models import PersonalAxis, PersonalAxisVersion
 
 
 async def user_workflow_config(session, owner, baseline):

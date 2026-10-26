@@ -21,9 +21,11 @@ from src.adapters.storage.postgres.models import (
     ProcessingReceipt,
     ProcessingRecord,
 )
+from src.adapters.storage.postgres.personal_axes.models import PersonalAxis, PersonalAxisVersion
 from src.adapters.storage.postgres.repository import ProcessingRepository
 from src.adapters.storage.postgres.workspace_models import UserWorkspace
 from src.bootstrap.auth import require_authenticated
+from src.bootstrap.personal_axes_reads import build_axis_definitions, get_axis_definitions
 from src.bootstrap.processing import build_executor as ExecuteProcessing
 from src.bootstrap.public_api import app
 from src.bootstrap.settings import Settings
@@ -34,7 +36,6 @@ from src.core.processing.errors import StorageUnavailable
 from src.core.processing.workflows import WorkflowRegistry
 from src.extractors.personal_axes.contracts import AxisError
 from src.extractors.personal_axes.dependencies import get_axis_previews
-from src.extractors.personal_axes.models import PersonalAxis, PersonalAxisVersion
 from src.use_cases.axis_previews import AxisPreviews
 from src.use_cases.expire_axis_previews import expire_axis_previews
 from src.use_cases.process_axis_preview import ProcessAxisPreview
@@ -189,6 +190,9 @@ async def test_full_http_refinement_exact_approval_and_no_document_events(labora
     lab = laboratory
     app.dependency_overrides[require_authenticated] = lambda: None
     app.dependency_overrides[get_axis_previews] = lambda: lab.service
+    app.dependency_overrides[get_axis_definitions] = lambda: build_axis_definitions(
+        lab.sessions, lab.service.owner
+    )
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as client:
@@ -287,6 +291,22 @@ async def test_full_http_refinement_exact_approval_and_no_document_events(labora
         assert axis["version"]["specification_hash"] == second["specification_hash"]
         assert len(lab.provider.generations) == 2 and sum(lab.provider.calls.values()) == 10
         assert (await client.get("/personal-axes")).json()["items"][0]["id"] == axis["id"]
+        path = f"/personal-axes/{axis['id']}"
+        assert (await client.get(path)).json() == axis
+        assert (await client.get(f"{path}/versions/{axis['current_version_id']}")).json() == axis
+        assert (await client.get(f"{path}/versions/{uuid4()}")).status_code == 404
+        paused = await client.patch(path, json={"enabled": False})
+        assert paused.status_code == 200 and paused.json()["enabled"] is False
+        assert paused.json()["version"] == axis["version"]
+        app.dependency_overrides[get_axis_definitions] = lambda: build_axis_definitions(
+            lab.sessions, lab.owners[1]
+        )
+        assert (await client.get("/personal-axes")).json()["items"] == []
+        assert (await client.get(path)).json() == {"detail": "axis_not_found"}
+        assert (
+            await client.get(f"{path}/versions/{axis['current_version_id']}")
+        ).status_code == 404
+        assert (await client.patch(path, json={"enabled": True})).status_code == 404
     async with lab.sessions() as session:
         assert (
             await session.scalar(

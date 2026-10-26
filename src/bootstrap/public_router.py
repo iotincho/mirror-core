@@ -13,9 +13,9 @@ from src.adapters.access.api.public.routes import (
 from src.bootstrap import public_dependencies as deps
 from src.bootstrap.auth import require_authenticated
 from src.bootstrap.auth import router as auth_router
+from src.bootstrap.personal_axes_api import router as axes_router
 from src.bootstrap.public_channels import activity_router, invitation_router, notification_router
 from src.bootstrap.workspaces import router as workspace_router
-from src.extractors.personal_axes.routes import router as axes_router
 
 api_router = APIRouter()
 api_router.include_router(system.router)

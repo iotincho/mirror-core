@@ -6,7 +6,7 @@ from uuid import UUID
 from sqlalchemy import select
 
 from src.adapters.storage.postgres.models import ProcessingRecord
-from src.extractors.personal_axes.models import PersonalAxis, PersonalAxisVersion
+from src.adapters.storage.postgres.personal_axes.models import PersonalAxis, PersonalAxisVersion
 
 
 async def bind_axis_write(extractor, sessions, record):

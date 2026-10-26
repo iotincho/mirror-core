@@ -20,6 +20,8 @@ from src.adapters.storage.postgres.accounts import User
 from src.bootstrap.acceptance import SubmitAudioNote
 from src.bootstrap.archives import build_delete_document as DeleteDocument
 from src.bootstrap.auth import require_authenticated
+from src.bootstrap.personal_axes_compat import AxisPreviews
+from src.bootstrap.personal_axes_dependencies import get_axis_previews, get_preview_cases
 from src.bootstrap.personal_axes_reads import (
     build_axis_definitions,
     build_axis_exploration,
@@ -38,10 +40,8 @@ from src.core.extractors.personal_axes.models import (
     PreviewRequest,
 )
 from src.extractors.personal_axes.contracts import AxisError
-from src.extractors.personal_axes.dependencies import get_axis_previews
 from src.extractors.personal_axes.exploration import AxisExploration
 from src.extractors.personal_axes.repository import AxisRepository
-from src.use_cases.axis_previews import AxisPreviews
 from src.use_cases.extraction.personal_axis import PersonalAxisExtractor
 
 pytestmark = [
@@ -346,6 +346,7 @@ async def test_version_trace_zero_findings_and_http_contract(active):
     await finish(env, record)
     assert (await env.explore.tags(axis, old))["items"] == []
     app.dependency_overrides[get_axis_previews] = lambda: env.previews
+    app.dependency_overrides[get_preview_cases] = lambda: env.previews.case
     app.dependency_overrides[get_axis_definitions] = lambda: build_axis_definitions(
         env.repo.sessions, env.owner
     )

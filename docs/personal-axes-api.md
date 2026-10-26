@@ -18,12 +18,25 @@ Definiciones, acceso/contexto/preferencias y exploración viven en
 consultas en `adapters/storage/postgres/personal_axes/`; ArcadeDB implementa las
 lecturas en `adapters/storage/arcadedb/personal_axis_reads.py`. Rutas, schemas y
 estados HTTP están en `adapters/access/api/public/personal_axes/`; bootstrap los
-conecta sin usar `AxisPreviews` como contenedor. Previews y lotes históricos aún
-viven en la familia anterior; su separación continúa según el
+conecta sin usar `AxisPreviews` como contenedor. La coordinación de previews,
+su worker, aceptación y limpieza también viven en `use_cases/personal_axes/`.
+`preview_ports.py` define temporales y reservas; los adaptadores PostgreSQL y
+filesystem implementan las transacciones y archivos. La composición está en
+`bootstrap/personal_axes_previews.py`; su dependencia HTTP en
+`bootstrap/personal_axes_dependencies.py`. Sólo lotes históricos y reservas
+automáticas siguen en la familia anterior, según el
 [plan](development/personal-axes-migration-plan.md). El histórico reutiliza sólo el
 lector semántico de cobertura, sin exponer transacciones del grafo.
 El binder de reservas mantiene temporalmente su API, traducida al contexto tipado
 de escritura. Este movimiento no modifica el contrato funcional siguiente.
+
+La reserva mantiene el input inmutable antes de confirmar juntos job, recibo y
+outbox. La unidad de trabajo SQL conserva cuota concurrente y reloj autoritativo;
+un fallo intermedio deja un input huérfano recuperable con la misma identidad y
+configuración. Limpieza coordina candidatos y locks por puertos: SQL selecciona y
+elimina estado, filesystem rota el escaneo de temporales y aplicación decide
+vigencia. El worker usa checkpoints y errores semánticos, sin sesiones ni paths.
+La clasificación técnica de fallos se inyecta desde bootstrap.
 
 ## Configuración y preparación
 

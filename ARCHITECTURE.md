@@ -64,7 +64,7 @@ src/                              # Backend; organización por responsabilidades
 │   ├── audio/                    # Aceptar audio y obtener su documento derivado
 │   ├── processing/               # Coordinar jobs, checkpoints, retry y reprocess
 │   ├── extraction/               # Ejecutar extractores y recuperar persistencia
-│   ├── personal_axes/            # Definiciones, Laboratorio y exploración por puertos
+│   ├── personal_axes/            # Definir, evaluar y explorar ejes; Laboratorio
 │   ├── graph/                    # Consultar proyecciones y verificar originales
 │   ├── notifications/            # Consultar y marcar notificaciones leídas
 │   ├── workspaces/               # Preparar, resolver y reconciliar espacios
@@ -172,7 +172,8 @@ Un eje definido por el usuario es compatible con este contrato. Sus acciones de
 definir, probar y aceptar versiones pertenecen a aplicación; sus reglas y tipos,
 al núcleo de extracción, y HTTP/ORM/proveedores a sus adaptadores. El alcance
 actual ya separa núcleo, extractor, proveedor y proyección, además de definiciones,
-acceso y exploración. Previews y lotes históricos continúan según su
+acceso, exploración y el ciclo de previews/aceptación/limpieza. Lotes históricos y
+reservas automáticas continúan según su
 [plan](docs/development/personal-axes-migration-plan.md),
 manteniendo compatibilidad y reglas de versionado/evidencia.
 
@@ -285,7 +286,13 @@ del grafo ofrecen operaciones semánticas mediante un puerto; aplicación verifi
 propiedad, originales, hashes, procedencia y cursores. HTTP recibe casos inyectados
 y traduce errores semánticos. `bootstrap/{laboratory,personal_axes_reads,personal_axes_api}.py`
 compone esos recorridos; el histórico anterior delega la cobertura al lector nuevo.
-Estos puentes se retiran al migrar previews y lotes históricos.
+Previews usa puertos de temporales y reserva SQL: aplicación guarda primero el
+input inmutable, después confirma job/recibo/outbox en una sola unidad de trabajo.
+El adaptador conserva cuota, locks y reloj SQL; aplicación decide vigencia y
+recuperación. Su worker no necesita sesiones ni paths; la limpieza separa política
+de expiración, selección SQL y escaneo/borrado filesystem. Sólo el histórico
+conserva el contexto SQL especial en el ejecutor común. Estos puentes se retiran
+al migrar histórico y reservas automáticas.
 
 Los entrypoints antiguos aún usados por `mirror-deploy` sólo delegan a bootstrap.
 Su consumidor, motivo y condición de retiro constan en el [mapa](docs/development/repository-map.md)

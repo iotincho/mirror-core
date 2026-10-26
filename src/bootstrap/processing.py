@@ -23,7 +23,7 @@ class CompatibleRegistry:
         async def run(context):
             async with database_errors():
                 # Experimental workflows retain their internal SQL behind this exact bridge.
-                if record.workflow in {"axis_preview", "axis_history_note"}:
+                if record.workflow == "axis_history_note":
                     context = ExecutionContext(self.repository, context.record, definition)
                 await definition.run(context)
 

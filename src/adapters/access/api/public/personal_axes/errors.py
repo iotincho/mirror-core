@@ -1,5 +1,7 @@
 """HTTP translation for safe semantic axis errors."""
 
+from src.core.extractors.personal_axes.previews import SampleSourceUnavailable
+
 STATUSES = {
     "axis_access_disabled": 404,
     "axis_catalogue_limit": 422,
@@ -26,5 +28,7 @@ STATUSES = {
 }
 
 
-def axis_status(code):
-    return STATUSES.get(code, 409)
+def axis_status(error):
+    if isinstance(error, SampleSourceUnavailable):
+        return 404
+    return STATUSES.get(error if isinstance(error, str) else error.code, 409)

@@ -25,6 +25,9 @@ from src.adapters.storage.postgres.personal_axes.models import PersonalAxis, Per
 from src.adapters.storage.postgres.repository import ProcessingRepository
 from src.adapters.storage.postgres.workspace_models import UserWorkspace
 from src.bootstrap.auth import require_authenticated
+from src.bootstrap.personal_axes_compat import AxisPreviews
+from src.bootstrap.personal_axes_dependencies import get_axis_previews, get_preview_cases
+from src.bootstrap.personal_axes_previews import build_preview_workflow, expire_axis_previews
 from src.bootstrap.personal_axes_reads import build_axis_definitions, get_axis_definitions
 from src.bootstrap.processing import build_executor as ExecuteProcessing
 from src.bootstrap.public_api import app
@@ -35,10 +38,6 @@ from src.core.extractors.personal_axes.models import Criterion, FindingsResponse
 from src.core.processing.errors import StorageUnavailable
 from src.core.processing.workflows import WorkflowRegistry
 from src.extractors.personal_axes.contracts import AxisError
-from src.extractors.personal_axes.dependencies import get_axis_previews
-from src.use_cases.axis_previews import AxisPreviews
-from src.use_cases.expire_axis_previews import expire_axis_previews
-from src.use_cases.process_axis_preview import ProcessAxisPreview
 
 pytestmark = [
     pytest.mark.anyio,
@@ -135,7 +134,11 @@ async def laboratory(tmp_path):
 
     registry = WorkflowRegistry()
     registry.register(
-        "axis_preview", 1, ProcessAxisPreview(runtime, lambda config: provider, settings).definition
+        "axis_preview",
+        1,
+        build_preview_workflow(
+            runtime, lambda config: provider, settings, repository=processing
+        ).definition,
     )
     lab = SimpleNamespace(
         sessions=sessions,
@@ -190,6 +193,7 @@ async def test_full_http_refinement_exact_approval_and_no_document_events(labora
     lab = laboratory
     app.dependency_overrides[require_authenticated] = lambda: None
     app.dependency_overrides[get_axis_previews] = lambda: lab.service
+    app.dependency_overrides[get_preview_cases] = lambda: lab.service.case
     app.dependency_overrides[get_axis_definitions] = lambda: build_axis_definitions(
         lab.sessions, lab.service.owner
     )
@@ -541,8 +545,8 @@ async def test_source_locks_exclude_deletion_without_exhausting_small_pool(labor
     lab = laboratory
     first = await run(lab, await lab.service.request(request(lab), uuid4()))
     identifier = UUID(first["id"])
-    _, value = await lab.service.live(identifier)
-    async with lab.service.source_guard(value, identifier):
+    _, value = await lab.service.case.live(identifier)
+    async with lab.service.case.source_guard(value, identifier):
         for document in lab.documents[:5]:
             async with lab.processing.lock_resource(lab.owners[0], document.id) as locked:
                 assert not locked
@@ -608,7 +612,9 @@ async def test_refinement_keeps_the_complete_temporary_adjustment_history(labora
 
 async def test_database_interruption_preserves_lease_and_prompt_checkpoint(laboratory, monkeypatch):
     lab = laboratory
-    original = AxisPreviews.source_guard
+    from src.use_cases.personal_axes.previews import AxisPreviews as PreviewCase
+
+    original = PreviewCase.source_guard
     interrupted = False
 
     @asynccontextmanager
@@ -616,11 +622,12 @@ async def test_database_interruption_preserves_lease_and_prompt_checkpoint(labor
         nonlocal interrupted
         if not interrupted:
             interrupted = True
-            raise OperationalError("synthetic", {}, Exception("database unavailable"))
+            cause = OperationalError("synthetic", {}, Exception("database unavailable"))
+            raise StorageUnavailable("processing_storage_unavailable") from cause
         async with original(self, value, preview_id) as documents:
             yield documents
 
-    monkeypatch.setattr(AxisPreviews, "source_guard", source_guard)
+    monkeypatch.setattr(PreviewCase, "source_guard", source_guard)
     preview = await lab.service.request(request(lab), uuid4())
     identifier = UUID(preview["id"])
     with pytest.raises(StorageUnavailable) as failure:
@@ -638,3 +645,33 @@ async def test_database_interruption_preserves_lease_and_prompt_checkpoint(labor
     await lab.processing.recover()
     assert (await run(lab, preview))["status"] == "completed"
     assert len(lab.provider.generations) == 1
+
+
+async def test_concurrent_preview_quota_commits_one_receipt_job_and_outbox(laboratory):
+    lab = laboratory
+    lab.settings.personal_axes_max_pending_previews = 1
+    requests = [request(lab, document_ids=[document.id]) for document in lab.documents[:2]]
+    results = await asyncio.gather(
+        *(lab.service.request(body, uuid4()) for body in requests), return_exceptions=True
+    )
+    accepted = [result for result in results if isinstance(result, dict)]
+    rejected = [result for result in results if isinstance(result, AxisError)]
+    assert len(accepted) == len(rejected) == 1
+    assert rejected[0].code == "axis_preview_limit" and rejected[0].status == 429
+    async with lab.sessions() as session:
+        for model in (ProcessingRecord, ProcessingReceipt):
+            assert (
+                await session.scalar(
+                    select(func.count()).select_from(model).where(model.user_id == lab.owners[0])
+                )
+                == 1
+            )
+        assert (
+            await session.scalar(
+                select(func.count())
+                .select_from(ProcessingOutbox)
+                .where(ProcessingOutbox.processing_id == UUID(accepted[0]["id"]))
+            )
+            == 1
+        )
+    assert not lab.provider.generations and not lab.provider.calls

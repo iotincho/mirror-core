@@ -75,7 +75,7 @@ app.add_middleware(RequestLoggingMiddleware, report_issue=report_issue)
 @app.exception_handler(AxisError)
 async def axis_error_handler(request: Request, error: AxisError) -> JSONResponse:
     return JSONResponse(
-        {"detail": error.code}, status_code=getattr(error, "status", axis_status(error.code))
+        {"detail": error.code}, status_code=getattr(error, "status", axis_status(error))
     )
 
 

@@ -11,12 +11,12 @@ from src.bootstrap.invitations import get_invitation_repository
 from src.bootstrap.messaging import broker
 from src.bootstrap.notifications import get_notifications
 from src.bootstrap.observability import initialize_sentry, report_issue, trace_operation
+from src.bootstrap.personal_axes_previews import expire_axis_previews
 from src.bootstrap.processing import get_repository
 from src.bootstrap.recovery import get_recovery_repository
 from src.bootstrap.settings import get_settings
 from src.bootstrap.worker import execute_processing
 from src.bootstrap.workflows import worker_runtime
-from src.use_cases.expire_axis_previews import expire_axis_previews
 from src.use_cases.exteriorization.schedule_invitations import ScheduleInvitations
 
 logger = logging.getLogger(__name__)

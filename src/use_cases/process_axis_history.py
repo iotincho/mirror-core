@@ -7,6 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
 from src.bootstrap.failures import failure_for
+from src.bootstrap.personal_axes_compat import AxisPreviews
 from src.bootstrap.settings import get_settings
 from src.core.documents.ports import DocumentNotFoundError
 from src.core.extractors.contracts import content_hash
@@ -17,7 +18,6 @@ from src.extractors.personal_axes.contracts import AxisError
 from src.extractors.personal_axes.history import AxisHistory, current_extraction
 from src.extractors.personal_axes.history_models import AxisHistoryBatch, AxisHistoryItem
 from src.extractors.personal_axes.persistence import bind_axis_write
-from src.use_cases.axis_previews import AxisPreviews
 
 
 class ProcessAxisHistory:

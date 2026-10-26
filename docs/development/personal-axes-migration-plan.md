@@ -1,7 +1,7 @@
 # Migración de personal axes a arquitectura hexagonal
 
-Estado al 2026-10-26: etapa 1 en commit `cd7760c`; etapa 2 completada localmente;
-etapa 3 pendiente.
+Estado al 2026-10-26: etapas 1–2 en commits `cd7760c` y `00f0b62`;
+etapa 3 completada localmente; etapa 4 pendiente.
 No se publicaron cambios ni se desplegaron entornos. Cada etapa conserva su alcance.
 
 Referencia de responsabilidades: [arquitectura](../../ARCHITECTURE.md).
@@ -182,19 +182,19 @@ No hubo llamadas LLM reales, publicación ni despliegue.
 
 Depende de 1 y 2.
 
-- [ ] Migrar solicitud, refinamiento, repetición, progreso, resultados y retry a
+- [x] Migrar solicitud, refinamiento, repetición, progreso, resultados y retry a
   casos explícitos con puertos de temporales, originales y transacción de previews.
-- [ ] Mantener cuota/reserva concurrente, recibo/job/outbox y reloj autoritativo
+- [x] Mantener cuota/reserva concurrente, recibo/job/outbox y reloj autoritativo
   en la unidad de trabajo SQL. Aplicación conserva las decisiones de vigencia.
-- [ ] Preservar input inmutable en archivos antes del trabajo ejecutable SQL.
+- [x] Preservar input inmutable en archivos antes del trabajo ejecutable SQL.
   Cubrir fallo entre ambos pasos y replay del huérfano, sin transacción distribuida.
-- [ ] Migrar `ProcessAxisPreview` y la proyección temporal usando el extractor común.
+- [x] Migrar `ProcessAxisPreview` y la proyección temporal usando el extractor común.
   Mantener checkpoints de criterio, respuestas y extracciones por nota.
-- [ ] Migrar aceptación: locks de muestra, fuentes vigentes, revisión coincidente,
+- [x] Migrar aceptación: locks de muestra, fuentes vigentes, revisión coincidente,
   versión base actual y creación idempotente de versión inmutable en PostgreSQL.
-- [ ] Migrar expiración e invalidación: candidatos/locks/eliminación SQL en su
+- [x] Migrar expiración e invalidación: candidatos/locks/eliminación SQL en su
   adaptador; escaneo y borrado de temporales en filesystem; coordinación en aplicación.
-- [ ] Conectar sus rutas y retirar implementaciones anteriores sin consumidores.
+- [x] Conectar sus rutas y retirar implementaciones anteriores sin consumidores.
 
 **Cierre:** `AxisPreviews`, su worker y limpieza no necesitan sesiones, paths,
 settings globales ni stores concretos. No reaparece la preview tras un mensaje tardío.
@@ -203,6 +203,36 @@ settings globales ni stores concretos. No reaparece la preview tras un mensaje t
 Cubrir muestras de 1/3/5, cuotas concurrentes, revisión/base obsoletas, fuente cambiada,
 borrado, expiración, aceptación repetida tras limpieza, crash archivo/SQL y limpieza
 con worker activo. Preview completa incluye notas desconectadas o sin hallazgos.
+
+Implementación vigente: `previews.py`, `process_preview.py`, `expire_previews.py`
+y `preview_projection.py` en `use_cases/personal_axes/`. Reciben originales,
+configuración, reloj, clasificación de fallos, temporales y transacciones mediante
+puertos. PostgreSQL mantiene cuota concurrente, recibo/job/outbox, reintento y
+selección/borrado de expirados. Filesystem conserva formatos e identidad de los
+artefactos y el escaneo rotativo limitado. HTTP recibe el caso canónico y serializa
+la definición aceptada; se preservan códigos y estados de error anteriores.
+
+Se retiraron los tres casos sueltos de previews, sus archivos/rutas anteriores,
+la proyección temporal anterior, dependencias y paginación sin consumidores.
+`axis_preview` ya usa el contexto común del ejecutor sin repositorio SQL especial.
+El único puente `personal_axes_compat.py` queda para el contexto histórico y
+consumidores de pruebas pendientes; no duplica reglas ni SQL. Definiciones y sus
+versiones aceptadas mantienen una sola implementación.
+
+Validación: 415 pruebas locales distintas y 42 integraciones de ejes aprobadas con
+PostgreSQL/ArcadeDB desechables. Incluye cuota concurrente (una reserva/recibo/outbox),
+input previo a SQL y recuperación de huérfano sin cambiar configuración, muestras
+1/3/5, generación/refinamiento/repetición, aceptación exacta/repetida tras limpieza,
+versión base concurrente, fuentes cambiadas/borradas, locks de worker y notas,
+interrupción SQL con checkpoint recuperable y entrega tardía sin recrear temporales.
+No se hicieron llamadas a proveedores reales.
+
+Alembic no detectó cambios de esquema. La imagen se construyó y verificó con Python 3.13 desde
+fuentes limpias, junto con hashes y OpenAPI. Las 27 excepciones exactas restantes
+corresponden al histórico/reservas pendientes y entrypoints externos; las capas
+canónicas no requieren ninguna. La fixture HTTP/PWA usa los casos nuevos; no se
+acredita aquí su recorrido de navegador. Próximo paso: etapa 4, sin ampliar esta
+entrega a planificación de lotes ni cambiar configuraciones ya reservadas.
 
 ### Etapa 4 — Histórico, reservas automáticas y orden de escritura
 

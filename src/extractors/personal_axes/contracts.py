@@ -20,6 +20,6 @@ def legacy_errors(function):
         except AxisError:
             raise
         except CoreAxisError as error:
-            raise AxisError(error.code, axis_status(error.code)) from None
+            raise AxisError(error.code, axis_status(error)) from None
 
     return call

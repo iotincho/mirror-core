@@ -1,33 +1,43 @@
 """Own the temporary evaluation and permanent approval boundaries of personal axes."""
 
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime, timedelta
-from uuid import UUID, uuid4, uuid5
+from datetime import datetime, timedelta
+from uuid import UUID, uuid5
 
-from sqlalchemy import func, select
-
-from src.adapters.storage.postgres.models import ProcessingReceipt, ProcessingRecord
-from src.core.documents.ports import DocumentNotFoundError
-from src.core.extractors.personal_axes.models import AxisSpecification, PreviewRequest
-from src.extractors.personal_axes.contracts import AxisError
-from src.extractors.personal_axes.preview_projection import project_preview
-from src.extractors.personal_axes.preview_store import PreviewStore
-from src.extractors.personal_axes.repository import AxisRepository
+from src.core.documents.ports import DocumentNotFoundError, DocumentStore
+from src.core.extractors.personal_axes.models import AxisError, AxisSpecification, PreviewRequest
+from src.core.extractors.personal_axes.pagination import page
+from src.core.extractors.personal_axes.preview_ports import (
+    AxisApprovals,
+    PreviewFiles,
+    PreviewTransactions,
+)
+from src.core.extractors.personal_axes.previews import PreviewConfiguration, SampleSourceUnavailable
 from src.use_cases.extraction.personal_axis import PersonalAxisExtractor
+from src.use_cases.personal_axes.preview_projection import project_preview
 
 
 class AxisPreviews:
-    def __init__(self, processing, runtime, settings):
-        self.processing, self.runtime, self.settings = processing, runtime, settings
-        self.owner = runtime.context.user_id
-        self.axes = AxisRepository(processing.sessions)
+    def __init__(
+        self,
+        owner,
+        originals: DocumentStore,
+        artifacts: PreviewFiles,
+        persistence: PreviewTransactions,
+        definitions: AxisApprovals,
+        configuration: PreviewConfiguration,
+        clock,
+    ):
+        self.owner, self.originals, self.artifacts = owner, originals, artifacts
+        self.persistence, self.definitions = persistence, definitions
+        self.configuration, self.clock = configuration, clock
 
     def store(self, preview_id):
-        return PreviewStore(self.runtime.context.filesystem_root, preview_id)
+        return self.artifacts.for_preview(preview_id)
 
     @asynccontextmanager
     async def guard(self, preview_id):
-        async with self.processing.lock_resource(self.owner, preview_id) as locked:
+        async with self.persistence.guard(self.owner, preview_id) as locked:
             if not locked:
                 raise AxisError("axis_preview_busy")
             yield
@@ -35,7 +45,7 @@ class AxisPreviews:
     @asynccontextmanager
     async def source_guard(self, value, preview_id):
         # One connection for the whole sample, not one per note (pool exhaustion).
-        async with self.processing.lock_resources(
+        async with self.persistence.sources(
             self.owner, [UUID(identifier) for identifier in value["sources"]], shared=True
         ) as locked:
             if not locked:
@@ -46,7 +56,7 @@ class AxisPreviews:
         documents = []
         for identifier, expected in value["sources"].items():
             try:
-                document = await self.runtime.document_store.get(UUID(identifier))
+                document = await self.originals.get(UUID(identifier))
             except DocumentNotFoundError:
                 raise AxisError("axis_source_unavailable") from None
             from src.core.extractors.contracts import content_hash
@@ -57,24 +67,22 @@ class AxisPreviews:
         return documents
 
     async def live(self, preview_id):
-        record = await self.processing.get(preview_id, self.owner)
+        record = await self.persistence.get(self.owner, preview_id)
         if record is None or record.workflow != "axis_preview":
-            raise AxisError("axis_preview_not_found", 404)
+            raise AxisError("axis_preview_not_found")
         if record.resource_deleted:
             raise AxisError("axis_source_unavailable")
-        if record.expires_at <= datetime.now(UTC):
-            raise AxisError("axis_preview_expired", 410)
-        return record, await self.store(preview_id).input()
+        if record.expires_at <= self.clock():
+            raise AxisError("axis_preview_expired")
+        value = await self.store(preview_id).read("input")
+        if value is None:
+            raise AxisError("axis_preview_not_found")
+        if datetime.fromisoformat(value["expires_at"]) <= self.clock():
+            raise AxisError("axis_preview_expired")
+        return record, value
 
     async def receipt(self, operation, key):
-        async with self.processing.sessions() as session:
-            return await session.scalar(
-                select(ProcessingReceipt).where(
-                    ProcessingReceipt.user_id == self.owner,
-                    ProcessingReceipt.operation == operation,
-                    ProcessingReceipt.key == key,
-                )
-            )
+        return await self.persistence.receipt(self.owner, operation, key)
 
     async def request(self, request: PreviewRequest, key: UUID):
         preview_id = uuid5(self.owner, f"axis-preview:{key}")
@@ -85,24 +93,17 @@ class AxisPreviews:
             if receipt.request_hash != request.fingerprint:
                 raise AxisError("idempotency_conflict")
             return await self.snapshot(preview_id)
-        if await self.axes.approved(self.owner, preview_id, request.fingerprint) is not None:
-            raise AxisError("axis_preview_already_accepted", 410)
+        if await self.definitions.approved(self.owner, preview_id, request.fingerprint) is not None:
+            raise AxisError("axis_preview_already_accepted")
         async with self.guard(preview_id):
-            async with self.processing.sessions() as session:
-                receipt = await session.scalar(
-                    select(ProcessingReceipt).where(
-                        ProcessingReceipt.user_id == self.owner,
-                        ProcessingReceipt.operation == "axis_preview",
-                        ProcessingReceipt.key == key,
-                    )
-                )
+            receipt = await self.receipt("axis_preview", key)
             if receipt is not None:
                 if receipt.request_hash != request.fingerprint:
                     raise AxisError("idempotency_conflict")
                 return await self.snapshot(preview_id)
             if request.axis_id:
-                axis = await self.axes.get(self.owner, request.axis_id)
-                if axis["current_version_id"] != str(request.base_version_id):
+                axis = await self.definitions.get(self.owner, request.axis_id)
+                if axis.current_version_id != request.base_version_id:
                     raise AxisError("axis_base_version_conflict")
             previous = None
             if request.previous_preview_id:
@@ -136,20 +137,15 @@ class AxisPreviews:
                 if saved is None:
                     raise AxisError("axis_previous_prompt_not_ready")
                 previous = saved["specification"]
-            configuration = {
-                "provider": self.settings.llm_provider,
-                "model": self.settings.openai_model,
-                "max_output_tokens": self.settings.personal_axes_max_output_tokens,
-                "max_input_chars": self.settings.personal_axes_max_input_chars,
-            }
+            configuration = self.configuration.extraction()
             if request.mode == "repeat":
                 configuration = {key: previous[key] for key in configuration}
             if not configuration["model"] or configuration["provider"] != "openai":
-                raise AxisError("axis_provider_configuration", 503)
+                raise AxisError("axis_provider_configuration")
             old = await store.read("input")
             if old is not None and old["revision_hash"] != request.fingerprint:
                 raise AxisError("idempotency_conflict")
-            async with self.processing.lock_resources(self.owner, request.document_ids) as locked:
+            async with self.persistence.sources(self.owner, request.document_ids) as locked:
                 if not locked:
                     raise AxisError("axis_source_busy")
                 from src.core.extractors.contracts import content_hash
@@ -157,38 +153,19 @@ class AxisPreviews:
                 sources = {}
                 for identifier in request.document_ids:
                     try:
-                        document = await self.runtime.document_store.get(identifier)
+                        document = await self.originals.get(identifier)
                     except DocumentNotFoundError:
-                        raise AxisError("axis_source_unavailable", 404) from None
+                        raise SampleSourceUnavailable() from None
                     if len(document.content) > configuration["max_input_chars"]:
-                        raise AxisError("axis_input_too_long", 422)
+                        raise AxisError("axis_input_too_long")
                     sources[str(identifier)] = content_hash(document.content)
                 if request.previous_preview_id and not request.change_sample:
                     if sources != prior["sources"]:
                         raise AxisError("axis_source_changed")
-                async with self.processing.sessions.begin() as session:
-                    now = await session.scalar(select(func.clock_timestamp()))
-                    quota_lock = await session.scalar(
-                        select(
-                            func.pg_try_advisory_xact_lock(
-                                func.hashtextextended(f"{self.owner}:axis-preview-quota", 0)
-                            )
-                        )
-                    )
-                    if not quota_lock:
-                        raise AxisError("axis_preview_limit", 429)
-                    pending = await session.scalar(
-                        select(func.count())
-                        .select_from(ProcessingRecord)
-                        .where(
-                            ProcessingRecord.user_id == self.owner,
-                            ProcessingRecord.workflow == "axis_preview",
-                            ProcessingRecord.expires_at > now,
-                            ProcessingRecord.status.in_(["queued", "running", "retrying"]),
-                        )
-                    )
-                    if pending >= self.settings.personal_axes_max_pending_previews:
-                        raise AxisError("axis_preview_limit", 429)
+                async with self.persistence.reservation(
+                    self.owner, self.configuration.max_pending
+                ) as reservation:
+                    now = reservation.now
                     value = old or {
                         "request": request.model_dump(mode="json"),
                         "revision_hash": request.fingerprint,
@@ -196,47 +173,23 @@ class AxisPreviews:
                         "configuration": configuration,
                         "previous_specification": previous,
                         "expires_at": (
-                            now + timedelta(hours=self.settings.personal_axes_preview_hours)
+                            now + timedelta(hours=self.configuration.ttl_hours)
                         ).isoformat(),
                     }
                     if datetime.fromisoformat(value["expires_at"]) <= now:
-                        raise AxisError("axis_preview_expired", 410)
+                        raise AxisError("axis_preview_expired")
                     if value["sources"] != sources:
                         raise AxisError("axis_source_changed")
                     # Files precede executable SQL/outbox. An interrupted transaction leaves
                     # an immutable, deterministic orphan; a replay can reuse it safely.
                     await store.write("input", value)
-                    record = ProcessingRecord(
-                        id=preview_id,
-                        user_id=self.owner,
-                        workflow="axis_preview",
-                        workflow_version=1,
-                        resource_kind="axis_preview",
-                        resource_id=preview_id,
-                        stage="prompt_generation",
-                        config={"preview_id": str(preview_id), "document_ids": list(sources)},
-                        expires_at=datetime.fromisoformat(value["expires_at"]),
+                    await reservation.enqueue(
+                        preview_id,
+                        key,
+                        request.fingerprint,
+                        sources,
+                        datetime.fromisoformat(value["expires_at"]),
                     )
-                    session.add(record)
-                    await session.flush()
-                    session.add(
-                        ProcessingReceipt(
-                            user_id=self.owner,
-                            operation="axis_preview",
-                            key=key,
-                            request_hash=request.fingerprint,
-                            resource_kind="axis_preview",
-                            resource_id=preview_id,
-                            config={},
-                            manifest={},
-                            processing_id=preview_id,
-                            lease_token=uuid5(preview_id, "receipt"),
-                            lease_expires_at=now,
-                            accepted_at=now,
-                            expires_at=record.expires_at,
-                        )
-                    )
-                    self.processing.schedule(session, record)
             return await self.snapshot(preview_id)
 
     async def snapshot(self, preview_id):
@@ -282,7 +235,7 @@ class AxisPreviews:
         if saved is None:
             raise AxisError("axis_artifact_mismatch")
         spec = AxisSpecification.model_validate(saved["specification"])
-        extractor = PersonalAxisExtractor(self.runtime.document_store, store.layers, spec)
+        extractor = PersonalAxisExtractor(self.originals, store.layers, spec)
         if output.request_config != extractor.request_config or output.profile != spec.profile:
             raise AxisError("axis_artifact_mismatch")
         if output.content_hash != value["sources"][str(document.id)]:
@@ -340,62 +293,20 @@ class AxisPreviews:
         async with self.guard(preview_id):
             record, value = await self.live(preview_id)
             await self.documents(value)
-            async with self.processing.sessions.begin() as session:
-                locked = await session.scalar(
-                    select(
-                        func.pg_try_advisory_xact_lock(
-                            func.hashtextextended(f"{self.owner}:axis-retry:{key}", 0)
-                        )
-                    )
-                )
-                if not locked:
-                    raise AxisError("axis_preview_busy")
-                receipt = await session.scalar(
-                    select(ProcessingReceipt).where(
-                        ProcessingReceipt.user_id == self.owner,
-                        ProcessingReceipt.operation == "axis_preview_retry",
-                        ProcessingReceipt.key == key,
-                    )
-                )
+            async with self.persistence.retrying(self.owner, key) as transaction:
+                receipt = transaction.receipt
                 if receipt:
                     if receipt.resource_id != preview_id:
                         raise AxisError("idempotency_conflict")
                     return await self.snapshot(preview_id)
                 if record.status == "failed" and not record.retryable:
                     raise AxisError("axis_preview_not_retryable")
-                now = await session.scalar(select(func.clock_timestamp()))
-                session.add(
-                    ProcessingReceipt(
-                        user_id=self.owner,
-                        operation="axis_preview_retry",
-                        key=key,
-                        request_hash=str(preview_id),
-                        resource_kind="axis_preview",
-                        resource_id=preview_id,
-                        config={},
-                        manifest={},
-                        processing_id=preview_id,
-                        lease_token=uuid4(),
-                        lease_expires_at=now,
-                        accepted_at=now,
-                        expires_at=record.expires_at,
-                    )
-                )
-                if record.status != "failed":
-                    return await self.snapshot(preview_id)
-                current = await session.get(ProcessingRecord, record.id, with_for_update=True)
-                current.status = "queued"
-                current.error_code, current.retryable = None, False
-                current.generation += 1
-                current.version += 1
-                current.stage_attempts = 0
-                current.available_at = await session.scalar(select(func.clock_timestamp()))
-                self.processing.schedule(session, current)
+                await transaction.record(record, key)
             return await self.snapshot(preview_id)
 
     async def accept(self, preview_id, revision_hash):
         async with self.guard(preview_id):
-            approved = await self.axes.approved(self.owner, preview_id, revision_hash)
+            approved = await self.definitions.approved(self.owner, preview_id, revision_hash)
             if approved is not None:
                 return approved
             record, value = await self.live(preview_id)
@@ -410,10 +321,42 @@ class AxisPreviews:
                 spec = await self.store(preview_id).read("specification")
                 # Recheck expiry immediately before entering the approval transaction.
                 await self.live(preview_id)
-                return await self.axes.accept(
+                return await self.definitions.accept(
                     self.owner,
                     preview_id,
                     PreviewRequest.model_validate(value["request"]),
                     AxisSpecification.model_validate(spec["specification"]),
                     datetime.fromisoformat(value["expires_at"]),
                 )
+
+    async def preview_neighbors(self, preview_id, node_id=None, cursor=None, limit=30):
+        results = await self.results(preview_id)
+        graph = results["graph"]
+        root = node_id or graph["root_id"]
+        nodes = {n["id"]: n for n in graph["nodes"]}
+        if root not in nodes:
+            raise AxisError("axis_node_not_found")
+        revision = results["preview"]["revision_hash"]
+        scope = [str(self.owner), str(preview_id), revision, root]
+        adjacent = [e for e in graph["edges"] if root in (e["source"], e["target"])]
+        neighbors = {e["target"] if e["source"] == root else e["source"] for e in adjacent}
+        chosen, following = page(list(neighbors), scope, cursor, limit, lambda item: item)
+        visible = set(chosen) | {root}
+        # A page counts direct neighbors; finding context is bounded by the payload contract.
+        finding_ids = {n for n in visible if nodes[n]["type"] == "AxisFinding"}
+        for edge in graph["edges"]:
+            if edge["type"] in {"HAS_FINDING", "HAS_TAG"} and (
+                edge["source"] in finding_ids or edge["target"] in finding_ids
+            ):
+                visible.update((edge["source"], edge["target"]))
+        return {
+            "preview_id": str(preview_id),
+            "revision_hash": revision,
+            "root_id": root,
+            "nodes": [nodes[n] for n in sorted(visible)],
+            "edges": [
+                e for e in graph["edges"] if e["source"] in visible and e["target"] in visible
+            ],
+            "next_cursor": following,
+            "limit": limit,
+        }

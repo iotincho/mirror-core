@@ -33,7 +33,7 @@ def respond(function):
         try:
             return await function(*args, **kwargs)
         except AxisError as error:
-            raise HTTPException(axis_status(error.code), error.code) from None
+            raise HTTPException(axis_status(error), error.code) from None
 
     return translated
 

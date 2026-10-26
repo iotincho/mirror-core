@@ -10,11 +10,6 @@ class AxisRepository:
         self.store = PostgresAxisDefinitions(sessions)
 
     @legacy_errors
-    async def approved(self, *args):
-        result = await self.store.approved(*args)
-        return axis_response(result) if result else None
-
-    @legacy_errors
     async def get(self, *args):
         return axis_response(await self.store.get(*args))
 

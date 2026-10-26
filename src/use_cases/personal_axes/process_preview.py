@@ -2,15 +2,9 @@
 
 import asyncio
 
-from sqlalchemy.exc import SQLAlchemyError
-
-from src.bootstrap.failures import failure_for
-from src.bootstrap.settings import get_settings
-from src.core.extractors.personal_axes.models import AxisSpecification, PreviewRequest
-from src.core.processing.errors import LeaseLost, WorkflowFailure
+from src.core.extractors.personal_axes.models import AxisError, AxisSpecification, PreviewRequest
+from src.core.processing.errors import LeaseLost, StorageUnavailable, WorkflowFailure
 from src.core.processing.workflows import WorkflowDefinition
-from src.extractors.personal_axes.contracts import AxisError
-from src.use_cases.axis_previews import AxisPreviews
 from src.use_cases.extraction.personal_axis import PersonalAxisExtractor
 from src.use_cases.personal_axes.build_specification import build_specification
 
@@ -24,9 +18,9 @@ class ProcessAxisPreview:
         }
     )
 
-    def __init__(self, runtime_factory, provider_factory, settings=None):
-        self.runtime_factory, self.provider_factory = runtime_factory, provider_factory
-        self.settings = settings
+    def __init__(self, previews_factory, provider_factory, failure_for, concurrency):
+        self.previews_factory, self.provider_factory = previews_factory, provider_factory
+        self.failure_for, self.concurrency = failure_for, concurrency
 
     @property
     def definition(self):
@@ -34,9 +28,7 @@ class ProcessAxisPreview:
 
     async def execute(self, context):
         try:
-            settings = self.settings or get_settings()
-            async with self.runtime_factory(context.record.user_id) as runtime:
-                previews = AxisPreviews(context.repository, runtime, settings)
+            async with self.previews_factory(context.record.user_id) as previews:
                 _, value = await previews.live(context.record.resource_id)
                 request = PreviewRequest.model_validate(value["request"])
                 store = previews.store(context.record.resource_id)
@@ -71,9 +63,9 @@ class ProcessAxisPreview:
                     spec = AxisSpecification.model_validate(saved["specification"])
                     provider = self.provider_factory(spec.model_dump(exclude={"profile"}))
                     extractor = PersonalAxisExtractor(
-                        runtime.document_store, store.layers, spec, provider=provider
+                        previews.originals, store.layers, spec, provider=provider
                     )
-                    semaphore = asyncio.Semaphore(settings.personal_axes_preview_concurrency)
+                    semaphore = asyncio.Semaphore(self.concurrency)
 
                     async def extract_note(identifier):
                         async with semaphore:
@@ -87,13 +79,13 @@ class ProcessAxisPreview:
                                     )
                                 await context.assert_lease()
                                 return None
-                            except (LeaseLost, SQLAlchemyError, asyncio.CancelledError):
+                            except (LeaseLost, StorageUnavailable, asyncio.CancelledError):
                                 raise
                             except Exception as error:
                                 failure = (
                                     WorkflowFailure(error.code)
                                     if isinstance(error, AxisError)
-                                    else failure_for(
+                                    else self.failure_for(
                                         error, context.record.stage_attempts, "axis_extraction"
                                     )
                                 )
@@ -135,11 +127,13 @@ class ProcessAxisPreview:
                 await previews.live(store.id)
                 if context.record.stage != "done":
                     raise WorkflowFailure("invalid_workflow_stage")
-        except (WorkflowFailure, LeaseLost, SQLAlchemyError):
+        except (WorkflowFailure, LeaseLost, StorageUnavailable):
             raise
         except AxisError as error:
             raise WorkflowFailure(error.code) from None
         except Exception as error:
             # Provider/schema errors can include note text or the generated criterion.
             # Classify them, but do not attach their payload-bearing exception chains.
-            raise failure_for(error, context.record.stage_attempts, "axis_generation") from None
+            raise self.failure_for(
+                error, context.record.stage_attempts, "axis_generation"
+            ) from None

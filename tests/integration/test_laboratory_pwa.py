@@ -26,6 +26,8 @@ from src.bootstrap.auth import get_authenticated_user
 from src.bootstrap.auth import router as auth_router
 from src.bootstrap.database import get_async_session
 from src.bootstrap.personal_axes_api import router as axes_router
+from src.bootstrap.personal_axes_dependencies import get_axis_previews, get_preview_cases
+from src.bootstrap.personal_axes_previews import build_preview_workflow
 from src.bootstrap.personal_axes_reads import (
     build_axis_definitions,
     build_axis_exploration,
@@ -40,10 +42,8 @@ from src.bootstrap.workspaces import get_workspace_runtime
 from src.core.domain.documents import NewDocument, build_document
 from src.core.processing.errors import ResourceBusy
 from src.extractors.personal_axes.contracts import AxisError
-from src.extractors.personal_axes.dependencies import get_axis_previews
 from src.extractors.personal_axes.history_models import AxisHistoryBatch
 from src.use_cases.process_axis_history import ProcessAxisHistory
-from src.use_cases.process_axis_preview import ProcessAxisPreview
 
 pytestmark = [
     pytest.mark.anyio,
@@ -78,7 +78,9 @@ async def test_browser_real_laboratory_cycle(active, monkeypatch):
     env.registry.register(
         "axis_preview",
         1,
-        ProcessAxisPreview(legacy.runtime_factory, lambda _: provider, settings).definition,
+        build_preview_workflow(
+            legacy.runtime_factory, lambda _: provider, settings, repository=env.repo
+        ).definition,
     )
     env.registry.register(
         "axis_history_note",
@@ -127,6 +129,7 @@ async def test_browser_real_laboratory_cycle(active, monkeypatch):
     app.dependency_overrides[get_async_session] = session
     app.dependency_overrides[get_workspace_runtime] = runtime
     app.dependency_overrides[get_axis_previews] = lambda: env.previews
+    app.dependency_overrides[get_preview_cases] = lambda: env.previews.case
     app.dependency_overrides[get_axis_definitions] = lambda: build_axis_definitions(
         env.repo.sessions, env.owner
     )

@@ -2,6 +2,13 @@
 
 La API administrativa se ejecuta desde `src.admin_main:app`. No está montada en `src.main:app`, no comparte su ciclo de arranque y no inicia reconciliación de workspaces, workers, proveedores ni conexiones a ArcadeDB. Esta entrega conserva la decisión de uso LAN sin autenticación administrativa.
 
+El entrypoint expone la aplicación compuesta en `src/bootstrap/administration.py`.
+Reglas y hechos tipados viven en `src/core/administration`; consultas, permisos,
+actividad e inventario se coordinan en `src/use_cases/administration`.
+HTTP, PostgreSQL y lectura de metadatos filesystem son adaptadores separados.
+El sincronizador recibe sólo metadatos de originales y conserva `null` cuando
+no puede acreditar cobertura; una lectura incompleta invalida el inventario.
+
 Para ejecutar imágenes compiladas y los tres servicios con Docker, seguir el
 runbook `mirror-deploy/ADMIN-LAN.md`. El Compose principal, con el perfil `admin-lan`, incluye redes, proxy, sincronización y migración previa; los pasos de
 abajo corresponden a desarrollo sin contenedores.
@@ -39,14 +46,14 @@ Desde mirror-core, configurar `DATABASE_URL` y `WORKSPACES_PATH` en el entorno o
 
 ```sh
 .venv/bin/python -m alembic upgrade head
-.venv/bin/python -m src.administration.sync
+.venv/bin/python -m src.bootstrap.inventory_sync
 .venv/bin/python -m uvicorn src.admin_main:app --host 127.0.0.1 --port 8001
 ```
 
 En otro proceso, para mantener actualizado el inventario:
 
 ```sh
-.venv/bin/python -m src.administration.sync --interval 30
+.venv/bin/python -m src.bootstrap.inventory_sync --interval 30
 ```
 
 El sincronizador necesita acceso a los archivos originales. La API solo necesita PostgreSQL; el Compose principal monta el volumen de contenido únicamente en el sincronizador, en modo de solo lectura. admin-api no recibe claves de OpenAI/ArcadeDB ni se publica mediante el gateway público.

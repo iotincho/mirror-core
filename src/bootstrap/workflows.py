@@ -173,9 +173,9 @@ async def retired_extraction(context):
 
 def register_workflows(registry):
     # Old messages cannot recreate historical extractions after the cutover.
+    from src.bootstrap.invitations import get_send_invitation
     from src.bootstrap.recovery import get_send_recovery_email
     from src.core.processing.workflows import WorkflowDefinition
-    from src.exteriorization.dependencies import get_send_invitation
     from src.use_cases.process_axis_history import ProcessAxisHistory
     from src.use_cases.process_axis_preview import ProcessAxisPreview
     from src.use_cases.processing.context import ExecutionContext

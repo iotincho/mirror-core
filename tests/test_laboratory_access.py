@@ -9,10 +9,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from src.adapters.storage.postgres.accounts import Base, User
-from src.administration.config import get_admin_settings
-from src.administration.database import admin_session, admin_write_session
-from src.administration.models import DocumentMetric, InventoryState, UserActivity
-from src.administration.routes import router as admin_router
+from src.adapters.storage.postgres.administration_models import (
+    DocumentMetric,
+    InventoryState,
+    UserActivity,
+)
+from src.bootstrap.admin_database import admin_session, admin_write_session
+from src.bootstrap.administration import router as admin_router
+from src.bootstrap.administration_settings import get_admin_settings
 from src.bootstrap.auth import get_authenticated_user
 from src.bootstrap.database import get_async_session
 from src.bootstrap.workspaces import get_workspace_runtime

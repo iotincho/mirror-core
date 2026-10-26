@@ -19,6 +19,7 @@ from fastapi import (
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
+from src.adapters.access.api.public.errors import invitation_status
 from src.api.schemas.documents import CreateDocumentRequest, DocumentResponse
 from src.api.schemas.processing import (
     AcceptedAudio,
@@ -32,10 +33,10 @@ from src.api.schemas.processing import (
 )
 from src.bootstrap.workspaces import get_workspace_runtime
 from src.config import get_settings
+from src.core.exteriorization.models import InvitationError
 from src.core.processing.errors import StorageUnavailable
 from src.core.workspaces.context import WorkspaceRuntime
 from src.domain.documents import NewDocument
-from src.exteriorization.repository import InvitationError
 from src.processing.runtime import get_repository
 from src.processing.submissions import SubmissionConflict, SubmissionRepository
 from src.services.audio_note_store import AudioNoteNotFoundError
@@ -58,7 +59,7 @@ Key = Annotated[UUID, Header(alias="Idempotency-Key")]
 
 def http_error(error):
     if isinstance(error, InvitationError):
-        return HTTPException(error.status_code, error.code)
+        return HTTPException(invitation_status(error.code), error.code)
     if isinstance(error, (DocumentNotFoundError, AudioNoteNotFoundError)):
         return HTTPException(404, "Resource not found")
     if isinstance(error, ValueError) and str(error) == "processing_active":

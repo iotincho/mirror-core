@@ -9,9 +9,9 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.adapters.storage.postgres.accounts import User
-from src.api.routes.exteriorization import require_same_origin
 from src.bootstrap.auth import get_authenticated_user
 from src.bootstrap.database import get_async_session
+from src.bootstrap.public_security import require_same_origin
 from src.core.auth.identity import AuthenticatedUser
 from src.extractors.personal_axes.access import laboratory_available
 from src.extractors.personal_axes.contracts import AcceptPreview, PreviewRequest

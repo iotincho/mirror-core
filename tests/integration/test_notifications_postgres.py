@@ -8,22 +8,23 @@ from uuid import uuid4
 
 import httpx
 import pytest
-from fastapi import HTTPException
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from src.adapters.storage.postgres.accounts import User
+from src.adapters.storage.postgres.invitation_models import Invitation, InvitationPreference
+from src.adapters.storage.postgres.invitations import InvitationRepository
+from src.adapters.storage.postgres.notification_models import Announcement, Notification
+from src.adapters.storage.postgres.notifications import add_notification
 from src.adapters.storage.postgres.workspace_models import UserWorkspace
 from src.bootstrap.auth import get_authenticated_user
-from src.exteriorization.models import Invitation, InvitationPreference
-from src.exteriorization.repository import InvitationRepository
+from src.bootstrap.notifications import build_notification_center as NotificationRepository
+from src.bootstrap.notifications import get_notifications
+from src.core.notifications.models import AnnouncementContent
+from src.core.notifications.rules import NotificationError
 from src.main import app
-from src.notifications.dependencies import get_notifications
-from src.notifications.models import Announcement, Notification
-from src.notifications.repository import NotificationRepository, add_notification
-from src.notifications.schemas import AnnouncementContent
-from src.use_cases.configure_invitations import ConfigureInvitations
-from src.use_cases.schedule_invitations import ScheduleInvitations
+from src.use_cases.exteriorization.configure_invitations import ConfigureInvitations
+from src.use_cases.exteriorization.schedule_invitations import ScheduleInvitations
 
 pytestmark = [
     pytest.mark.anyio,
@@ -69,7 +70,7 @@ async def inbox():
 
 
 async def add(repository, owner, key, now=None, **options):
-    async with repository.sessions.begin() as session:
+    async with repository.store.sessions.begin() as session:
         await add_notification(
             session,
             owner=owner,
@@ -79,7 +80,7 @@ async def add(repository, owner, key, now=None, **options):
             summary="A summary",
             body="Plain text content",
             action=None,
-            now=now or await repository.now(session),
+            now=now or await repository.store.now(session),
             **options,
         )
 
@@ -93,7 +94,7 @@ async def test_bootstrap_concurrent_once_and_default_expiry(inbox):
     await repository.mutate(owner, page.items[0].id, dismiss=True)
     await repository.bootstrap(owner)
     assert len((await repository.list(owner)).items) == 2
-    async with repository.sessions.begin() as session:
+    async with repository.store.sessions.begin() as session:
         await session.execute(
             update(Notification)
             .where(Notification.user_id == owner)
@@ -118,9 +119,9 @@ async def test_stable_pagination_ownership_read_and_expiry(inbox):
     assert len({item.id for item in first.items + second.items}) == 6
     assert second.next_cursor is None
     target = first.items[0]
-    with pytest.raises(HTTPException) as failure:
+    with pytest.raises(NotificationError) as failure:
         await repository.mutate(stranger, target.id)
-    assert failure.value.status_code == 404
+    assert failure.value.code == "notification_not_found"
     await asyncio.gather(repository.mutate(owner, target.id), repository.mutate(owner, target.id))
     read = next(item for item in (await repository.list(owner)).items if item.id == target.id)
     await repository.mutate(owner, target.id)
@@ -173,11 +174,11 @@ async def test_unread_first_across_pages_then_newest_within_each_group(inbox):
 
 async def test_daily_without_push_and_opening_marks_inbox_read(inbox):
     repository, (owner, _) = inbox
-    invitations = InvitationRepository(repository.sessions)
+    invitations = InvitationRepository(repository.store.sessions)
     service = ConfigureInvitations(invitations)
     await service.configure(owner, True, "20:30", "UTC")
     now = datetime.now(UTC)
-    async with repository.sessions.begin() as session:
+    async with repository.store.sessions.begin() as session:
         preference = await session.get(InvitationPreference, owner)
         preference.local_time = now.strftime("%H:%M")
         preference.next_due_at = now - timedelta(seconds=1)
@@ -192,7 +193,7 @@ async def test_daily_without_push_and_opening_marks_inbox_read(inbox):
     assert invitation.question == item.body == item.summary
     assert item.expires_at - item.published_at == timedelta(days=15)
     # A transport TTL of two hours does not expire the inbox action.
-    async with repository.sessions.begin() as session:
+    async with repository.store.sessions.begin() as session:
         await session.execute(
             update(Invitation)
             .where(Invitation.id == invitation.id)
@@ -215,7 +216,7 @@ async def test_onboarding_completion_is_distinct_from_reading(inbox):
     assert not next(
         item for item in (await repository.list(owner)).items if item.id == daily.id
     ).completed
-    await ConfigureInvitations(InvitationRepository(repository.sessions)).configure(
+    await ConfigureInvitations(InvitationRepository(repository.store.sessions)).configure(
         owner, True, "20:30", "UTC"
     )
     assert next(
@@ -242,10 +243,10 @@ async def test_restartable_publication_deduplicates_and_snapshots_content(inbox)
             assert len(page.items) == 1
             assert page.items[0].body == "Details"
             assert page.items[0].expires_at - page.items[0].published_at == timedelta(days=15)
-        async with repository.sessions() as session:
+        async with repository.store.sessions() as session:
             assert (await session.get(Announcement, key)).finished_at is not None
     finally:
-        async with repository.sessions.begin() as session:
+        async with repository.store.sessions.begin() as session:
             await session.execute(delete(Announcement).where(Announcement.key == key))
 
 
@@ -284,7 +285,7 @@ async def test_http_contract_origin_and_invalid_cursor(inbox):
 async def test_notification_insert_and_domain_change_rollback_together(inbox):
     repository, (owner, _) = inbox
     with pytest.raises(RuntimeError):
-        async with repository.sessions.begin() as session:
+        async with repository.store.sessions.begin() as session:
             await add_notification(
                 session,
                 owner=owner,
@@ -294,10 +295,10 @@ async def test_notification_insert_and_domain_change_rollback_together(inbox):
                 summary="Rollback",
                 body="Rollback",
                 action=None,
-                now=await repository.now(session),
+                now=await repository.store.now(session),
             )
             raise RuntimeError("simulated crash before commit")
-    async with repository.sessions() as session:
+    async with repository.store.sessions() as session:
         assert (
             await session.scalar(
                 select(func.count()).select_from(Notification).where(Notification.user_id == owner)

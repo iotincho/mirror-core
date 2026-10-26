@@ -58,6 +58,10 @@ from src.use_cases.graph import read_graph
 from src.core.processing import failures
 from src.use_cases.auth import authenticate, recover_password, send_recovery_email
 from src.use_cases.workspaces import access, provision
+from src.use_cases.exteriorization import configure_invitations, generate_invitation
+from src.use_cases.exteriorization import schedule_invitations, send_invitation
+from src.use_cases.notifications import center
+from src.use_cases.administration import query, sync_inventory, record_access
 """
     subprocess.run([sys.executable, "-c", code], check=True, capture_output=True, text=True)
 

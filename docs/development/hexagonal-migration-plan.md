@@ -1,8 +1,9 @@
 # Plan de migración a arquitectura hexagonal
 
-Estado al 2026-10-23: etapas 0–4 completadas localmente; etapa 5 pendiente.
+Estado al 2026-10-26: etapas 0–5 completadas localmente; etapa 6 pendiente.
 Se implementaron controles, documentos/títulos, procesamiento durable y separación
-de audio, emociones, embeddings, grafo, respaldos, identidad, recuperación y workspaces.
+de audio, emociones, embeddings, grafo, respaldos, identidad, recuperación, workspaces,
+invitaciones, notificaciones y administración.
 No se publicaron
 cambios ni se desplegaron entornos. Revalidar el árbol y las pruebas al iniciar
 cada etapa; la ejecución de etapas siguientes requiere su alcance autorizado.
@@ -370,20 +371,20 @@ sin cargar `.env`. Tras ubicar acceso bajo `api/public`, 42 casos focalizados
 aprobaron; los dos casos de límite IP volvieron a confirmar HTTP 429 y `Retry-After`.
 Alembic confirmó `No new upgrade operations detected`. Ruff, fronteras y documentación
 pasan; no se acredita Google OAuth remoto ni entrega real de correo/push.
-Los servicios desechables se eliminaron al finalizar. Etapa 4 queda sin commit,
-sin publicación ni despliegue. Próximo paso: etapa 5, invitaciones, notificaciones
-y administración; preservar el commit compartido de revocación y los puentes de ejes.
+Los servicios desechables se eliminaron al finalizar. Etapa 4 quedó en `447a072`,
+sin publicación ni despliegue. La etapa 5 preserva la revocación compartida y los
+puentes de ejes.
 
 ### Etapa 5 — Invitaciones, notificaciones y administración
 
 Depende de etapas 2 y 4. Dividir por recorrido, conservando atomicidad entre capacidades.
 
-- [ ] Separar programación/selección de invitaciones, consentimiento, vigencia y
+- [x] Separar programación/selección de invitaciones, consentimiento, vigencia y
   lectura de notificaciones de consultas y transporte push.
-- [ ] Migrar inventario administrativo, actividad, métricas y permisos a sus capas.
-- [ ] Ubicar rutas públicas/admin, schemas, CLI y procesos de sincronización en
+- [x] Migrar inventario administrativo, actividad, métricas y permisos a sus capas.
+- [x] Ubicar rutas públicas/admin, schemas, CLI y procesos de sincronización en
   adaptadores de acceso; mantener aplicaciones y exposición independientes.
-- [ ] Ubicar bootstrap específico de cada proceso, preservando configuración
+- [x] Ubicar bootstrap específico de cada proceso, preservando configuración
   compartida donde intervienen API, workers, dispatcher y admin-api.
 
 Salida: sin SQL de negocio en rutas/casos de uso, sin contenido privado en métricas
@@ -393,9 +394,49 @@ revocación, cambio de cuenta, idempotencia, inventario incompleto y permisos.
 Pruebas: suites de exteriorización/notificaciones/admin y sus integraciones SQL;
 Google, email y push reales siguen siendo validaciones externas independientes.
 
+Implementación: reglas y puertos en `core/{exteriorization,notifications,administration}`,
+coordinación en los casos agrupados, transacciones/consultas en PostgreSQL,
+metadatos en filesystem, Web Push como proveedor y rutas/CLIs como acceso.
+Bootstrap compone los servicios y cada proceso. Se eliminaron las tres carpetas
+anteriores y los casos sueltos de invitaciones; `src.admin_main:app` conserva sólo
+el entrypoint externo del proceso administrativo independiente.
+
+Validación local: 373 pruebas sin integraciones y 187 integraciones distintas
+aprobadas, sin skips en esos conjuntos. PostgreSQL, ArcadeDB y RabbitMQ desechables
+cubrieron canales, revocación, recuperación, inventario, permisos y regresión durable
+con workers reales y proveedores simulados. Alembic no detectó cambios de esquema.
+El wheel construido desde fuentes limpias incluye el catálogo movido y excluye las
+carpetas retiradas. Ruff, documentación y fronteras aprobados. No se acredita envío
+externo, build de imagen, publicación ni despliegue. Inventario actual: 364 módulos,
+2.264 imports, 101 ubicaciones heredadas y 104 aristas exactas exceptuadas; son
+contadores de transición, no porcentajes de avance.
+
 ### Etapa 6 — Consolidación del alcance migrado
 
 Depende del cierre de etapas anteriores.
+
+Análisis del árbol al cerrar etapa 5: las capacidades principales ya tienen núcleo
+y aplicación separados. Aún hay trabajo funcional de frontera en HTTP/SSE y
+mantenimiento, además de retirar compatibilidad. No basta con renombrar carpetas.
+
+Orden propuesto para las entregas pendientes:
+
+| Entrega | Evidencia actual | Trabajo y salida verificable |
+| --- | --- | --- |
+| 6.1 Acceso público | `src/api/routes/events.py` consulta cuentas/sesiones/workspaces con SQL; `document_archive.py` resuelve repositorio, settings y paths; `processing.py` construye fachadas antiguas | Separar autorización renovable del stream, resolución de respaldos y construcción de casos mediante puertos y bootstrap. Mover rutas/schemas/middleware a acceso público; preservar SSE, cookies, ownership y errores |
+| 6.2 Arranque y configuración | `src/main.py`, `src/dependencies.py` y `src/config.py` conservan composición/configuración fuera de bootstrap | Componer API y dependencias en bootstrap; llevar settings a esa capa sin cambiar alias/defaults ni valores aceptados. Ubicar logging/observabilidad según su responsabilidad y mantener el arranque administrativo independiente |
+| 6.3 Mantenimiento | `src/maintenance/data_migrations.py` mezcla CLI, SQL, archivos y clientes; `cleanup_extractions.py` accede a sesiones y `_client`; `models.py` aún está allí | Separar CLI, coordinación por puertos y adaptadores concretos. Preservar inventario previo, backups, locks, fingerprints, reanudación e IDs de migración. No ejecutar contra entornos con datos |
+| 6.4 Retiro de compatibilidad | `src/domain/`, `src/services/`, `src/graph/`, `src/processing/`, extractores migrados y casos sueltos reexportan o construyen implementaciones canónicas | Migrar últimos consumidores, incluidos tests/scripts/comandos, y eliminar cada wrapper innecesario. Corregir etapas de retiro vencidas en la política; conservar sólo entrypoints requeridos y puentes documentados de ejes |
+| 6.5 Verificación de procesos | Dockerfiles/Compose todavía usan `src.main`, `src.processing.*`, `src.graph.arcadedb.schema` y `src.maintenance.data_migrations`; Alembic importa modelos heredados | Actualizar consumidores o justificar compatibilidad. Ejecutar regresión, wheel e imagen desde fuentes limpias, e inicio/cierre aislado de API pública/admin, worker y dispatcher |
+
+Las 104 aristas exceptuadas no representan 104 responsabilidades por migrar:
+incluyen wrappers y dependencias internas de ejes pospuesto. Revisarlas por
+consumidor y condición de retiro; no buscar cero excepciones eliminando el alcance
+excluido ni ampliando el baseline. Los casos canónicos migrados no tienen excepciones.
+
+El refactor interno de `src/extractors/personal_axes/` y sus casos experimentales
+queda fuera de etapa 6. Sus puentes compartidos deben seguir funcionando y quedar
+identificados para un plan posterior.
 
 - [ ] Migrar comandos de mantenimiento, arranque y settings restantes; actualizar
   Dockerfiles, Compose, scripts, Alembic y package-data cuando cambien imports/rutas.

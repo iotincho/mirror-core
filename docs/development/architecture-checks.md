@@ -82,11 +82,40 @@ Puntos que el piloto debe conservar hasta adaptar consumidores:
 | Títulos | `document_title.py`, `document_title_store.py`, `openai_document_title.py`, `ensure_document_titles.py`, `backfill_document_titles.py`; strings de monkeypatch de sus tests |
 | Procesos | Dockerfiles: `src.main:app`; Compose: API pública/admin, Taskiq, dispatcher, sincronizador, esquema y migrador de datos |
 | Migraciones SQL | `migrations/env.py` registra modelos de las familias y comparte `Base`; no reescribir revisiones aplicadas por mover imports |
-| Empaquetado | `pyproject.toml` descubre `src*` y empaqueta `src.notifications/announcements.json`; actualizar si se mueve el recurso |
+| Empaquetado | `pyproject.toml` descubre `src*` y empaqueta `src.adapters.access.cli/announcements.json`; verificar el wheel al mover el recurso |
 | Scripts/operación | Comandos de ingestión, reprocess, respaldo, limpieza y helpers; mantener el entrypoint usado o un puente acotado |
 
 Los destinos específicos y su secuencia están en el plan. El inventario se vuelve
 a generar al iniciar cada etapa; sus contadores no son una medida de deuda resuelta.
+
+## Regresión de invitaciones, bandeja y administración
+
+```bash
+.venv/bin/python -m pytest tests/test_channels_application.py \
+  tests/test_exteriorization.py tests/test_notifications.py \
+  tests/test_administration_api.py tests/test_platform_activity.py \
+  tests/test_processing_application.py
+```
+
+Para integración, preparar bases PostgreSQL desechables migradas a head y configurar
+`INVITATIONS_TEST_DATABASE_URL`, `NOTIFICATIONS_TEST_DATABASE_URL`,
+`ADMIN_TEST_DATABASE_URL` y `RECOVERY_TEST_DATABASE_URL`, con los prefijos exigidos
+por cada fixture. Transporte real usa `INVITATIONS_TEST_RABBITMQ_URL`; la vinculación
+de respuestas de audio y la regresión de procesamiento requieren además su entorno
+aislado de procesamiento/grafo. No reutilizar bases ni volúmenes con datos personales.
+
+```bash
+.venv/bin/python -m pytest tests/integration/test_exteriorization_postgres.py \
+  tests/integration/test_notifications_postgres.py \
+  tests/integration/test_administration.py \
+  tests/integration/test_password_recovery_postgres.py -rs
+```
+
+Cubrir horarios, bandeja sin push, revocación conjunta, cambio de cuenta,
+distribución reanudable, inventario incompleto, permisos y confirmación de escrituras.
+Web Push se valida con el SDK declarado y HTTP simulado, sin envío externo.
+Al mover el catálogo, construir el wheel desde una copia limpia de fuentes y comprobar
+`src/adapters/access/cli/announcements.json`; un `build/` anterior puede ocultar errores.
 
 ## Regresión base de documentos y títulos
 

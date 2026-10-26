@@ -1,7 +1,8 @@
 # API pública
 
 - Leer sólo la ruta y schema afectados; registro en `router.py`, composición en
-  `../dependencies.py` y `../workspaces/dependencies.py`.
+  `../dependencies.py` y `../bootstrap/workspaces.py`. Las familias migradas se
+  componen en bootstrap y exponen rutas bajo `../adapters/access/api/public/`.
 - El proxy publica `/api`, pero las rutas internas no repiten el prefijo.
 - Mantener autenticación, protección de origen de mutaciones y ownership.
   SSE valida sesión también durante el stream; no retener una sesión SQL abierta.

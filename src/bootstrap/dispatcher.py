@@ -5,10 +5,10 @@ import logging
 import signal
 
 from src.bootstrap.database import close_database
+from src.bootstrap.invitations import get_invitation_repository
+from src.bootstrap.notifications import get_notifications
 from src.bootstrap.recovery import get_recovery_repository
 from src.config import get_settings
-from src.exteriorization.dependencies import get_invitation_repository
-from src.notifications.dependencies import get_notifications
 from src.observability import initialize_sentry, report_issue, trace_operation
 from src.processing.broker import broker
 from src.processing.runtime import get_repository
@@ -16,7 +16,7 @@ from src.processing.submissions import SubmissionRepository
 from src.processing.tasks import execute_processing
 from src.processing.workflows import worker_runtime
 from src.use_cases.expire_axis_previews import expire_axis_previews
-from src.use_cases.schedule_invitations import ScheduleInvitations
+from src.use_cases.exteriorization.schedule_invitations import ScheduleInvitations
 from src.use_cases.submit_processing import recover_submissions
 
 logger = logging.getLogger(__name__)

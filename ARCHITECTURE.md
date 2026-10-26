@@ -1,8 +1,9 @@
 # Arquitectura del backend
 
-Estado: arquitectura objetivo acordada el 2026-10-23; etapas 0–4 completadas.
+Estado al 2026-10-26: arquitectura objetivo acordada; etapas 0–5 completadas.
 Documentos, audio, extractores de títulos/emociones/embeddings, grafo, respaldos,
-procesamiento durable, identidad, recuperación y workspaces migrados, con enlaces
+procesamiento durable, identidad, recuperación, workspaces, invitaciones,
+notificaciones y administración migrados, con enlaces
 explícitos a áreas pendientes.
 El resto del código todavía no cumple todas estas fronteras.
 El [mapa del repositorio](docs/development/repository-map.md)
@@ -293,8 +294,9 @@ de errores/retry del núcleo. Bootstrap conecta esas responsabilidades por capac
 Ejes mantiene dos puentes explícitos en bootstrap: preparación/orden de escritura
 y clasificación de fallos privados para el extractor; contexto SQL sólo para sus
 workflows experimentales de preview/histórico. El procesador genérico no conoce
-el nombre de ejes ni accede a sesiones. La revocación transaccional conserva tres
-imports exactos de invitaciones pendientes de la etapa 5. Los consumidores HTTP y comandos
+el nombre de ejes ni accede a sesiones. La revocación de sesiones e invitaciones
+comparte la transacción PostgreSQL sin importar módulos de aplicación desde storage.
+Los consumidores HTTP y comandos
 heredados conservan constructores/imports compatibles hasta su consolidación;
 los casos canónicos no reciben ORM ni leen configuración global.
 
@@ -313,6 +315,23 @@ El cifrado conserva sus claves y separación de dominios. `bootstrap/workspaces.
 crea y cierra los stores una vez resuelto ese límite. Las carpetas anteriores
 `src/user_management`, `src/workspaces` y `src/auth` se eliminaron al migrar sus
 consumidores; no conservan implementaciones ni shims duplicados.
+
+Invitaciones mantiene selección, horarios y estados en `core/exteriorization`,
+y consentimiento, programación y envío en sus casos de uso. Sus puertos
+transaccionales entregan estados independientes del ORM. PostgreSQL conserva
+los locks y la confirmación conjunta de invitación, aviso, delivery, job y outbox;
+Web Push valida y envía mediante puertos separados. La bandeja funciona sin push.
+Notificaciones separa reglas/acciones tipadas, coordinación y persistencia; las
+publicaciones son explícitas e inmutables y su distribución conserva el cursor durable.
+
+Administración calcula períodos y métricas desde hechos tipados; la cobertura
+desconocida sigue siendo `null`. El lector filesystem entrega sólo metadatos al
+sincronizador, que coordina su proyección mediante un puerto. Consultas y cambios
+de permisos usan transacciones distintas, con commit explícito para las escrituras.
+`bootstrap/administration.py` compone su API y su pool SQL independientes.
+`bootstrap/public_channels.py` ensambla los canales HTTP públicos; los módulos de
+servicios no cargan esas rutas al iniciar CLIs, dispatcher o workers. Las carpetas
+anteriores `src/exteriorization`, `src/notifications` y `src/administration` se retiraron.
 
 Mover archivos no basta si persisten sesiones SQL en los casos de uso o clientes
 concretos detrás de un runtime. Durante la transición se mantienen puentes de import

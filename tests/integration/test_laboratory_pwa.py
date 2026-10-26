@@ -20,7 +20,7 @@ from test_personal_axis_processing import active  # noqa: F401
 from test_processing_postgres import store  # noqa: F401
 
 from src.adapters.storage.postgres.accounts import AccessToken, User
-from src.api.routes import activity, processing
+from src.bootstrap import activity, processing
 from src.bootstrap.auth import get_authenticated_user
 from src.bootstrap.auth import router as auth_router
 from src.bootstrap.database import get_async_session

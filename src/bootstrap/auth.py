@@ -10,6 +10,7 @@ from fastapi_users.authentication import AuthenticationBackend, CookieTransport
 from src.adapters.access.api.public.auth.authentication import (
     InvitationDatabaseStrategy as Strategy,
 )
+from src.adapters.access.api.public.auth.cookies import COOKIE_NAME as COOKIE_NAME
 from src.adapters.access.api.public.auth.manager import UserManager as Manager
 from src.adapters.access.api.public.auth.routes import build_router as auth_router
 from src.adapters.access.api.public.auth.routes import session as read_session
@@ -22,8 +23,6 @@ from src.bootstrap.recovery import router as recovery_router
 from src.config import get_settings
 from src.core.auth.identity import AuthenticatedUser as AuthenticatedUser
 from src.use_cases.auth.authenticate import AuthenticateUser
-
-COOKIE_NAME = "el_espejo_session"
 
 
 def UserManager(user_db, token_secret):
@@ -52,10 +51,10 @@ async def get_user_manager(user_db=Depends(get_user_db)):
 
 def InvitationDatabaseStrategy(database, lifetime_seconds):
     async def deactivate_session(user_id, token):
-        from src.exteriorization.dependencies import get_invitation_repository
-        from src.exteriorization.repository import session_fingerprint
+        from src.bootstrap.invitations import get_invitations
+        from src.core.exteriorization.models import session_fingerprint
 
-        await get_invitation_repository().deactivate_session(user_id, session_fingerprint(token))
+        await get_invitations().deactivate_session(user_id, session_fingerprint(token))
 
     return Strategy(database, lifetime_seconds, deactivate_session=deactivate_session)
 

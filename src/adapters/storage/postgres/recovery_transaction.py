@@ -4,6 +4,8 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import noload
 
 from src.adapters.storage.postgres.accounts import AccessToken, User
+from src.adapters.storage.postgres.invitation_models import InvitationDelivery, PushSubscription
+from src.adapters.storage.postgres.invitations import InvitationRepository
 from src.adapters.storage.postgres.models import ProcessingRecord
 from src.adapters.storage.postgres.recovery_models import RecoveryAddress, RecoveryDelivery
 from src.adapters.storage.postgres.repository import ProcessingRepository
@@ -12,8 +14,6 @@ from src.core.auth.identity import AccountCredentials
 from src.core.auth.recovery import RecoveryAddress as Address
 from src.core.auth.recovery import RecoveryDelivery as Delivery
 from src.core.auth.recovery import RecoveryIP as IP
-from src.exteriorization.models import InvitationDelivery, PushSubscription
-from src.exteriorization.repository import InvitationRepository
 
 
 class RecoveryTransaction(SnapshotTracker):

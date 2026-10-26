@@ -425,8 +425,8 @@ class ProcessingRepository:
             if invitation_id is not None:
                 from sqlalchemy.dialects.postgresql import insert
 
-                from src.exteriorization.models import InvitationResponse
-                from src.exteriorization.repository import InvitationRepository
+                from src.adapters.storage.postgres.invitation_models import InvitationResponse
+                from src.adapters.storage.postgres.invitations import InvitationRepository
 
                 await InvitationRepository(self.sessions).invitation(
                     session, current.user_id, invitation_id
@@ -619,7 +619,7 @@ class ProcessingRepository:
                 record.resource_deleted = True
             from sqlalchemy import delete
 
-            from src.exteriorization.models import InvitationResponse
+            from src.adapters.storage.postgres.invitation_models import InvitationResponse
 
             await session.execute(
                 delete(InvitationResponse).where(

@@ -12,11 +12,11 @@ from sqlalchemy import delete, select
 from test_deferred_ingestion import ingestion, run_current  # noqa: F401
 from test_processing_postgres import anyio_backend, store  # noqa: F401
 
+from src.adapters.storage.postgres.invitation_models import Invitation, InvitationResponse
 from src.api.routes import processing as routes
 from src.bootstrap.auth import require_authenticated
 from src.bootstrap.workspaces import get_workspace_runtime
-from src.exteriorization.models import Invitation, InvitationResponse
-from src.exteriorization.repository import InvitationError
+from src.core.exteriorization.models import InvitationError
 from src.main import app
 from src.processing.models import ProcessingReceipt
 from src.processing.submissions import SubmissionConflict

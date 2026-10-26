@@ -184,7 +184,10 @@ class SubmissionRepository:
             self.processing.event(session, record)
             self.processing.schedule(session, record)
             if receipt.operation == "upload_document" and receipt.manifest.get("invitation_id"):
-                from src.exteriorization.models import Invitation, InvitationResponse
+                from src.adapters.storage.postgres.invitation_models import (
+                    Invitation,
+                    InvitationResponse,
+                )
 
                 invitation_id = UUID(receipt.manifest["invitation_id"])
                 invitation = await session.scalar(

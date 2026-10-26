@@ -23,7 +23,7 @@ def workflow_config():
 
 
 async def validate_invitation(session, owner, invitation_id):
-    from src.exteriorization.repository import InvitationRepository
+    from src.adapters.storage.postgres.invitations import InvitationRepository
 
     await InvitationRepository(None).invitation(session, owner, invitation_id)
 

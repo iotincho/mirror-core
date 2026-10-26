@@ -10,6 +10,10 @@ from starlette.exceptions import HTTPException
 from starlette.requests import ClientDisconnect
 from starlette.responses import JSONResponse
 
+from src.adapters.access.api.public.errors import (
+    invitation_error_handler,
+    notification_error_handler,
+)
 from src.api.error_handlers import (
     client_disconnect_handler,
     logged_http_exception_handler,
@@ -21,7 +25,8 @@ from src.api.router import api_router
 from src.bootstrap.database import close_database
 from src.bootstrap.workspaces import reconcile_active_workspaces
 from src.config import get_settings
-from src.exteriorization.repository import InvitationError
+from src.core.exteriorization.models import InvitationError
+from src.core.notifications.rules import NotificationError
 from src.extractors.personal_axes.contracts import AxisError
 from src.logging import configure_logging
 from src.observability import initialize_sentry
@@ -70,11 +75,8 @@ async def axis_error_handler(request: Request, error: AxisError) -> JSONResponse
     return JSONResponse({"detail": error.code}, status_code=error.status)
 
 
-@app.exception_handler(InvitationError)
-async def invitation_error_handler(request: Request, error: InvitationError) -> JSONResponse:
-    headers = {"Retry-After": "60"} if error.status_code == 429 else None
-    return JSONResponse({"detail": error.code}, status_code=error.status_code, headers=headers)
-
+app.add_exception_handler(InvitationError, invitation_error_handler)
+app.add_exception_handler(NotificationError, notification_error_handler)
 
 app.add_exception_handler(HTTPException, logged_http_exception_handler)
 app.add_exception_handler(RequestValidationError, logged_validation_exception_handler)

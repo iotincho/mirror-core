@@ -163,7 +163,7 @@ services:
     <<: *admin-runtime
     init: true
     stop_grace_period: 15s
-    command: [python, -m, src.administration.sync, --interval, "${ADMIN_SYNC_INTERVAL_SECONDS:?}"]
+    command: [python, -m, src.bootstrap.inventory_sync, --interval, "${ADMIN_SYNC_INTERVAL_SECONDS:?}"]
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
       WORKSPACES_PATH: /data/users

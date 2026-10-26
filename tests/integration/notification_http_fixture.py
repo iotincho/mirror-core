@@ -15,16 +15,16 @@ from fastapi import FastAPI
 from sqlalchemy import delete, select
 
 from src.adapters.storage.postgres.accounts import AccessToken, User
+from src.adapters.storage.postgres.invitation_models import Invitation, InvitationPreference
+from src.adapters.storage.postgres.invitations import InvitationRepository
+from src.adapters.storage.postgres.notification_models import Announcement
 from src.adapters.storage.postgres.workspace_models import UserWorkspace
 from src.api.router import api_router
 from src.bootstrap.database import close_database, get_session_maker
-from src.exteriorization.models import Invitation, InvitationPreference
-from src.exteriorization.repository import InvitationRepository
-from src.notifications.dependencies import get_notifications
-from src.notifications.models import Announcement
-from src.notifications.schemas import AnnouncementContent
-from src.use_cases.configure_invitations import ConfigureInvitations
-from src.use_cases.schedule_invitations import ScheduleInvitations
+from src.bootstrap.notifications import get_notifications
+from src.core.notifications.models import AnnouncementContent
+from src.use_cases.exteriorization.configure_invitations import ConfigureInvitations
+from src.use_cases.exteriorization.schedule_invitations import ScheduleInvitations
 
 
 @asynccontextmanager

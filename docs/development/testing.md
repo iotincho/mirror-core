@@ -23,6 +23,7 @@ git diff --check
 | Aplicación durable / transacciones | `tests/test_processing_application.py` con puertos en memoria e imports de infraestructura bloqueados | Reprocess, jobs, backfill e histórico de ejes con PostgreSQL/ArcadeDB aislados |
 | Audio / emociones / embeddings / respaldos | `tests/test_stage3_application.py` y suite de la capacidad | Replay sin proveedor, transacciones reales de capas y navegación; [comandos](architecture-checks.md#regresión-de-audio-extractores-grafo-y-respaldos) |
 | Grafo | Test de proyección/navegación afectado | Integración ArcadeDB con esquema y transacciones reales |
+| Invitaciones / bandeja / administración | `tests/test_channels_application.py`, `tests/test_exteriorization.py`, `tests/test_notifications.py`, `tests/test_administration_api.py` | SQL, revocación y sincronizador; [comandos](architecture-checks.md#regresión-de-invitaciones-bandeja-y-administración) |
 | Migración | Revisión de head + integración de migración | Upgrade/recuperación con base aislada |
 | Docker / publicación | `tests/test_local_deploy.py`, configuración Compose | Build o smoke aislado si cambia comportamiento del contenedor |
 

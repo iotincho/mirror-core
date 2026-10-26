@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from src.adapters.providers.email.resend import ResendMailTransport
 from src.adapters.storage.postgres.accounts import AccessToken, OAuthAccount, User
+from src.adapters.storage.postgres.invitation_models import InvitationPreference, PushSubscription
 from src.adapters.storage.postgres.recovery_models import (
     RecoveryAddress,
     RecoveryDelivery,
@@ -37,7 +38,6 @@ from src.bootstrap.recovery import (
     get_password_recovery,
 )
 from src.config import Settings
-from src.exteriorization.models import InvitationPreference, PushSubscription
 from src.processing.execution import ExecuteProcessing, WorkflowRegistry
 from src.processing.models import ProcessingEvent, ProcessingOutbox, ProcessingRecord
 from src.processing.repository import ProcessingRepository

@@ -15,22 +15,22 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from src.adapters.storage.postgres.accounts import User
-from src.adapters.storage.postgres.workspace_models import UserWorkspace
-from src.bootstrap.auth import require_authenticated
-from src.domain.documents import NewDocument
-from src.exteriorization.dependencies import get_invitations
-from src.exteriorization.models import (
+from src.adapters.storage.postgres.invitation_models import (
     Invitation,
     InvitationDelivery,
     InvitationPreference,
     InvitationResponse,
     PushSubscription,
 )
-from src.exteriorization.repository import InvitationError, InvitationRepository
-from src.exteriorization.web_push import PushResult
+from src.adapters.storage.postgres.invitations import InvitationRepository
+from src.adapters.storage.postgres.notification_models import Notification
+from src.adapters.storage.postgres.workspace_models import UserWorkspace
+from src.bootstrap.auth import require_authenticated
+from src.bootstrap.invitations import get_invitations
+from src.bootstrap.notifications import build_notification_center as NotificationRepository
+from src.core.exteriorization.models import InvitationError, PushResult
+from src.domain.documents import NewDocument
 from src.main import app
-from src.notifications.models import Notification
-from src.notifications.repository import NotificationRepository
 from src.processing.execution import ExecuteProcessing, WorkflowRegistry
 from src.processing.models import (
     ProcessingEvent,
@@ -41,9 +41,9 @@ from src.processing.models import (
 from src.processing.repository import ProcessingRepository
 from src.processing.submissions import SubmissionConflict, SubmissionRepository
 from src.services.document_store import FileDocumentStore
-from src.use_cases.configure_invitations import ConfigureInvitations
-from src.use_cases.schedule_invitations import ScheduleInvitations
-from src.use_cases.send_invitation import SendInvitation
+from src.use_cases.exteriorization.configure_invitations import ConfigureInvitations
+from src.use_cases.exteriorization.schedule_invitations import ScheduleInvitations
+from src.use_cases.exteriorization.send_invitation import SendInvitation
 from src.use_cases.submit_processing import SubmitDocument, recover_submissions
 
 pytestmark = [
@@ -318,7 +318,7 @@ async def test_disabling_cancels_pending_and_retrying_deliveries(store):
 async def test_logout_only_deactivates_current_session(store):
     repo, owner, _, subscriptions = await setup(store, devices=2)
     await ScheduleInvitations(repo).execute(await due_now(repo, owner))
-    await repo.deactivate_session(owner, "session-0")
+    await ConfigureInvitations(repo).deactivate_session(owner, "session-0")
     states = {item.id: item.active for item in await rows(repo, PushSubscription, owner)}
     assert states == {subscriptions[0].id: False, subscriptions[1].id: True}
     transport = Transport()
@@ -376,7 +376,7 @@ async def test_multiuser_isolation_and_first_open_are_idempotent(store):
     ):
         with pytest.raises(InvitationError) as failure:
             await action
-        assert failure.value.status_code == 404
+        assert failure.value.code in {"invitation_not_found", "subscription_not_found"}
     with pytest.raises(InvitationError, match="subscription_account_conflict"):
         await service.subscribe(stranger, "session-x", subscriptions[0].endpoint, "public", "auth")
     first, second = await asyncio.gather(
@@ -392,7 +392,7 @@ async def test_answer_link_recovers_after_original_write_and_preserves_content(
 ):
     repo, owner, service, subscriptions = await setup(store)
     invitation = await service.test(owner, "session-0", subscriptions[0].id, uuid4())
-    monkeypatch.setattr("src.exteriorization.dependencies.get_invitation_repository", lambda: repo)
+    monkeypatch.setattr("src.bootstrap.invitations.get_invitation_repository", lambda: repo)
     runtime = SimpleNamespace(
         context=SimpleNamespace(user_id=owner),
         document_store=FileDocumentStore(tmp_path),
@@ -550,7 +550,7 @@ async def test_real_cookie_logout_deactivates_only_its_device(store, monkeypatch
     from src.adapters.storage.postgres.accounts import AccessToken, OAuthAccount
     from src.bootstrap.auth import COOKIE_NAME, UserManager, get_user_manager
     from src.bootstrap.database import get_async_session
-    from src.exteriorization.repository import session_fingerprint
+    from src.core.exteriorization.models import session_fingerprint
 
     repo, owner, service, subscriptions = await setup(store, devices=2)
     token = str(uuid4())
@@ -570,7 +570,7 @@ async def test_real_cookie_logout_deactivates_only_its_device(store, monkeypatch
 
     app.dependency_overrides[get_async_session] = session_dependency
     app.dependency_overrides[get_user_manager] = manager_dependency
-    monkeypatch.setattr("src.exteriorization.dependencies.get_invitation_repository", lambda: repo)
+    monkeypatch.setattr("src.bootstrap.invitations.get_invitation_repository", lambda: repo)
     try:
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app),
@@ -708,7 +708,7 @@ async def test_http_document_upload_preserves_typed_invitation_contract(
     )
     app.dependency_overrides[require_authenticated] = lambda: SimpleNamespace(id=owner)
     app.dependency_overrides[get_workspace_runtime] = lambda: runtime
-    monkeypatch.setattr("src.exteriorization.dependencies.get_invitation_repository", lambda: repo)
+    monkeypatch.setattr("src.bootstrap.invitations.get_invitation_repository", lambda: repo)
     monkeypatch.setattr(
         "src.api.routes.processing.get_repository", lambda: ProcessingRepository(repo.sessions)
     )

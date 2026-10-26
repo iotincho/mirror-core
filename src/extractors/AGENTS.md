@@ -6,8 +6,8 @@
   y proveedores en `../adapters/providers/openai/`. El registro concreto vive en
   `../bootstrap/extractor_registry.py`; los wrappers anteriores fueron retirados.
   Ejes usa núcleo en `../core/extractors/personal_axes/` y extractor canónico en
-  `../use_cases/extraction/personal_axis.py`; esta carpeta conserva su gestión
-  histórica y reservas pendientes, sin otra implementación del extractor o previews.
+  `../use_cases/extraction/personal_axis.py`; esta carpeta conserva sólo fachadas
+  usadas por fixtures hasta la consolidación final, sin implementaciones de producción.
 - Separar extracción y persistencia. `dry_run` no escribe el grafo; conservar
   artefacto, profile, configuración y hashes para persistir sin repetir proveedor.
 - Validar citas/offsets contra el original completo. No normalizar el texto fuente

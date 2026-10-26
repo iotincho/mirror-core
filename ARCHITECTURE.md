@@ -172,8 +172,8 @@ Un eje definido por el usuario es compatible con este contrato. Sus acciones de
 definir, probar y aceptar versiones pertenecen a aplicación; sus reglas y tipos,
 al núcleo de extracción, y HTTP/ORM/proveedores a sus adaptadores. El alcance
 actual ya separa núcleo, extractor, proveedor y proyección, además de definiciones,
-acceso, exploración y el ciclo de previews/aceptación/limpieza. Lotes históricos y
-reservas automáticas continúan según su
+acceso, exploración, previews/aceptación/limpieza, histórico y reservas automáticas.
+La consolidación final continúa según su
 [plan](docs/development/personal-axes-migration-plan.md),
 manteniendo compatibilidad y reglas de versionado/evidencia.
 
@@ -276,23 +276,21 @@ sin permiso push y comparte transacción con las invitaciones que la originan.
 Workspaces conserva principales restringidos por dueño; root se usa para provisión
 y mantenimiento administrativo explícito, nunca para servir lecturas públicas.
 
-Ejes mantiene puentes explícitos: preparación/orden de escritura y clasificación
-de fallos privados, contexto SQL en workflows experimentales y `AxisHistoryRequests`
-para su reset transaccional. `bootstrap/personal_axes.py` configura y cierra sus
-proveedores e inyecta los puertos del extractor canónico. El contexto de escritura
-es tipado; el binder SQL anterior conserva setters compatibles hasta la etapa 4.
-Las definiciones/versiones SQL devuelven estados tipados, sin ORM. Las lecturas
-del grafo ofrecen operaciones semánticas mediante un puerto; aplicación verifica
-propiedad, originales, hashes, procedencia y cursores. HTTP recibe casos inyectados
-y traduce errores semánticos. `bootstrap/{laboratory,personal_axes_reads,personal_axes_api}.py`
-compone esos recorridos; el histórico anterior delega la cobertura al lector nuevo.
-Previews usa puertos de temporales y reserva SQL: aplicación guarda primero el
-input inmutable, después confirma job/recibo/outbox en una sola unidad de trabajo.
-El adaptador conserva cuota, locks y reloj SQL; aplicación decide vigencia y
-recuperación. Su worker no necesita sesiones ni paths; la limpieza separa política
-de expiración, selección SQL y escaneo/borrado filesystem. Sólo el histórico
-conserva el contexto SQL especial en el ejecutor común. Estos puentes se retiran
-al migrar histórico y reservas automáticas.
+Ejes usa puertos de definiciones, originales, cobertura, temporales y transacciones.
+Las lecturas verifican propiedad, originales, hashes y procedencia en aplicación;
+HTTP recibe casos inyectados y traduce errores. Previews guarda primero el input
+inmutable y después confirma job/recibo/outbox en una unidad SQL. El adaptador
+conserva cuota, locks y reloj autoritativo; aplicación coordina vigencia y recuperación.
+
+Histórico comparte la transacción de procesamiento para lote, ítems, jobs y recibos;
+stop/retry operan sobre estados tipados y reutilizan el reset común. Sus workers
+usan el mismo contexto de ejecución que otras familias, sin recibir repositorios
+SQL. La selección de ejes habilitados queda dentro de la aceptación transaccional,
+y la política que compone su configuración es pura. `AxisWriteContexts` obtiene
+la prioridad y la reserva original; aplicación entrega el contexto inmutable a
+persistencia por llamada. El extractor no se modifica desde un binder SQL.
+La clasificación de errores de ejes conserva su privacidad como política del núcleo.
+Sólo quedan fachadas usadas por fixtures, a retirar en la consolidación final.
 
 Los entrypoints antiguos aún usados por `mirror-deploy` sólo delegan a bootstrap.
 Su consumidor, motivo y condición de retiro constan en el [mapa](docs/development/repository-map.md)

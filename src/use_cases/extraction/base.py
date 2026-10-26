@@ -91,12 +91,14 @@ class Extractor(ABC):
             await self.persist(output)
         return output
 
-    async def persist(self, output: ExtractionOutput):
+    async def persistence_payload(self, output: ExtractionOutput):
         # Only the bound workspace's durable artifact is writable; arbitrary supplied payloads
         # and artifacts from another workspace cannot be persisted through this interface.
         saved = await self.artifacts.get(output.document_id, output.run_id)
         if saved is None or saved != output:
             raise ValueError("artifact_not_saved_or_changed")
         document = await self.documents.get(output.document_id)
-        payload = self.validate_output(output, document)
-        await self.write_layer(output, payload)
+        return self.validate_output(output, document)
+
+    async def persist(self, output: ExtractionOutput):
+        await self.write_layer(output, await self.persistence_payload(output))

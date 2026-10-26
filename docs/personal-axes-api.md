@@ -23,12 +23,20 @@ su worker, aceptación y limpieza también viven en `use_cases/personal_axes/`.
 `preview_ports.py` define temporales y reservas; los adaptadores PostgreSQL y
 filesystem implementan las transacciones y archivos. La composición está en
 `bootstrap/personal_axes_previews.py`; su dependencia HTTP en
-`bootstrap/personal_axes_dependencies.py`. Sólo lotes históricos y reservas
-automáticas siguen en la familia anterior, según el
-[plan](development/personal-axes-migration-plan.md). El histórico reutiliza sólo el
-lector semántico de cobertura, sin exponer transacciones del grafo.
-El binder de reservas mantiene temporalmente su API, traducida al contexto tipado
-de escritura. Este movimiento no modifica el contrato funcional siguiente.
+`bootstrap/personal_axes_dependencies.py`. Histórico y ejecución por nota están en
+`use_cases/personal_axes/{history,process_history}.py`, con composición propia en
+`bootstrap/personal_axes_history.py`. Sus estados tipados no exponen ORM, sesiones
+ni un contenedor de previews; el lector de cobertura es el caso canónico de exploración.
+La consolidación pendiente se sigue en el [plan](development/personal-axes-migration-plan.md).
+
+Las reservas automáticas leen versiones habilitadas dentro de la transacción de
+aceptación; PostgreSQL aplica el permiso por cuenta y devuelve hechos a la política
+pura `core/extractors/personal_axes/configuration.py`. El histórico comparte la
+unidad de trabajo de procesamiento para crear/parar/reintentar jobs, ítems,
+recibos y outbox. El reset usa la política común `core/processing/retry.py`, sin
+otro commit. `AxisWriteContexts` resuelve prioridad de versión y reserva original,
+incluido el padre; aplicación entrega ese contexto a `persist()` por llamada,
+sin modificar `write_order` ni `legacy_versions` en el extractor.
 
 La reserva mantiene el input inmutable antes de confirmar juntos job, recibo y
 outbox. La unidad de trabajo SQL conserva cuota concurrente y reloj autoritativo;

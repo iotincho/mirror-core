@@ -1,7 +1,7 @@
 # Migración de personal axes a arquitectura hexagonal
 
-Estado al 2026-10-26: etapas 1–2 en commits `cd7760c` y `00f0b62`;
-etapa 3 completada localmente; etapa 4 pendiente.
+Estado al 2026-10-26: etapas 1–3 en commits `cd7760c`, `00f0b62` y `3805eed`;
+etapa 4 completada localmente; etapa 5 pendiente.
 No se publicaron cambios ni se desplegaron entornos. Cada etapa conserva su alcance.
 
 Referencia de responsabilidades: [arquitectura](../../ARCHITECTURE.md).
@@ -238,18 +238,18 @@ entrega a planificación de lotes ni cambiar configuraciones ya reservadas.
 
 Depende de 1–3. Es la etapa de integración transaccional con procesamiento común.
 
-- [ ] Migrar candidatos/cobertura, planificación, estado, parada y retry de lotes.
+- [x] Migrar candidatos/cobertura, planificación, estado, parada y retry de lotes.
   Inyectar definiciones, originales, cobertura y procesamiento; no recibir previews
   como contenedor de dependencias ni reutilizar un lector que exponga transacciones.
-- [ ] Migrar `ProcessAxisHistory`: estados propios, fuentes/hash/perfil reservados,
+- [x] Migrar `ProcessAxisHistory`: estados propios, fuentes/hash/perfil reservados,
   persistencia del original cuando corresponda y checkpoints sin proveedor repetido.
-- [ ] Integrar selección de versiones habilitadas a los puertos transaccionales de
+- [x] Integrar selección de versiones habilitadas a los puertos transaccionales de
   procesamiento existentes. Lectura de versiones y reserva continúan en la misma
   transacción; la política de configuración aceptada es pura y conserva su formato.
-- [ ] Reemplazar `bind_axis_write` por un contexto tipado obtenido mediante puerto:
+- [x] Reemplazar `bind_axis_write` por un contexto tipado obtenido mediante puerto:
   versión, reserva original y prioridad. Aplicación lo entrega a proyección; no
   mutar atributos del extractor desde un helper SQL externo.
-- [ ] Reemplazar el reset con ORM de `AxisHistoryRequests` por la integración con
+- [x] Reemplazar el reset con ORM de `AxisHistoryRequests` por la integración con
   el puerto transaccional común. Retirar tratamiento especial ya innecesario en
   los puentes de ejecución/fallos; conservar clasificación segura y privacidad.
 
@@ -263,15 +263,49 @@ audio heredado, versión editada concurrentemente, cobertura válida con cero ha
 fuente cambiada/borrada, trabajo activo, cancelación, lease vencido, retry del lote
 y trabajo antiguo que termina después de uno nuevo (`superseded`).
 
+Implementación vigente: `use_cases/personal_axes/{history,process_history,persist}.py`
+recibe originales, definiciones, cobertura y puertos de histórico/ejecución/prioridad.
+Los hechos y comandos están en core; SQL/ORM en `storage/postgres/personal_axes/`;
+HTTP en su adaptador. `HistoryUnit` extiende la transacción común de procesamiento,
+con estados independientes del ORM, reloj SQL y los mismos locks. El reset común
+comparte job/evento/outbox con el recibo del retry y las actualizaciones de lote/ítem.
+La selección automática conserva la transacción de aceptación; su configuración
+se compone mediante una política pura. `AxisWriteContexts` devuelve versión,
+reserva original/padre y orden, entregados a persistencia por llamada.
+
+Se retiraron el histórico y su worker anteriores, ORM/schemas antiguos, selección
+SQL/binder y los aliases de acceso/exploración sin consumidores. También se retiró
+`CompatibleRegistry`, `AxisHistoryRequests` y el acceso a repositorios privados
+desde los hooks. Los workers usan el contexto común. Los setters temporales del
+extractor desaparecieron; versiones, hashes, checkpoints y formatos se conservan.
+Las últimas fachadas de errores/diccionarios y `personal_axes_compat.py` sólo son
+consumidas por fixtures; quedan identificadas para etapa 5, sin SQL duplicado.
+
+Validación: 419 pruebas locales distintas y 81 integraciones distintas aprobadas
+(45 de ejes y 36 de jobs/reproceso/audio/PostgreSQL). Cubre stop/retry, lease vencido,
+cancelación, reserva interrumpida, selección heredada por audio, versiones pausadas,
+cobertura vacía, fuentes modificadas/borradas y escrituras antiguas que terminan tarde.
+Nuevas pruebas verifican rollback completo de reserva y retry históricos, prioridad
+del padre con versiones posteriores y contexto por llamada sin mutar el extractor.
+La prueba de transporte Taskiq/RabbitMQ fue excluida expresamente de esta regresión;
+su ejecución conjunta queda para etapa 5. No hubo llamadas LLM reales ni despliegues.
+
+Alembic no detectó cambios de esquema y sus imports ya apuntan al ORM canónico.
+La imagen se construyó y verificó con Python 3.13, fingerprints y OpenAPI. No quedan excepciones
+específicas de ejes: sólo nueve de entrypoints externos. La fixture PWA usa la nueva
+composición; no se acredita aquí un recorrido de navegador. Próximo paso: consolidar
+los últimos consumidores de pruebas, retirar fachadas y validar empaquetado/procesos.
+
 ### Etapa 5 — Consolidación y cierre
 
 Depende de 1–4.
 
 - [ ] Migrar últimos consumidores, incluido `migrations/env.py`, registros de
   workflows, tests y fixtures HTTP/PWA. No modificar revisiones SQL aplicadas.
-- [ ] Eliminar `src/extractors/personal_axes/`, los cuatro casos sueltos y los
-  puentes de compatibilidad que ya no se usen, incluido `bootstrap/axis_provider.py`.
-- [ ] Retirar todas las excepciones específicas de ejes. Las de entrypoints
+- [ ] Eliminar `src/extractors/personal_axes/` y `bootstrap/personal_axes_compat.py`
+  al migrar sus últimos fixtures. Los cuatro casos sueltos y `axis_provider.py`
+  ya se retiraron en etapas anteriores.
+- [x] Retirar todas las excepciones específicas de ejes (completado en etapa 4). Las de entrypoints
   consumidos por mirror-deploy son independientes y conservan su motivo vigente.
 - [ ] Actualizar arquitectura, mapa, instrucciones del área y contrato; ejecutar
   regresión conjunta, wheel, imagen y arranque/cierre de API, worker y dispatcher.

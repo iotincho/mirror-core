@@ -12,7 +12,9 @@
 - Contratos y registros sin ORM en `../../core/processing/`; casos durables en
   `./`; SQL/eventos/recibos en `../../adapters/storage/postgres/`.
   `../../bootstrap/workflows.py` registra versiones y extractores;
-  `../../bootstrap/processing.py` inyecta puertos y hooks de compatibilidad con ejes.
+  `../../bootstrap/processing.py` inyecta puertos y estrategias de persistencia.
+  Ejes resuelve su contexto de escritura mediante un puerto; el ejecutor común
+  no necesita sesiones SQL ni condicionales por esa familia.
   Los entrypoints externos conservados sólo delegan a bootstrap.
 - Un cambio de concurrencia requiere integración PostgreSQL aislada: duplicados,
   lease vencido, cancelación, pérdida de entrega y fallo parcial relevantes.

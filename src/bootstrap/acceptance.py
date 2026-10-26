@@ -30,7 +30,7 @@ async def validate_invitation(session, owner, invitation_id):
 
 def build_submission_port(repository, *, submissions=None):
     from src.adapters.storage.postgres.submission_port import PostgresSubmissions
-    from src.extractors.personal_axes.configuration import user_workflow_config
+    from src.bootstrap.personal_axes import user_workflow_config
 
     return PostgresSubmissions(
         repository,

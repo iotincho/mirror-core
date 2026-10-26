@@ -1,4 +1,4 @@
-"""Process-local durable composition; legacy workflow SQL stays outside the runner."""
+"""Process-local durable composition through canonical state and application ports."""
 
 from contextlib import asynccontextmanager
 from functools import lru_cache
@@ -8,26 +8,7 @@ from src.adapters.storage.postgres.state import PostgresExecutionStore, database
 from src.bootstrap.database import get_session_maker
 from src.bootstrap.observability import report_issue
 from src.bootstrap.settings import get_settings
-from src.core.processing.workflows import WorkflowDefinition
-from src.use_cases.processing.context import ExecutionContext
 from src.use_cases.processing.execute import ExecuteProcessing
-
-
-class CompatibleRegistry:
-    def __init__(self, registry, repository):
-        self.registry, self.repository = registry, repository
-
-    def get(self, record):
-        definition = self.registry.get(record)
-
-        async def run(context):
-            async with database_errors():
-                # Experimental workflows retain their internal SQL behind this exact bridge.
-                if record.workflow == "axis_history_note":
-                    context = ExecutionContext(self.repository, context.record, definition)
-                await definition.run(context)
-
-        return WorkflowDefinition(run, definition.transitions, definition.requires_workspace)
 
 
 def build_executor(repository, registry, max_attempts=4):
@@ -35,7 +16,6 @@ def build_executor(repository, registry, max_attempts=4):
         store = repository
     else:
         store = PostgresExecutionStore(repository)
-        registry = CompatibleRegistry(registry, repository)
     return ExecuteProcessing(store, registry, max_attempts, report_issue=report_issue)
 
 
@@ -90,32 +70,34 @@ def build_legacy_layers_processor(runtime_factory, extractor_factory):
     )
 
 
-async def prepare_extractor_persistence(extractor, context):
-    if context.record.extractor_name == "personal_axis":
-        from src.extractors.personal_axes.persistence import bind_axis_write
-
-        # Explicit compatibility with the experimental module; no sessions cross into the
-        # generic processor. The concrete adapter and this bridge share their composition root.
-        store = context.repository
-        repository = store._repository if isinstance(store, PostgresExecutionStore) else store
-        async with database_errors():
-            await bind_axis_write(extractor, repository.sessions, context.record)
-
-
 def extractor_failure(error, record, service):
     from src.bootstrap.failures import failure_for
-    from src.core.processing.errors import FailureDecision, WorkflowFailure
+    from src.core.extractors.personal_axes.policies import extraction_failure
+    from src.core.processing.errors import FailureDecision
 
     failure = failure_for(error, record.stage_attempts, service)
-    private = record.extractor_name == "personal_axis"
-    if private and "axis_correction_interrupted" in str(error):
-        failure = WorkflowFailure("axis_correction_interrupted")
-    return FailureDecision(failure, suppress_cause=private)
+    policies = {"personal_axis": extraction_failure}
+    policy = policies.get(record.extractor_name)
+    return policy(error, failure) if policy else FailureDecision(failure)
 
 
-def build_extractor_processor(runtime_factory, extractor_factory):
+def build_extractor_processor(runtime_factory, extractor_factory, *, repository=None):
     from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
     from src.use_cases.processing.process_extractor import ProcessExtractor
+
+    async def persist_extraction(extractor, output, record):
+        from src.adapters.storage.postgres.personal_axes.write_contexts import (
+            PostgresAxisWriteContexts,
+        )
+        from src.use_cases.personal_axes.persist import PersistPersonalAxis
+
+        if record.extractor_name == "personal_axis":
+            case = PersistPersonalAxis(
+                PostgresAxisWriteContexts((repository or get_repository()).sessions)
+            )
+            await case.execute(extractor, output, record)
+        else:
+            await extractor.persist(output)
 
     return ProcessExtractor(
         protected_runtime(runtime_factory),
@@ -123,14 +105,14 @@ def build_extractor_processor(runtime_factory, extractor_factory):
         artifacts_factory=lambda runtime: LayerArtifacts(
             runtime.context.filesystem_root / "layers"
         ),
-        prepare_persistence=prepare_extractor_persistence,
+        persist_extraction=persist_extraction,
         failure_for=extractor_failure,
     )
 
 
 def requests_store(repository):
     from src.adapters.storage.postgres.transactions import PostgresProcessingRequests
-    from src.extractors.personal_axes.configuration import user_workflow_config
+    from src.bootstrap.personal_axes import user_workflow_config
 
     return PostgresProcessingRequests(repository, config_factory=user_workflow_config)
 
@@ -140,28 +122,6 @@ def build_processing_requests(repository, runtime):
     from src.use_cases.processing.request_processing import RequestProcessing
 
     return RequestProcessing(requests_store(repository), runtime, workflow_config=workflow_config)
-
-
-class AxisHistoryRequests:
-    """Adapt the history module's existing reset(session, row, now) call only."""
-
-    def __init__(self, repository, runtime):
-        self._repository = repository
-        self._case = build_processing_requests(repository, runtime)
-
-    def __getattr__(self, name):
-        return getattr(self._case, name)
-
-    def reset(self, session, record, now):
-        from src.adapters.storage.postgres.transactions import PostgresTransaction
-        from src.extractors.personal_axes.configuration import user_workflow_config
-
-        # History owns this transaction. Translate its ORM row once, apply the same pure
-        # reset policy, and synchronize into that session without another commit or lock.
-        transaction = PostgresTransaction(session, self._repository, now, user_workflow_config)
-        state = transaction._track(record)
-        self._case.reset(transaction, state, now)
-        transaction.synchronize()
 
 
 def build_title_backfill(repository, runtime):

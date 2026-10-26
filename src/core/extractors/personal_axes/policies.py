@@ -35,3 +35,12 @@ def evidence_issues(response, content):
                 )
             seen.add(quote)
     return issues
+
+
+def extraction_failure(error, failure):
+    """Axis failures suppress private causes and never retry interrupted evidence correction."""
+    from src.core.processing.errors import FailureDecision, WorkflowFailure
+
+    if "axis_correction_interrupted" in str(error):
+        failure = WorkflowFailure("axis_correction_interrupted")
+    return FailureDecision(failure, suppress_cause=True)

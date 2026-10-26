@@ -111,10 +111,10 @@ async def test_pre_migration_artifact_recovers_persistence_with_no_provider(tmp_
             },
             extracting=False,
             artifacts=artifacts,
+            write_context=AxisWriteContext(
+                "000000000001:original-reservation", ((output.request_config["version_id"], 1),)
+            ),
         )
-        # The old reservation binder uses these setters until its stage 4 migration.
-        extractor.write_order = "000000000001:original-reservation"
-        extractor.legacy_versions = {output.request_config["version_id"]: 1}
         return extractor
 
     with pytest.raises(ConnectionError):

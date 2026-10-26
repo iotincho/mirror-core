@@ -2,22 +2,22 @@
 
 from uuid import UUID
 
-from sqlalchemy import func, select
-from sqlalchemy.exc import SQLAlchemyError
-
-from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
-from src.bootstrap.failures import failure_for
-from src.bootstrap.personal_axes_compat import AxisPreviews
-from src.bootstrap.settings import get_settings
 from src.core.documents.ports import DocumentNotFoundError
 from src.core.extractors.contracts import content_hash
-from src.core.extractors.personal_axes.models import AxisSpecification
-from src.core.processing.errors import LeaseLost, WorkflowFailure
+from src.core.extractors.personal_axes.history import current_extraction
+from src.core.extractors.personal_axes.models import AxisError, AxisSpecification
+from src.core.processing.errors import LeaseLost, StorageUnavailable, WorkflowFailure
 from src.core.processing.workflows import WorkflowDefinition
-from src.extractors.personal_axes.contracts import AxisError
-from src.extractors.personal_axes.history import AxisHistory, current_extraction
-from src.extractors.personal_axes.history_models import AxisHistoryBatch, AxisHistoryItem
-from src.extractors.personal_axes.persistence import bind_axis_write
+from src.use_cases.personal_axes.persist import PersistPersonalAxis
+
+TRANSIENT_AXIS_ERRORS = {
+    "axis_graph_unavailable",
+    "axis_graph_incomplete",
+    "axis_evidence_invalid",
+    "axis_specification_mismatch",
+    "axis_storage_unavailable",
+    "axis_provider_configuration",
+}
 
 
 class ProcessAxisHistory:
@@ -25,50 +25,37 @@ class ProcessAxisHistory:
         {("extraction", "persistence"), ("extraction", "done"), ("persistence", "done")}
     )
 
-    def __init__(self, runtime_factory, extractor_factory):
+    def __init__(
+        self,
+        runtime_factory,
+        extractor_factory,
+        *,
+        history_factory,
+        artifacts_factory,
+        execution,
+        write_contexts,
+        failure_for,
+    ):
         self.runtime_factory, self.extractor_factory = runtime_factory, extractor_factory
+        self.history_factory, self.artifacts_factory = history_factory, artifacts_factory
+        self.execution, self.persistence = execution, PersistPersonalAxis(write_contexts)
+        self.failure_for = failure_for
 
     @property
     def definition(self):
         return WorkflowDefinition(self.execute, self.transitions)
 
     async def outcome(self, context, value):
-        async with context.repository.leased(context.record) as (session, _, _):
-            item = await session.get(
-                AxisHistoryItem,
-                (UUID(context.record.config["batch_id"]), context.record.resource_id),
-                with_for_update=True,
-            )
-            item.outcome = value
+        await self.execution.outcome(context.record, value)
         if context.record.stage != "done":
             await context.advance("done")
 
     async def execute(self, context):
         record = context.record
         try:
-            async with context.repository.sessions.begin() as session:
-                batch = await session.scalar(
-                    select(AxisHistoryBatch)
-                    .where(
-                        AxisHistoryBatch.id == UUID(record.config["batch_id"]),
-                        AxisHistoryBatch.user_id == record.user_id,
-                    )
-                    .with_for_update()
-                )
-                if batch is None:
-                    raise WorkflowFailure("axis_history_not_found")
-                item = await session.get(
-                    AxisHistoryItem, (batch.id, record.resource_id), with_for_update=True
-                )
-                if item is None or item.processing_id != record.id:
-                    raise WorkflowFailure("axis_history_item_mismatch")
-                skip = item.outcome is not None or (
-                    batch.stopped_at is not None and item.started_at is None
-                )
-                if not skip and item.started_at is None:
-                    item.started_at = await session.scalar(select(func.clock_timestamp()))
-            if skip:
-                await self.outcome(context, item.outcome or "stopped")
+            started = await self.execution.begin(record)
+            if started.skip:
+                await self.outcome(context, started.outcome or "stopped")
                 return
             async with self.runtime_factory(record.user_id) as runtime:
                 document = await runtime.document_store.get(record.resource_id)
@@ -77,7 +64,7 @@ class ProcessAxisHistory:
                     return
                 spec = record.config["extractor"]
                 if record.stage == "extraction":
-                    history = AxisHistory(AxisPreviews(context.repository, runtime, get_settings()))
+                    history = self.history_factory(runtime)
                     previous = (await history.coverage(UUID(spec["axis_id"]), document.id)).get(
                         str(document.id)
                     )
@@ -97,33 +84,33 @@ class ProcessAxisHistory:
                     await context.assert_lease()
                     await context.advance("persistence")
                 if record.stage == "persistence":
-                    artifact = await LayerArtifacts(runtime.context.filesystem_root / "layers").get(
+                    artifact = await self.artifacts_factory(runtime).get(
                         document.id, record.extraction_run_id
                     )
                     if artifact is None:
                         raise WorkflowFailure("layer_artifact_missing")
                     extractor = self.extractor_factory(runtime, spec, extracting=False)
-                    await bind_axis_write(extractor, context.repository.sessions, record)
+                    write_context = await self.persistence.context_for(record)
                     await context.assert_lease()
-                    await extractor.persist(artifact)
+                    await extractor.persist(artifact, write_context=write_context)
                     await self.outcome(
                         context, "completed" if extractor.write_applied else "superseded"
                     )
         except DocumentNotFoundError:
             await self.outcome(context, "deleted")
-        except (WorkflowFailure, LeaseLost, SQLAlchemyError):
+        except (WorkflowFailure, LeaseLost, StorageUnavailable):
             raise
         except AxisError as error:
             raise WorkflowFailure(
                 error.code,
-                retry_delay=2 if error.status == 503 else None,
-                retryable=error.status == 503,
+                retry_delay=2 if error.code in TRANSIENT_AXIS_ERRORS else None,
+                retryable=error.code in TRANSIENT_AXIS_ERRORS,
             ) from None
         except Exception as error:
             if str(error) in {"source_changed", "axis_graph_source_changed"}:
                 await self.outcome(context, "changed")
                 return
-            raise failure_for(
+            raise self.failure_for(
                 error,
                 record.stage_attempts,
                 "graph" if record.stage == "persistence" else "extraction",

@@ -47,7 +47,9 @@ async def close_axis_providers():
     _provider.cache_clear()
 
 
-def build_personal_axis_extractor(runtime, specification, *, extracting, artifacts=None):
+def build_personal_axis_extractor(
+    runtime, specification, *, extracting, artifacts=None, write_context=None
+):
     spec = AxisSpecification.model_validate(specification["specification"])
     return PersonalAxisExtractor(
         runtime.document_store,
@@ -57,4 +59,13 @@ def build_personal_axis_extractor(runtime, specification, *, extracting, artifac
         store=ArcadeDBAxisStore(runtime.graph_store.database_client),
         axis_id=specification.get("axis_id"),
         version_id=specification.get("version_id"),
+        write_context=write_context,
     )
+
+
+async def user_workflow_config(session, owner, baseline):
+    from src.adapters.storage.postgres.personal_axes.configuration import (
+        user_workflow_config as snapshot,
+    )
+
+    return await snapshot(session, owner, baseline, enabled=get_settings().personal_axes_enabled)

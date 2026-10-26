@@ -10,17 +10,6 @@ from src.bootstrap.workspaces import get_workspace_runtime
 from src.core.workspaces.context import WorkspaceRuntime
 
 
-def get_axis_previews(
-    access: Annotated[None, Depends(require_laboratory_access)],
-    runtime: Annotated[WorkspaceRuntime, Depends(get_workspace_runtime)],
-):
-    from src.bootstrap.personal_axes_compat import AxisPreviews
-    from src.bootstrap.processing import get_repository
-
-    settings = get_settings()
-    return AxisPreviews(get_repository(), runtime, settings)
-
-
 def get_preview_cases(
     access: Annotated[None, Depends(require_laboratory_access)],
     runtime: Annotated[WorkspaceRuntime, Depends(get_workspace_runtime)],
@@ -29,3 +18,13 @@ def get_preview_cases(
     from src.bootstrap.processing import get_repository
 
     return build_axis_previews(get_repository(), runtime, get_settings())
+
+
+def get_axis_history(
+    access: Annotated[None, Depends(require_laboratory_access)],
+    runtime: Annotated[WorkspaceRuntime, Depends(get_workspace_runtime)],
+):
+    from src.bootstrap.personal_axes_history import build_axis_history
+    from src.bootstrap.processing import get_repository
+
+    return build_axis_history(get_repository(), runtime)

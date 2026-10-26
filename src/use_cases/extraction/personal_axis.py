@@ -1,6 +1,5 @@
 """One concrete extractor shared by sample dry runs and deferred active persistence."""
 
-from dataclasses import replace
 from uuid import UUID
 
 from src.core.documents.ports import DocumentStore
@@ -39,23 +38,6 @@ class PersonalAxisExtractor(Extractor):
         self.version_id = UUID(str(version_id)) if version_id else None
         self.write_context = write_context or AxisWriteContext()
         self.write_applied = True
-
-    # Temporary API for the reservation binder; removed with its SQL migration in stage 4.
-    @property
-    def write_order(self):
-        return self.write_context.order
-
-    @write_order.setter
-    def write_order(self, value):
-        self.write_context = replace(self.write_context, order=value)
-
-    @property
-    def legacy_versions(self):
-        return dict(self.write_context.version_numbers)
-
-    @legacy_versions.setter
-    def legacy_versions(self, value):
-        self.write_context = replace(self.write_context, version_numbers=tuple(value.items()))
 
     @property
     def request_config(self):
@@ -132,7 +114,12 @@ class PersonalAxisExtractor(Extractor):
             findings.append(finding.model_copy(update={"tags": list(tags.values())}))
         return result.model_copy(update={"findings": findings})
 
-    async def write_layer(self, output, payload):
+    async def persist(self, output, *, write_context: AxisWriteContext | None = None):
+        await self.write_layer(
+            output, await self.persistence_payload(output), write_context=write_context
+        )
+
+    async def write_layer(self, output, payload, *, write_context=None):
         if not self.axis_id or not self.version_id or self.store is None:
             raise ValueError("axis_active_binding_required")
         if output.request_config != self.request_config:
@@ -142,5 +129,5 @@ class PersonalAxisExtractor(Extractor):
             payload,
             self.axis_id,
             self.version_id,
-            context=self.write_context,
+            context=write_context or self.write_context,
         )

@@ -1,4 +1,4 @@
-"""Stage 4 bridge: historical orchestration still receives its old dependencies."""
+"""Fixture compatibility only; remove with its remaining test consumers in stage 5."""
 
 from src.adapters.access.api.public.personal_axes.responses import axis_response
 from src.bootstrap.personal_axes_previews import build_axis_previews

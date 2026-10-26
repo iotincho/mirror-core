@@ -8,6 +8,7 @@ from src.core.documents.ports import DocumentNotFoundError
 from src.core.processing.configuration import document_workflow_version
 from src.core.processing.models import ProcessingJob
 from src.core.processing.ports import ProcessingWorkspace
+from src.core.processing.retry import reset_job
 from src.core.processing.submissions import SubmissionConflict, fingerprint
 from src.core.processing.transactions import ProcessingRequests
 
@@ -298,17 +299,7 @@ class RequestProcessing:
 
     def reset(self, transaction, current, now):
         self.changed = True
-        current.status = "queued"
-        current.generation += 1
-        current.version += 1
-        current.fencing_token += 1
-        current.stage_attempts = 0
-        current.error_code = None
-        current.retryable = False
-        current.available_at = current.updated_at = now
-        current.completed_at = None
-        transaction.event(current)
-        transaction.schedule(current)
+        reset_job(transaction, current, now)
 
     async def recover_audio(self, audio_note_id, key):
         current = await self.repository.latest(self.runtime.context.user_id, audio_note_id, "audio")

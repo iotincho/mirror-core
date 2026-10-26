@@ -14,12 +14,12 @@ class ProcessExtractor:
         extractor_factory,
         *,
         artifacts_factory,
-        prepare_persistence,
+        persist_extraction,
         failure_for,
     ):
         self.runtime_factory, self.extractor_factory = runtime_factory, extractor_factory
         self.artifacts_factory = artifacts_factory
-        self.prepare_persistence = prepare_persistence
+        self.persist_extraction = persist_extraction
         self.failure_for = failure_for
 
     @property
@@ -51,8 +51,7 @@ class ProcessExtractor:
                         raise WorkflowFailure("layer_artifact_missing")
                     await context.assert_lease()
                     extractor = self.extractor_factory(runtime, spec, extracting=False)
-                    await self.prepare_persistence(extractor, context)
-                    await extractor.persist(output)
+                    await self.persist_extraction(extractor, output, record)
                     await context.assert_lease()
                     await context.advance("done")
                 if record.stage != "done":

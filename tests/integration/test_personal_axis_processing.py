@@ -21,7 +21,7 @@ from src.bootstrap.acceptance import SubmitAudioNote
 from src.bootstrap.archives import build_delete_document as DeleteDocument
 from src.bootstrap.auth import require_authenticated
 from src.bootstrap.personal_axes_compat import AxisPreviews
-from src.bootstrap.personal_axes_dependencies import get_axis_previews, get_preview_cases
+from src.bootstrap.personal_axes_dependencies import get_preview_cases
 from src.bootstrap.personal_axes_reads import (
     build_axis_definitions,
     build_axis_exploration,
@@ -35,12 +35,11 @@ from src.bootstrap.public_api import app
 from src.bootstrap.settings import get_settings
 from src.core.extractors.contracts import ExtractorProfile
 from src.core.extractors.personal_axes.models import (
+    AxisError,
     AxisSpecification,
     FindingsResponse,
     PreviewRequest,
 )
-from src.extractors.personal_axes.contracts import AxisError
-from src.extractors.personal_axes.exploration import AxisExploration
 from src.extractors.personal_axes.repository import AxisRepository
 from src.use_cases.extraction.personal_axis import PersonalAxisExtractor
 
@@ -131,10 +130,12 @@ async def active(pipeline, monkeypatch):
         "document", 5, ProcessDocumentExtractors(legacy.runtime_factory, keyed=True).definition
     )
     env.registry.register(
-        "extractor", 1, ProcessExtractor(legacy.runtime_factory, factory).definition
+        "extractor",
+        1,
+        ProcessExtractor(legacy.runtime_factory, factory, repository=env.repo).definition,
     )
     env.previews = AxisPreviews(env.repo, env.runtime, get_settings())
-    env.explore = AxisExploration(env.previews)
+    env.explore = build_axis_exploration(env.repo.sessions, env.runtime, owner=env.previews.owner)
     return env
 
 
@@ -309,7 +310,9 @@ async def test_active_branch_pagination_quotes_tags_ownership_and_delete(active)
     assert (await env.explore.tags(axis))["items"][0]["document_count"] == 2
     env.previews.owner = uuid4()
     with pytest.raises(AxisError, match="axis_not_found"):
-        await AxisExploration(env.previews).tags(axis)
+        await build_axis_exploration(env.repo.sessions, env.runtime, owner=env.previews.owner).tags(
+            axis
+        )
     env.previews.owner = env.owner
     await DeleteDocument(
         env.runtime.document_store,
@@ -345,7 +348,6 @@ async def test_version_trace_zero_findings_and_http_contract(active):
     record = await RequestProcessing(env.repo, env.runtime).reprocess_document(first.id, uuid4())
     await finish(env, record)
     assert (await env.explore.tags(axis, old))["items"] == []
-    app.dependency_overrides[get_axis_previews] = lambda: env.previews
     app.dependency_overrides[get_preview_cases] = lambda: env.previews.case
     app.dependency_overrides[get_axis_definitions] = lambda: build_axis_definitions(
         env.repo.sessions, env.owner
@@ -638,3 +640,29 @@ async def test_account_access_stops_new_reservations_and_preserves_accepted_work
     monkeypatch.setattr(get_settings(), "personal_axes_enabled", False)
     _, globally_disabled = await upload(env, uuid4())
     assert all(item["name"] != "personal_axis" for item in globally_disabled.config["extractors"])
+
+
+async def test_write_context_retains_parent_reservation_and_all_accepted_versions(active):
+    from src.adapters.storage.postgres.personal_axes.write_contexts import PostgresAxisWriteContexts
+
+    env = active
+    first = await approve(env)
+    _, parent = await upload(env)
+    _, children = await finish(env, parent)
+    child = next(job for job in children if job.extractor_name == "personal_axis")
+    second = await approve(env, previous=first)
+    await env.axes.set_enabled(env.owner, UUID(first["id"]), False)
+    contexts = PostgresAxisWriteContexts(env.repo.sessions)
+    result = await contexts.for_reservation(
+        env.owner, child.id, UUID(first["id"]), UUID(first["current_version_id"])
+    )
+    assert result.order.startswith("000000000001:")
+    assert result.order.endswith(f":{parent.id}")
+    assert dict(result.version_numbers) == {
+        first["current_version_id"]: 1,
+        second["current_version_id"]: 2,
+    }
+    with pytest.raises(ValueError, match="axis_version_not_found"):
+        await contexts.for_reservation(
+            uuid4(), child.id, UUID(first["id"]), UUID(first["current_version_id"])
+        )

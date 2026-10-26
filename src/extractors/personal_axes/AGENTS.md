@@ -1,24 +1,10 @@
-# Laboratorio / ejes personales
+# Compatibilidad de fixtures de ejes
 
-- Contrato vigente: [personal-axes-api](../../../docs/personal-axes-api.md).
-  Para trabajo diferido consultar [pendientes](../../../docs/pending.md).
-- Núcleo en `../../core/extractors/personal_axes/`, extractor en
-  `../../use_cases/extraction/personal_axis.py`, proveedor/proyección en adaptadores
-  y composición en `../../bootstrap/personal_axes.py`. Definiciones/Laboratorio/lecturas
-  están en `../../use_cases/personal_axes/`, HTTP y SQL en sus adaptadores. Esta carpeta
-  conserva planificación histórica, reservas y puentes temporales; no duplicar
-  consultas ni reintroducir el extractor o SDK aquí.
-- Previews/aceptación/limpieza están en `../../use_cases/personal_axes/`, con
-  archivos en `../../adapters/storage/filesystem/personal_axes/` y reserva SQL
-  en `../../adapters/storage/postgres/personal_axes/previews.py`.
-- Secuencia vigente: [plan](../../../docs/development/personal-axes-migration-plan.md).
-- Acceso exige interruptor global y permiso por cuenta. Consultar autorización
-  antes de abrir el workspace o reservar jobs; no exponer esta mutación en API pública.
-- Previews conservan muestra/hashes y TTL. No escriben la proyección activa.
-  Ajustes mantienen historial acumulativo y cambio de muestra explícito.
-- Aceptar fija una versión inmutable y su evidencia. Editar crea otra versión;
-  rechazar aceptación concurrente sobre una versión base que ya cambió.
-- Resultados e historial conservan identidad de versión/profile; pausar un eje
-  no borra resultados. Usar la coordinación durable existente.
-- Citas literales y voz de hallazgos se validan por separado; no inferir hechos
-  personales para mejorar una descripción. Probar aislamiento de dueño y versión.
+- Implementación vigente: `../../core/extractors/personal_axes/`,
+  `../../use_cases/personal_axes/` y sus adaptadores. Consultar el
+  [mapa](../../../docs/development/repository-map.md) y el
+  [contrato](../../../docs/personal-axes-api.md).
+- Esta carpeta conserva sólo fachadas de errores/diccionarios consumidas por
+  fixtures y `../../bootstrap/personal_axes_compat.py`. No agregar lógica ni SQL.
+- Migrar esos consumidores y retirar las fachadas en la etapa 5 del
+  [plan](../../../docs/development/personal-axes-migration-plan.md).

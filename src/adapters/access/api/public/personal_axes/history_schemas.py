@@ -4,25 +4,17 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel
 
+from src.core.extractors.personal_axes.history import HistoryRequest, HistorySource
 
-class HistorySource(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    document_id: UUID
-    source_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
-
-
-class HistoryRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-    version_id: UUID
-    documents: list[HistorySource] = Field(min_length=1, max_length=1000)
-
-    @model_validator(mode="after")
-    def unique_documents(self):
-        if len({note.document_id for note in self.documents}) != len(self.documents):
-            raise ValueError("duplicate_documents")
-        return self
+__all__ = [
+    "HistoryRequest",
+    "HistorySource",
+    "HistoryCandidates",
+    "HistoryBatchView",
+    "HistoryBatchPage",
+]
 
 
 class HistoryNote(BaseModel):

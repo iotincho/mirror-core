@@ -22,11 +22,16 @@ from test_processing_postgres import store  # noqa: F401
 from src.adapters.access.api.public.routes import processing
 from src.adapters.storage.postgres.accounts import AccessToken, User
 from src.adapters.storage.postgres.models import ProcessingRecord
+from src.adapters.storage.postgres.personal_axes.history_models import AxisHistoryBatch
 from src.bootstrap.auth import get_authenticated_user
 from src.bootstrap.auth import router as auth_router
 from src.bootstrap.database import get_async_session
 from src.bootstrap.personal_axes_api import router as axes_router
-from src.bootstrap.personal_axes_dependencies import get_axis_previews, get_preview_cases
+from src.bootstrap.personal_axes_dependencies import (
+    get_axis_history,
+    get_preview_cases,
+)
+from src.bootstrap.personal_axes_history import build_axis_history, build_history_workflow
 from src.bootstrap.personal_axes_previews import build_preview_workflow
 from src.bootstrap.personal_axes_reads import (
     build_axis_definitions,
@@ -42,8 +47,6 @@ from src.bootstrap.workspaces import get_workspace_runtime
 from src.core.domain.documents import NewDocument, build_document
 from src.core.processing.errors import ResourceBusy
 from src.extractors.personal_axes.contracts import AxisError
-from src.extractors.personal_axes.history_models import AxisHistoryBatch
-from src.use_cases.process_axis_history import ProcessAxisHistory
 
 pytestmark = [
     pytest.mark.anyio,
@@ -85,9 +88,10 @@ async def test_browser_real_laboratory_cycle(active, monkeypatch):
     env.registry.register(
         "axis_history_note",
         1,
-        ProcessAxisHistory(
+        build_history_workflow(
             legacy.runtime_factory,
             env.registry.definitions[("extractor", 1)].run.__self__.extractor_factory,
+            repository=env.repo,
         ).definition,
     )
     for index in range(6):
@@ -128,7 +132,7 @@ async def test_browser_real_laboratory_cycle(active, monkeypatch):
     app.include_router(protected)
     app.dependency_overrides[get_async_session] = session
     app.dependency_overrides[get_workspace_runtime] = runtime
-    app.dependency_overrides[get_axis_previews] = lambda: env.previews
+    app.dependency_overrides[get_axis_history] = lambda: build_axis_history(env.repo, env.runtime)
     app.dependency_overrides[get_preview_cases] = lambda: env.previews.case
     app.dependency_overrides[get_axis_definitions] = lambda: build_axis_definitions(
         env.repo.sessions, env.owner

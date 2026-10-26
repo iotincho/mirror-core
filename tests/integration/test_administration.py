@@ -180,8 +180,8 @@ async def test_api_is_separate_paginated_filtered_and_private(env):
 
 async def test_laboratory_permission_uses_writable_transaction_and_persists(env, monkeypatch):
     from src.bootstrap.administration_settings import get_admin_settings
+    from src.bootstrap.laboratory import laboratory_available
     from src.bootstrap.settings import get_settings
-    from src.extractors.personal_axes.access import laboratory_available
 
     sessions, owners, _, client = env
     monkeypatch.setattr("src.bootstrap.admin_database.get_admin_sessions", lambda: sessions)

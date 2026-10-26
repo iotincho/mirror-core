@@ -12,19 +12,22 @@ from test_emotion_processing import pipeline, run  # noqa: F401
 from test_personal_axis_processing import active, approve  # noqa: F401
 from test_processing_postgres import store  # noqa: F401
 
+from src.adapters.access.api.public.personal_axes.errors import axis_status
+from src.adapters.access.api.public.personal_axes.history_schemas import HistoryRequest
 from src.adapters.storage.postgres.models import ProcessingEvent, ProcessingRecord
+from src.adapters.storage.postgres.personal_axes.history_models import (
+    AxisHistoryBatch,
+    AxisHistoryItem,
+)
 from src.adapters.storage.postgres.personal_axes.models import PersonalAxisVersion
+from src.bootstrap.personal_axes_history import build_history_workflow
 from src.bootstrap.processing import build_executor as ExecuteProcessing
 from src.core.domain.documents import NewDocument, build_document
 from src.core.extractors.contracts import content_hash
-from src.core.extractors.personal_axes.models import AxisSpecification
+from src.core.extractors.personal_axes.models import AxisError, AxisSpecification, AxisWriteContext
 from src.core.extractors.personal_axes.profiles import VOICE_RULES
 from src.core.processing.errors import WorkflowFailure
-from src.extractors.personal_axes.contracts import AxisError
-from src.extractors.personal_axes.history import AxisHistory
-from src.extractors.personal_axes.history_models import AxisHistoryBatch, AxisHistoryItem
-from src.extractors.personal_axes.history_schemas import HistoryRequest
-from src.use_cases.process_axis_history import ProcessAxisHistory
+from src.use_cases.personal_axes.history import AxisHistory
 
 pytestmark = [
     pytest.mark.anyio,
@@ -43,10 +46,14 @@ def anyio_backend():
 @pytest.fixture
 async def history(active):
     env = active
-    env.history = AxisHistory(env.previews)
+    from src.bootstrap.personal_axes_history import build_axis_history
+
+    env.history = build_axis_history(env.repo, env.runtime)
     legacy = env.registry.definitions[("document", 3)].run.__self__
     factory = env.registry.definitions[("extractor", 1)].run.__self__.extractor_factory
-    env.history_worker = ProcessAxisHistory(legacy.runtime_factory, factory)
+    env.history_worker = build_history_workflow(
+        legacy.runtime_factory, factory, repository=env.repo
+    )
     env.registry.register("axis_history_note", 1, env.history_worker.definition)
     try:
         yield env
@@ -288,7 +295,7 @@ async def test_late_old_persistence_cannot_replace_newer_results(history, new_ve
         extractor = factory(runtime, spec, extracting=extracting)
         if not extracting:
 
-            async def fail(_):
+            async def fail(_, **kwargs):
                 raise WorkflowFailure("synthetic_persistence_failure", retryable=True)
 
             extractor.persist = fail
@@ -343,7 +350,7 @@ async def test_history_http_authorization_validation_and_recovery(history, monke
 
     @app.exception_handler(AxisError)
     async def error(_, cause):
-        return JSONResponse({"detail": cause.code}, status_code=cause.status)
+        return JSONResponse({"detail": cause.code}, status_code=axis_status(cause))
 
     path = f"/personal-axes/{axis['id']}/history"
     async with httpx.AsyncClient(
@@ -461,7 +468,7 @@ async def test_transient_coverage_failure_remains_retryable_without_provider_cal
     original = AxisHistory.coverage
 
     async def unavailable(*args):
-        raise AxisError("axis_graph_unavailable", 503)
+        raise AxisError("axis_graph_unavailable")
 
     monkeypatch.setattr(AxisHistory, "coverage", unavailable)
     await ExecuteProcessing(env.repo, env.registry, max_attempts=1)(job.id, job.generation)
@@ -524,7 +531,8 @@ async def test_concurrent_writes_from_the_same_snapshot_keep_only_the_newer_run(
         axis_id=extractor.axis_id,
         version_id=extractor.version_id,
     )
-    extractor.write_order, other.write_order = "000000000001:100", "000000000001:200"
+    extractor.write_context = AxisWriteContext("000000000001:100")
+    other.write_context = AxisWriteContext("000000000001:200")
     original = env.client.transaction
     entered, count = asyncio.Event(), 0
 
@@ -563,4 +571,99 @@ async def test_concurrent_writes_from_the_same_snapshot_keep_only_the_newer_run(
             {"axis_id": axis["id"]},
         )
     )["result"]
-    assert records == [{"id": str(second.run_id), "write_order": other.write_order}]
+    assert records == [{"id": str(second.run_id), "write_order": other.write_context.order}]
+
+
+async def test_interrupted_history_reservation_rolls_back_batch_jobs_and_outbox(
+    history, monkeypatch
+):
+    from src.adapters.storage.postgres.models import ProcessingOutbox
+
+    env = history
+    axis = await approve(env)
+    documents = [env.original, await source(env)]
+    body, key = request(axis, documents), uuid4()
+    schedule, calls = env.repo.schedule, 0
+
+    def interrupted(session, job):
+        nonlocal calls
+        calls += 1
+        schedule(session, job)
+        if calls == 2:
+            raise ConnectionError("synthetic interrupted history reservation")
+
+    monkeypatch.setattr(env.repo, "schedule", interrupted)
+    with pytest.raises(ConnectionError):
+        await env.history.start(UUID(axis["id"]), body, key)
+    async with env.repo.sessions() as session:
+        assert (
+            await session.scalar(
+                select(func.count())
+                .select_from(AxisHistoryBatch)
+                .where(AxisHistoryBatch.user_id == env.owner, AxisHistoryBatch.request_key == key)
+            )
+            == 0
+        )
+        ids = select(ProcessingRecord.id).where(
+            ProcessingRecord.user_id == env.owner, ProcessingRecord.workflow == "axis_history_note"
+        )
+        assert not list(await session.scalars(ids))
+        assert (
+            await session.scalar(
+                select(func.count())
+                .select_from(ProcessingOutbox)
+                .where(ProcessingOutbox.processing_id.in_(ids))
+            )
+            == 0
+        )
+    monkeypatch.setattr(env.repo, "schedule", schedule)
+    batch = await env.history.start(UUID(axis["id"]), body, key)
+    assert len(await jobs(env, batch)) == 2
+    assert (await env.history.start(UUID(axis["id"]), body, key))["id"] == batch["id"]
+
+
+async def test_interrupted_history_retry_rolls_back_receipt_and_all_resets(history, monkeypatch):
+    from sqlalchemy import update
+
+    from src.adapters.storage.postgres.models import ProcessingReceipt
+
+    env = history
+    axis = await approve(env)
+    batch = await env.history.start(
+        UUID(axis["id"]), request(axis, [env.original, await source(env)]), uuid4()
+    )
+    records = await jobs(env, batch)
+    async with env.repo.sessions.begin() as session:
+        await session.execute(
+            update(ProcessingRecord)
+            .where(ProcessingRecord.id.in_([job.id for job in records]))
+            .values(status="failed", retryable=True, error_code="synthetic_failure")
+        )
+    key, schedule, calls = uuid4(), env.repo.schedule, 0
+
+    def interrupted(session, job):
+        nonlocal calls
+        calls += 1
+        schedule(session, job)
+        if calls == 2:
+            raise ConnectionError("synthetic interrupted history retry")
+
+    monkeypatch.setattr(env.repo, "schedule", interrupted)
+    with pytest.raises(ConnectionError):
+        await env.history.retry(UUID(axis["id"]), batch["id"], key)
+    assert all(job.status == "failed" and job.generation == 1 for job in await jobs(env, batch))
+    async with env.repo.sessions() as session:
+        assert (
+            await session.scalar(
+                select(ProcessingReceipt).where(
+                    ProcessingReceipt.user_id == env.owner,
+                    ProcessingReceipt.operation == "axis_history_retry",
+                    ProcessingReceipt.key == key,
+                )
+            )
+            is None
+        )
+    monkeypatch.setattr(env.repo, "schedule", schedule)
+    await env.history.retry(UUID(axis["id"]), batch["id"], key)
+    assert all(job.status == "queued" and job.generation == 2 for job in await jobs(env, batch))
+    assert [job.config for job in await jobs(env, batch)] == [job.config for job in records]

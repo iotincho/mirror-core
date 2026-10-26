@@ -26,7 +26,7 @@ from src.adapters.storage.postgres.repository import ProcessingRepository
 from src.adapters.storage.postgres.workspace_models import UserWorkspace
 from src.bootstrap.auth import require_authenticated
 from src.bootstrap.personal_axes_compat import AxisPreviews
-from src.bootstrap.personal_axes_dependencies import get_axis_previews, get_preview_cases
+from src.bootstrap.personal_axes_dependencies import get_preview_cases
 from src.bootstrap.personal_axes_previews import build_preview_workflow, expire_axis_previews
 from src.bootstrap.personal_axes_reads import build_axis_definitions, get_axis_definitions
 from src.bootstrap.processing import build_executor as ExecuteProcessing
@@ -192,7 +192,6 @@ async def run(lab, preview):
 async def test_full_http_refinement_exact_approval_and_no_document_events(laboratory):
     lab = laboratory
     app.dependency_overrides[require_authenticated] = lambda: None
-    app.dependency_overrides[get_axis_previews] = lambda: lab.service
     app.dependency_overrides[get_preview_cases] = lambda: lab.service.case
     app.dependency_overrides[get_axis_definitions] = lambda: build_axis_definitions(
         lab.sessions, lab.service.owner

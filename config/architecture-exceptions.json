@@ -1,22 +1,14 @@
 {
   "version": 1,
-  "description": "Personal axes etapa 3: previews, worker y limpieza canónicos sin excepciones. Puentes restantes de histórico/reservas para etapa 4 y entrypoints externos.",
+  "description": "Etapa 4: ejes canónicos sin excepciones. Sólo entrypoints externos de mirror-deploy; fachadas restantes consumidas por fixtures hasta etapa 5.",
   "legacy_files": [
     "src/admin_main.py",
     "src/administration/__init__.py",
     "src/administration/sync.py",
     "src/extractors/__init__.py",
     "src/extractors/personal_axes/__init__.py",
-    "src/extractors/personal_axes/access.py",
-    "src/extractors/personal_axes/configuration.py",
     "src/extractors/personal_axes/contracts.py",
-    "src/extractors/personal_axes/exploration.py",
-    "src/extractors/personal_axes/history.py",
-    "src/extractors/personal_axes/history_models.py",
-    "src/extractors/personal_axes/history_schemas.py",
-    "src/extractors/personal_axes/persistence.py",
     "src/extractors/personal_axes/repository.py",
-    "src/extractors/personal_axes/routes.py",
     "src/graph/__init__.py",
     "src/graph/arcadedb/__init__.py",
     "src/graph/arcadedb/schema.py",
@@ -40,18 +32,6 @@
       "target": "src.bootstrap.inventory_sync.main",
       "reason": "Entrypoint consumido por ../mirror-deploy/docker-compose.yml o deploy.sh. Sólo reexporta composición, sin lógica. Retirar cuando mirror-deploy use bootstrap y se valide su arranque.",
       "remove_in": "actualización de comandos de mirror-deploy"
-    },
-    {
-      "source": "src/extractors/personal_axes/history.py",
-      "target": "src.bootstrap.processing.AxisHistoryRequests",
-      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
-      "remove_in": "personal-axes-migration-plan.md: etapa 4"
-    },
-    {
-      "source": "src/extractors/personal_axes/routes.py",
-      "target": "src.bootstrap.public_security.require_same_origin",
-      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
-      "remove_in": "personal-axes-migration-plan.md: etapa 4"
     },
     {
       "source": "src/graph/arcadedb/schema.py",
@@ -94,102 +74,6 @@
       "target": "src.bootstrap.worker.execute_processing",
       "reason": "Entrypoint consumido por ../mirror-deploy/docker-compose.yml o deploy.sh. Sólo reexporta composición, sin lógica. Retirar cuando mirror-deploy use bootstrap y se valide su arranque.",
       "remove_in": "actualización de comandos de mirror-deploy"
-    },
-    {
-      "source": "src/use_cases/process_axis_history.py",
-      "target": "sqlalchemy.exc.SQLAlchemyError",
-      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
-      "remove_in": "personal-axes-migration-plan.md: etapa 4"
-    },
-    {
-      "source": "src/use_cases/process_axis_history.py",
-      "target": "sqlalchemy.func",
-      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
-      "remove_in": "personal-axes-migration-plan.md: etapa 4"
-    },
-    {
-      "source": "src/use_cases/process_axis_history.py",
-      "target": "sqlalchemy.select",
-      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
-      "remove_in": "personal-axes-migration-plan.md: etapa 4"
-    },
-    {
-      "source": "src/use_cases/process_axis_history.py",
-      "target": "src.adapters.storage.filesystem.layer_artifacts.LayerArtifacts",
-      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
-      "remove_in": "personal-axes-migration-plan.md: etapa 4"
-    },
-    {
-      "source": "src/use_cases/process_axis_history.py",
-      "target": "src.bootstrap.failures.failure_for",
-      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
-      "remove_in": "personal-axes-migration-plan.md: etapa 4"
-    },
-    {
-      "source": "src/use_cases/process_axis_history.py",
-      "target": "src.bootstrap.settings.get_settings",
-      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
-      "remove_in": "personal-axes-migration-plan.md: etapa 4"
-    },
-    {
-      "source": "src/use_cases/process_axis_history.py",
-      "target": "src.extractors.personal_axes.contracts.AxisError",
-      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
-      "remove_in": "personal-axes-migration-plan.md: etapa 4"
-    },
-    {
-      "source": "src/use_cases/process_axis_history.py",
-      "target": "src.extractors.personal_axes.history.AxisHistory",
-      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
-      "remove_in": "personal-axes-migration-plan.md: etapa 4"
-    },
-    {
-      "source": "src/use_cases/process_axis_history.py",
-      "target": "src.extractors.personal_axes.history.current_extraction",
-      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
-      "remove_in": "personal-axes-migration-plan.md: etapa 4"
-    },
-    {
-      "source": "src/use_cases/process_axis_history.py",
-      "target": "src.extractors.personal_axes.history_models.AxisHistoryBatch",
-      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
-      "remove_in": "personal-axes-migration-plan.md: etapa 4"
-    },
-    {
-      "source": "src/use_cases/process_axis_history.py",
-      "target": "src.extractors.personal_axes.history_models.AxisHistoryItem",
-      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
-      "remove_in": "personal-axes-migration-plan.md: etapa 4"
-    },
-    {
-      "source": "src/use_cases/process_axis_history.py",
-      "target": "src.extractors.personal_axes.persistence.bind_axis_write",
-      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
-      "remove_in": "personal-axes-migration-plan.md: etapa 4"
-    },
-    {
-      "source": "src/extractors/personal_axes/access.py",
-      "target": "src.bootstrap.laboratory.laboratory_available",
-      "reason": "Alias de disponibilidad para reservas/histórico dentro de su transacción SQL; eliminar con esos consumidores.",
-      "remove_in": "personal-axes-migration-plan.md: etapa 4"
-    },
-    {
-      "source": "src/extractors/personal_axes/exploration.py",
-      "target": "src.bootstrap.personal_axes_reads.build_axis_exploration",
-      "reason": "Puente del histórico legado al lector semántico canónico; no expone transacciones ni duplica consultas.",
-      "remove_in": "personal-axes-migration-plan.md: etapa 4"
-    },
-    {
-      "source": "src/extractors/personal_axes/routes.py",
-      "target": "src.bootstrap.personal_axes_dependencies.get_axis_previews",
-      "reason": "Sólo rutas históricas aún dependen del contenedor anterior; previews usan rutas/casos canónicos separados.",
-      "remove_in": "personal-axes-migration-plan.md: etapa 4"
-    },
-    {
-      "source": "src/use_cases/process_axis_history.py",
-      "target": "src.bootstrap.personal_axes_compat.AxisPreviews",
-      "reason": "Composición temporal explícita del contexto histórico hasta migrar sus transacciones en etapa 4.",
-      "remove_in": "personal-axes-migration-plan.md: etapa 4"
     }
   ]
 }

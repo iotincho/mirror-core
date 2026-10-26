@@ -7,16 +7,17 @@ from zoneinfo import ZoneInfo
 from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 
+from src.adapters.storage.arcadedb.personal_axes import rows
 from src.adapters.storage.postgres.models import ProcessingReceipt, ProcessingRecord
 from src.bootstrap.processing import AxisHistoryRequests as RequestProcessing
 from src.core.documents.ports import DocumentNotFoundError
 from src.core.extractors.contracts import content_hash, digest
+from src.core.extractors.personal_axes.models import AxisSpecification
 from src.extractors.personal_axes.access import laboratory_available
-from src.extractors.personal_axes.contracts import AxisError, AxisSpecification
+from src.extractors.personal_axes.contracts import AxisError
 from src.extractors.personal_axes.exploration import AxisExploration
 from src.extractors.personal_axes.history_models import AxisHistoryBatch, AxisHistoryItem
 from src.extractors.personal_axes.models import PersonalAxis, PersonalAxisVersion
-from src.extractors.personal_axes.store import rows
 
 ACTIVE = ("queued", "running", "retrying", "waiting")
 TERMINAL = {"completed", "skipped", "stopped", "changed", "deleted", "superseded", "failed"}

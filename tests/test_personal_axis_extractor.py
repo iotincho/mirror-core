@@ -3,19 +3,21 @@ from uuid import uuid4
 
 import pytest
 
+from src.adapters.providers.openai.personal_axes import OpenAIAxisProvider
 from src.adapters.storage.filesystem.documents import FileDocumentStore
 from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
 from src.core.domain.documents import NewDocument, build_document
 from src.core.extractors.contracts import ExtractorProfile, ProviderMetadata
-from src.extractors.personal_axes.contracts import (
+from src.core.extractors.personal_axes.models import (
+    AxisProviderError,
     AxisSpecification,
     Criterion,
     FindingsResponse,
     PreviewRequest,
 )
-from src.extractors.personal_axes.extractor import PersonalAxisExtractor
-from src.extractors.personal_axes.prompt_builder import VOICE_RULES, build_specification
-from src.extractors.personal_axes.provider import AxisProviderError, OpenAIAxisProvider
+from src.core.extractors.personal_axes.profiles import VOICE_RULES
+from src.use_cases.extraction.personal_axis import PersonalAxisExtractor
+from src.use_cases.personal_axes.build_specification import build_specification
 
 pytestmark = pytest.mark.anyio
 
@@ -160,7 +162,8 @@ async def test_provider_rejects_incomplete_response_and_disables_retention():
         return SimpleNamespace(status="incomplete", output_parsed=FindingsResponse(findings=[]))
 
     provider = OpenAIAxisProvider(
-        None, "test", client=SimpleNamespace(responses=SimpleNamespace(parse=parse))
+        None, "test", client=SimpleNamespace(responses=SimpleNamespace(parse=parse)),
+        timeout_seconds=10, max_concurrency=2
     )
     with pytest.raises(AxisProviderError, match="incomplete"):
         await provider.extract(
@@ -256,7 +259,8 @@ async def test_personal_voice_reaches_initial_and_corrected_provider_requests(so
         )
     )[0].profile
     provider = OpenAIAxisProvider(
-        None, "test", client=SimpleNamespace(responses=SimpleNamespace(parse=parse))
+        None, "test", client=SimpleNamespace(responses=SimpleNamespace(parse=parse)),
+        timeout_seconds=10, max_concurrency=2
     )
     document = SimpleNamespace(content=source)
     initial, _ = await provider.extract(document, profile)

@@ -4,7 +4,8 @@ import json
 from uuid import uuid5
 
 from src.core.extractors.contracts import content_hash, digest
-from src.extractors.personal_axes.contracts import label_key
+from src.core.extractors.personal_axes.models import AxisWriteContext
+from src.core.extractors.personal_axes.policies import label_key
 
 
 def rows(response):
@@ -19,9 +20,8 @@ class ArcadeDBAxisStore:
     def __init__(self, client):
         self.client = client
 
-    async def write(
-        self, output, payload, axis_id, version_id, *, write_order=None, legacy_versions=None
-    ):
+    async def write(self, output, payload, axis_id, version_id, *, context: AxisWriteContext):
+        write_order, legacy_versions = context.order, dict(context.version_numbers)
         for kind, name in (
             ("VERTEX", "AxisExtraction"),
             ("VERTEX", "AxisFinding"),

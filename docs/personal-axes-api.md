@@ -5,6 +5,19 @@ notas nuevas y exploración de resultados activos por API. La PWA integra estos
 contratos en una sección independiente de Laboratorio. La familia reutiliza `Extractor` y sus artefactos; las citas se
 guardan en relaciones, siguiendo el modelo de emociones.
 
+## Organización interna
+
+Reglas/modelos/puertos en `src/core/extractors/personal_axes/`; ciclo del extractor
+canónico en `src/use_cases/extraction/personal_axis.py`; generación de criterio en
+`src/use_cases/personal_axes/build_specification.py`. OpenAI y la proyección ArcadeDB
+se implementan en sus adaptadores `personal_axes.py`, compuestos por
+`src/bootstrap/personal_axes.py`. Los perfiles, hashes y formatos conservan sus bytes.
+
+Rutas, definiciones SQL, previews e histórico todavía viven en la familia anterior;
+su separación continúa según el [plan](development/personal-axes-migration-plan.md).
+El binder de reservas mantiene temporalmente su API, traducida al contexto tipado
+de escritura. Este movimiento no modifica el contrato funcional siguiente.
+
 ## Configuración y preparación
 
 Aplicar las migraciones Alembic hasta `20261021_17` antes de iniciar los procesos que usan

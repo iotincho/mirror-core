@@ -2,7 +2,7 @@
 
 Organización vigente al 2026-10-26 para el alcance migrado: núcleo, aplicación,
 adaptadores y composición separados y validados con motores aislados e imagen de
-producción. Ejes conserva su reorganización interna pospuesta; los comandos externos
+producción. La gestión de ejes continúa en migración; los comandos externos
 que siguen en uso mantienen puentes mínimos documentados. El
 [mapa](docs/development/repository-map.md) ubica las implementaciones actuales.
 
@@ -170,8 +170,9 @@ el ejecutor común no añade condicionales por cada extractor nuevo.
 Un eje definido por el usuario es compatible con este contrato. Sus acciones de
 definir, probar y aceptar versiones pertenecen a aplicación; sus reglas y tipos,
 al núcleo de extracción, y HTTP/ORM/proveedores a sus adaptadores. El alcance
-actual pospone su reorganización interna, manteniendo compatibilidad y reglas de
-versionado/evidencia sin decidir que deba ser un módulo independiente.
+actual ya separa núcleo, extractor, proveedor y proyección. La gestión de versiones,
+previews e histórico continúa según su [plan](docs/development/personal-axes-migration-plan.md),
+manteniendo compatibilidad y reglas de versionado/evidencia.
 
 ### Procesamiento durable y transacciones
 
@@ -274,8 +275,10 @@ y mantenimiento administrativo explícito, nunca para servir lecturas públicas.
 
 Ejes mantiene puentes explícitos: preparación/orden de escritura y clasificación
 de fallos privados, contexto SQL en workflows experimentales y `AxisHistoryRequests`
-para su reset transaccional. `bootstrap/axis_provider.py` configura su cliente.
-Esos puentes se retiran al reorganizar e inyectar dependencias dentro de ejes.
+para su reset transaccional. `bootstrap/personal_axes.py` configura y cierra sus
+proveedores e inyecta los puertos del extractor canónico. El contexto de escritura
+es tipado; el binder SQL anterior conserva setters compatibles hasta la etapa 4.
+Estos puentes se retiran al migrar la gestión de ejes.
 
 Los entrypoints antiguos aún usados por `mirror-deploy` sólo delegan a bootstrap.
 Su consumidor, motivo y condición de retiro constan en el [mapa](docs/development/repository-map.md)

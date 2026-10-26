@@ -10,6 +10,7 @@ contexto. Las guías describen código implementado; no acreditan despliegue.
 - [Reglas de implementación y fronteras](development/implementation.md).
 - [Arquitectura, responsabilidades y criterios para nuevos módulos](../ARCHITECTURE.md).
 - [Chequeo de fronteras e inventario](development/architecture-checks.md).
+- [Plan por etapas para migrar personal axes](development/personal-axes-migration-plan.md): etapa 1 completa; etapa 2 pendiente.
 - [Verificación y servicios aislados](development/testing.md).
 - [Configuración de agentes y presupuesto de contexto](development/agents.md).
 - [Instrucciones comunes](../AGENTS.md) y [README del proyecto](../README.md).

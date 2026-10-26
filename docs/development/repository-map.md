@@ -3,8 +3,9 @@
 Estado contrastado con código al 2026-10-26. La migración del alcance acordado
 está completada y validada con PostgreSQL, ArcadeDB, RabbitMQ e imagen de producción.
 La [arquitectura](../../ARCHITECTURE.md) define responsabilidades y criterios de crecimiento.
-Ejes mantiene su reorganización interna pospuesta; abajo se identifican sus puentes
-y los entrypoints externos todavía necesarios.
+El núcleo y extractor de ejes completaron la primera etapa de su
+[migración](personal-axes-migration-plan.md); gestión, previews e histórico siguen
+pendientes. Abajo se identifican sus puentes y los entrypoints externos necesarios.
 Leer la fila del área afectada y sus pruebas, no todos los módulos.
 
 | Tarea | Entrada y responsables | Pruebas / contrato |
@@ -26,7 +27,8 @@ Leer la fila del área afectada y sus pruebas, no todos los módulos.
 | Mantenimiento / migraciones | `src/core/maintenance/`, `src/use_cases/maintenance/`; CLI en `adapters/access/cli/`, implementaciones `adapters/storage/{postgres,arcadedb,filesystem}/*migration*.py`; `src/bootstrap/{data_migrations,cleanup_extractions,graph_schema}.py`; Alembic en `migrations/` | `tests/test_consolidated_boundaries.py`, integraciones de datos/cleanup; [operación](../data-migrations.md) |
 | Comandos de extracción / backfill | `src/adapters/access/cli/{extraction,title_backfill}.py`, `src/use_cases/extraction/run_command.py`; `src/bootstrap/{extraction_cli,title_backfill}.py` | `tests/test_title_backfill_cli.py`; contratos de cada extractor |
 | Settings / diagnóstico | `src/bootstrap/{settings,logging,observability}.py`; middleware HTTP en acceso; Sentry en `src/adapters/providers/telemetry/`; `.env.example` | `tests/test_config.py`, `test_request_logging.py`, `test_observability.py`; [Sentry](../sentry.md) |
-| Laboratorio / ejes pospuesto | `src/extractors/personal_axes/`, casos `src/use_cases/*axis*.py`; puentes `src/bootstrap/{axis_provider,processing,failures}.py` | Suites de ejes; [contrato](../personal-axes-api.md) |
+| Extractor de ejes | `src/core/extractors/personal_axes/`, `src/use_cases/extraction/personal_axis.py`, `src/use_cases/personal_axes/build_specification.py`; adaptadores OpenAI/ArcadeDB `personal_axes.py`; `src/bootstrap/personal_axes.py` | `tests/test_personal_axis_application.py`, `test_personal_axis_extractor.py`; [contrato](../personal-axes-api.md) |
+| Laboratorio / gestión de ejes pendiente | `src/extractors/personal_axes/`, casos `src/use_cases/*axis*.py`; puentes `src/bootstrap/{processing,failures}.py` | Suites de previews/histórico; [plan](personal-axes-migration-plan.md) |
 | Imagen / arranque | `Dockerfile`, `Dockerfile.prod`, `docker-compose.yml`, `deploy.sh`, `.github/workflows/` | `tests/test_local_deploy.py`; [imágenes](../production-image-publishing.md) |
 
 ## Compatibilidad y dependencias
@@ -42,10 +44,10 @@ Se conservan exclusivamente los entrypoints externos que todavía consume
 Sus archivos sólo delegan a bootstrap. Retirarlos exige actualizar y validar esos
 comandos externos. La política registra cada import exacto y su condición de retiro.
 
-Ejes conserva su implementación interna. `AxisHistoryRequests` adapta su llamada
-transaccional histórica; `axis_provider` suministra configuración al proveedor;
-los hooks de procesamiento conservan el orden de escritura y errores privados.
-Estos puentes se retiran con el refactor propio de ejes.
+La gestión de ejes sigue heredada. `AxisHistoryRequests` adapta su reset SQL y los
+hooks de procesamiento conservan el orden de escritura y errores privados.
+`bootstrap/personal_axes.py` compone el extractor/proveedor canónicos. El binder
+anterior traduce sus atributos a un contexto tipado hasta migrarse en etapa 4.
 
 Generar el inventario bajo demanda con
 `python3 scripts/check_architecture.py --inventory /tmp/mirror-architecture-inventory.json`;

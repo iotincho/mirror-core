@@ -4,11 +4,12 @@ import json
 from contextlib import asynccontextmanager
 from uuid import UUID
 
+from src.adapters.storage.arcadedb.personal_axes import rows
 from src.core.documents.ports import DocumentNotFoundError
 from src.core.extractors.contracts import content_hash
-from src.extractors.personal_axes.contracts import AxisError, label_key
+from src.core.extractors.personal_axes.policies import label_key
+from src.extractors.personal_axes.contracts import AxisError
 from src.extractors.personal_axes.pagination import decode, encode, next_cursor, page, position
-from src.extractors.personal_axes.store import rows
 
 TYPES = {"AxisExtraction", "AxisFinding", "HAS_AXIS_EXTRACTION", "HAS_AXIS_FINDING"}
 FIELDS = "id, document_id, axis_id, version_id, run_id, title, content, tags_json, content_hash"

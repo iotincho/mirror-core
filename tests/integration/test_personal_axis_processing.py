@@ -14,6 +14,7 @@ from test_emotion_layer import layer_database  # noqa: F401
 from test_emotion_processing import pipeline, run, upload  # noqa: F401
 from test_processing_postgres import store  # noqa: F401
 
+from src.adapters.storage.arcadedb.personal_axes import ArcadeDBAxisStore
 from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
 from src.adapters.storage.postgres.accounts import User
 from src.bootstrap.acceptance import SubmitAudioNote
@@ -25,18 +26,17 @@ from src.bootstrap.processing import build_processing_requests as RequestProcess
 from src.bootstrap.public_api import app
 from src.bootstrap.settings import get_settings
 from src.core.extractors.contracts import ExtractorProfile
-from src.extractors.personal_axes.contracts import (
-    AxisError,
+from src.core.extractors.personal_axes.models import (
     AxisSpecification,
     FindingsResponse,
     PreviewRequest,
 )
+from src.extractors.personal_axes.contracts import AxisError
 from src.extractors.personal_axes.dependencies import get_axis_previews
 from src.extractors.personal_axes.exploration import AxisExploration
-from src.extractors.personal_axes.extractor import PersonalAxisExtractor
 from src.extractors.personal_axes.repository import AxisRepository
-from src.extractors.personal_axes.store import ArcadeDBAxisStore
 from src.use_cases.axis_previews import AxisPreviews
+from src.use_cases.extraction.personal_axis import PersonalAxisExtractor
 
 pytestmark = [
     pytest.mark.anyio,

@@ -13,8 +13,8 @@ from src.bootstrap.auth import get_authenticated_user
 from src.bootstrap.database import get_async_session
 from src.bootstrap.public_security import require_same_origin
 from src.core.auth.identity import AuthenticatedUser
+from src.core.extractors.personal_axes.models import AcceptPreview, PreviewRequest
 from src.extractors.personal_axes.access import laboratory_available
-from src.extractors.personal_axes.contracts import AcceptPreview, PreviewRequest
 from src.extractors.personal_axes.dependencies import get_axis_previews
 from src.extractors.personal_axes.exploration import AxisExploration, preview_neighbors
 from src.extractors.personal_axes.history import AxisHistory

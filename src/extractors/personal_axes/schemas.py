@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
-from src.extractors.personal_axes.contracts import AxisSpecification
+from src.core.extractors.personal_axes.models import AxisSpecification
 
 
 class PreviewError(BaseModel):

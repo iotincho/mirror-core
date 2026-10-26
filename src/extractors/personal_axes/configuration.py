@@ -4,8 +4,8 @@ from copy import deepcopy
 
 from sqlalchemy import select
 
+from src.core.extractors.personal_axes.models import AxisSpecification
 from src.extractors.personal_axes.access import laboratory_available
-from src.extractors.personal_axes.contracts import AxisSpecification
 from src.extractors.personal_axes.models import PersonalAxis, PersonalAxisVersion
 
 

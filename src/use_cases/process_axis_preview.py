@@ -6,12 +6,13 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from src.bootstrap.failures import failure_for
 from src.bootstrap.settings import get_settings
+from src.core.extractors.personal_axes.models import AxisSpecification, PreviewRequest
 from src.core.processing.errors import LeaseLost, WorkflowFailure
 from src.core.processing.workflows import WorkflowDefinition
-from src.extractors.personal_axes.contracts import AxisError, AxisSpecification, PreviewRequest
-from src.extractors.personal_axes.extractor import PersonalAxisExtractor
-from src.extractors.personal_axes.prompt_builder import build_specification
+from src.extractors.personal_axes.contracts import AxisError
 from src.use_cases.axis_previews import AxisPreviews
+from src.use_cases.extraction.personal_axis import PersonalAxisExtractor
+from src.use_cases.personal_axes.build_specification import build_specification
 
 
 class ProcessAxisPreview:

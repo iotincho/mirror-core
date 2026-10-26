@@ -1,43 +1,20 @@
 """One concrete extractor shared by sample dry runs and deferred active persistence."""
 
+from dataclasses import replace
+from uuid import UUID
+
+from src.core.documents.ports import DocumentStore
+from src.core.extractors.artifacts import LayerArtifacts
 from src.core.extractors.contracts import content_hash
-from src.extractors.personal_axes.contracts import (
+from src.core.extractors.personal_axes.models import (
     AxisSpecification,
+    AxisWriteContext,
     Findings,
     FindingsResponse,
-    label_key,
 )
+from src.core.extractors.personal_axes.policies import evidence_issues, label_key
+from src.core.extractors.personal_axes.ports import AxisProjection, AxisProvider
 from src.use_cases.extraction.base import Extractor
-
-
-def evidence_issues(response, content):
-    issues = []
-    for index, finding in enumerate(response.findings):
-        if not finding.title.strip() or not finding.content.strip():
-            issues.append({"code": "finding_empty", "finding": index})
-        if not finding.tags or any(not tag.strip() or len(tag) > 160 for tag in finding.tags):
-            issues.append({"code": "finding_tags_invalid", "finding": index})
-        if not finding.evidence:
-            issues.append({"code": "finding_evidence_missing", "finding": index})
-        seen = set()
-        for position, evidence in enumerate(finding.evidence):
-            quote = evidence.quote
-            offset, matches = 0, 0
-            if quote.strip():
-                while (start := content.find(quote, offset)) >= 0:
-                    matches += 1
-                    offset = start + 1
-            if matches != 1 or quote in seen:
-                issues.append(
-                    {
-                        "code": "finding_evidence_invalid",
-                        "finding": index,
-                        "evidence": position,
-                        "matches": matches,
-                    }
-                )
-            seen.add(quote)
-    return issues
 
 
 class PersonalAxisExtractor(Extractor):
@@ -45,20 +22,40 @@ class PersonalAxisExtractor(Extractor):
 
     def __init__(
         self,
-        documents,
-        artifacts,
+        documents: DocumentStore,
+        artifacts: LayerArtifacts,
         specification,
-        provider=None,
-        store=None,
-        axis_id=None,
-        version_id=None,
+        provider: AxisProvider | None = None,
+        store: AxisProjection | None = None,
+        axis_id: UUID | str | None = None,
+        version_id: UUID | str | None = None,
+        *,
+        write_context: AxisWriteContext | None = None,
     ):
         self.specification = AxisSpecification.model_validate(specification)
         super().__init__(documents, artifacts, self.specification.profile)
         self.provider, self.store = provider, store
-        self.axis_id, self.version_id = axis_id, version_id
-        self.write_order, self.legacy_versions = None, {}
+        self.axis_id = UUID(str(axis_id)) if axis_id else None
+        self.version_id = UUID(str(version_id)) if version_id else None
+        self.write_context = write_context or AxisWriteContext()
         self.write_applied = True
+
+    # Temporary API for the reservation binder; removed with its SQL migration in stage 4.
+    @property
+    def write_order(self):
+        return self.write_context.order
+
+    @write_order.setter
+    def write_order(self, value):
+        self.write_context = replace(self.write_context, order=value)
+
+    @property
+    def legacy_versions(self):
+        return dict(self.write_context.version_numbers)
+
+    @legacy_versions.setter
+    def legacy_versions(self, value):
+        self.write_context = replace(self.write_context, version_numbers=tuple(value.items()))
 
     @property
     def request_config(self):
@@ -145,6 +142,5 @@ class PersonalAxisExtractor(Extractor):
             payload,
             self.axis_id,
             self.version_id,
-            write_order=self.write_order,
-            legacy_versions=self.legacy_versions,
+            context=self.write_context,
         )

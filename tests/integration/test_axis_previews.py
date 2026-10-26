@@ -29,14 +29,10 @@ from src.bootstrap.public_api import app
 from src.bootstrap.settings import Settings
 from src.core.domain.documents import NewDocument, build_document
 from src.core.extractors.contracts import ProviderMetadata
+from src.core.extractors.personal_axes.models import Criterion, FindingsResponse, PreviewRequest
 from src.core.processing.errors import StorageUnavailable
 from src.core.processing.workflows import WorkflowRegistry
-from src.extractors.personal_axes.contracts import (
-    AxisError,
-    Criterion,
-    FindingsResponse,
-    PreviewRequest,
-)
+from src.extractors.personal_axes.contracts import AxisError
 from src.extractors.personal_axes.dependencies import get_axis_previews
 from src.extractors.personal_axes.models import PersonalAxis, PersonalAxisVersion
 from src.use_cases.axis_previews import AxisPreviews

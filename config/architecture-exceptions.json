@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "description": "Capas migradas sin excepciones. Sólo imports exactos de ejes pospuesto y entrypoints todavía consumidos por mirror-deploy; sin implementación duplicada.",
+  "description": "Personal axes etapa 1: núcleo/extractor/adaptadores canónicos sin excepciones. Sólo compatibilidad restante de etapas 2-4 y entrypoints externos de mirror-deploy.",
   "legacy_files": [
     "src/admin_main.py",
     "src/administration/__init__.py",
@@ -12,7 +12,6 @@
     "src/extractors/personal_axes/contracts.py",
     "src/extractors/personal_axes/dependencies.py",
     "src/extractors/personal_axes/exploration.py",
-    "src/extractors/personal_axes/extractor.py",
     "src/extractors/personal_axes/history.py",
     "src/extractors/personal_axes/history_models.py",
     "src/extractors/personal_axes/history_schemas.py",
@@ -21,12 +20,9 @@
     "src/extractors/personal_axes/persistence.py",
     "src/extractors/personal_axes/preview_projection.py",
     "src/extractors/personal_axes/preview_store.py",
-    "src/extractors/personal_axes/prompt_builder.py",
-    "src/extractors/personal_axes/provider.py",
     "src/extractors/personal_axes/repository.py",
     "src/extractors/personal_axes/routes.py",
     "src/extractors/personal_axes/schemas.py",
-    "src/extractors/personal_axes/store.py",
     "src/graph/__init__.py",
     "src/graph/arcadedb/__init__.py",
     "src/graph/arcadedb/schema.py",
@@ -54,68 +50,62 @@
     {
       "source": "src/extractors/personal_axes/access.py",
       "target": "src.bootstrap.auth.get_authenticated_user",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 2"
     },
     {
       "source": "src/extractors/personal_axes/access.py",
       "target": "src.bootstrap.database.get_async_session",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 2"
     },
     {
       "source": "src/extractors/personal_axes/access.py",
       "target": "src.bootstrap.settings.get_settings",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 2"
     },
     {
       "source": "src/extractors/personal_axes/dependencies.py",
       "target": "src.bootstrap.processing.get_repository",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 3"
     },
     {
       "source": "src/extractors/personal_axes/dependencies.py",
       "target": "src.bootstrap.settings.get_settings",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 3"
     },
     {
       "source": "src/extractors/personal_axes/dependencies.py",
       "target": "src.bootstrap.workspaces.get_workspace_runtime",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 3"
     },
     {
       "source": "src/extractors/personal_axes/history.py",
       "target": "src.bootstrap.processing.AxisHistoryRequests",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
-    },
-    {
-      "source": "src/extractors/personal_axes/provider.py",
-      "target": "src.bootstrap.axis_provider.AsyncProvider",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 4"
     },
     {
       "source": "src/extractors/personal_axes/routes.py",
       "target": "src.bootstrap.auth.get_authenticated_user",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 2"
     },
     {
       "source": "src/extractors/personal_axes/routes.py",
       "target": "src.bootstrap.database.get_async_session",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 2"
     },
     {
       "source": "src/extractors/personal_axes/routes.py",
       "target": "src.bootstrap.public_security.require_same_origin",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 2"
     },
     {
       "source": "src/graph/arcadedb/schema.py",
@@ -162,242 +152,194 @@
     {
       "source": "src/use_cases/axis_previews.py",
       "target": "sqlalchemy.func",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 3"
     },
     {
       "source": "src/use_cases/axis_previews.py",
       "target": "sqlalchemy.select",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 3"
     },
     {
       "source": "src/use_cases/axis_previews.py",
       "target": "src.adapters.storage.postgres.models.ProcessingReceipt",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 3"
     },
     {
       "source": "src/use_cases/axis_previews.py",
       "target": "src.adapters.storage.postgres.models.ProcessingRecord",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 3"
     },
     {
       "source": "src/use_cases/axis_previews.py",
       "target": "src.extractors.personal_axes.contracts.AxisError",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
-    },
-    {
-      "source": "src/use_cases/axis_previews.py",
-      "target": "src.extractors.personal_axes.contracts.AxisSpecification",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
-    },
-    {
-      "source": "src/use_cases/axis_previews.py",
-      "target": "src.extractors.personal_axes.contracts.PreviewRequest",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
-    },
-    {
-      "source": "src/use_cases/axis_previews.py",
-      "target": "src.extractors.personal_axes.extractor.PersonalAxisExtractor",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 3"
     },
     {
       "source": "src/use_cases/axis_previews.py",
       "target": "src.extractors.personal_axes.preview_projection.project_preview",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 3"
     },
     {
       "source": "src/use_cases/axis_previews.py",
       "target": "src.extractors.personal_axes.preview_store.PreviewStore",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 3"
     },
     {
       "source": "src/use_cases/axis_previews.py",
       "target": "src.extractors.personal_axes.repository.AxisRepository",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 3"
     },
     {
       "source": "src/use_cases/expire_axis_previews.py",
       "target": "sqlalchemy.delete",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 3"
     },
     {
       "source": "src/use_cases/expire_axis_previews.py",
       "target": "sqlalchemy.func",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 3"
     },
     {
       "source": "src/use_cases/expire_axis_previews.py",
       "target": "sqlalchemy.or_",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 3"
     },
     {
       "source": "src/use_cases/expire_axis_previews.py",
       "target": "sqlalchemy.select",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 3"
     },
     {
       "source": "src/use_cases/expire_axis_previews.py",
       "target": "src.adapters.storage.postgres.models.ProcessingOutbox",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 3"
     },
     {
       "source": "src/use_cases/expire_axis_previews.py",
       "target": "src.adapters.storage.postgres.models.ProcessingReceipt",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 3"
     },
     {
       "source": "src/use_cases/expire_axis_previews.py",
       "target": "src.adapters.storage.postgres.models.ProcessingRecord",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 3"
     },
     {
       "source": "src/use_cases/expire_axis_previews.py",
       "target": "src.extractors.personal_axes.preview_store.PreviewStore",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 3"
     },
     {
       "source": "src/use_cases/process_axis_history.py",
       "target": "sqlalchemy.exc.SQLAlchemyError",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 4"
     },
     {
       "source": "src/use_cases/process_axis_history.py",
       "target": "sqlalchemy.func",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 4"
     },
     {
       "source": "src/use_cases/process_axis_history.py",
       "target": "sqlalchemy.select",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 4"
     },
     {
       "source": "src/use_cases/process_axis_history.py",
       "target": "src.adapters.storage.filesystem.layer_artifacts.LayerArtifacts",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 4"
     },
     {
       "source": "src/use_cases/process_axis_history.py",
       "target": "src.bootstrap.failures.failure_for",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 4"
     },
     {
       "source": "src/use_cases/process_axis_history.py",
       "target": "src.bootstrap.settings.get_settings",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 4"
     },
     {
       "source": "src/use_cases/process_axis_history.py",
       "target": "src.extractors.personal_axes.contracts.AxisError",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
-    },
-    {
-      "source": "src/use_cases/process_axis_history.py",
-      "target": "src.extractors.personal_axes.contracts.AxisSpecification",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 4"
     },
     {
       "source": "src/use_cases/process_axis_history.py",
       "target": "src.extractors.personal_axes.history.AxisHistory",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 4"
     },
     {
       "source": "src/use_cases/process_axis_history.py",
       "target": "src.extractors.personal_axes.history.current_extraction",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 4"
     },
     {
       "source": "src/use_cases/process_axis_history.py",
       "target": "src.extractors.personal_axes.history_models.AxisHistoryBatch",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 4"
     },
     {
       "source": "src/use_cases/process_axis_history.py",
       "target": "src.extractors.personal_axes.history_models.AxisHistoryItem",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 4"
     },
     {
       "source": "src/use_cases/process_axis_history.py",
       "target": "src.extractors.personal_axes.persistence.bind_axis_write",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 4"
     },
     {
       "source": "src/use_cases/process_axis_preview.py",
       "target": "sqlalchemy.exc.SQLAlchemyError",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 3"
     },
     {
       "source": "src/use_cases/process_axis_preview.py",
       "target": "src.bootstrap.failures.failure_for",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 3"
     },
     {
       "source": "src/use_cases/process_axis_preview.py",
       "target": "src.bootstrap.settings.get_settings",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 3"
     },
     {
       "source": "src/use_cases/process_axis_preview.py",
       "target": "src.extractors.personal_axes.contracts.AxisError",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
-    },
-    {
-      "source": "src/use_cases/process_axis_preview.py",
-      "target": "src.extractors.personal_axes.contracts.AxisSpecification",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
-    },
-    {
-      "source": "src/use_cases/process_axis_preview.py",
-      "target": "src.extractors.personal_axes.contracts.PreviewRequest",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
-    },
-    {
-      "source": "src/use_cases/process_axis_preview.py",
-      "target": "src.extractors.personal_axes.extractor.PersonalAxisExtractor",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
-    },
-    {
-      "source": "src/use_cases/process_axis_preview.py",
-      "target": "src.extractors.personal_axes.prompt_builder.build_specification",
-      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
-      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+      "reason": "Dependencia transitoria de gestión de ejes; retirar al migrar este consumidor según el plan de personal axes, sin trasladarla a capas canónicas.",
+      "remove_in": "personal-axes-migration-plan.md: etapa 3"
     }
   ]
 }

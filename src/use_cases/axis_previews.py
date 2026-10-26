@@ -8,15 +8,12 @@ from sqlalchemy import func, select
 
 from src.adapters.storage.postgres.models import ProcessingReceipt, ProcessingRecord
 from src.core.documents.ports import DocumentNotFoundError
-from src.extractors.personal_axes.contracts import (
-    AxisError,
-    AxisSpecification,
-    PreviewRequest,
-)
-from src.extractors.personal_axes.extractor import PersonalAxisExtractor
+from src.core.extractors.personal_axes.models import AxisSpecification, PreviewRequest
+from src.extractors.personal_axes.contracts import AxisError
 from src.extractors.personal_axes.preview_projection import project_preview
 from src.extractors.personal_axes.preview_store import PreviewStore
 from src.extractors.personal_axes.repository import AxisRepository
+from src.use_cases.extraction.personal_axis import PersonalAxisExtractor
 
 
 class AxisPreviews:

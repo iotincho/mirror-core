@@ -2,7 +2,7 @@
 
 from uuid import UUID, uuid5
 
-from src.extractors.personal_axes.contracts import label_key
+from src.core.extractors.personal_axes.policies import label_key
 
 
 def project_preview(preview_id, documents):

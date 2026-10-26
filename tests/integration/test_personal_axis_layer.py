@@ -5,9 +5,9 @@ from uuid import uuid4, uuid5
 import pytest
 from test_emotion_layer import layer_database  # noqa: F401
 
-from src.extractors.personal_axes.contracts import AxisSpecification, FindingsResponse
-from src.extractors.personal_axes.extractor import PersonalAxisExtractor
-from src.extractors.personal_axes.store import ArcadeDBAxisStore
+from src.adapters.storage.arcadedb.personal_axes import ArcadeDBAxisStore
+from src.core.extractors.personal_axes.models import AxisSpecification, FindingsResponse
+from src.use_cases.extraction.personal_axis import PersonalAxisExtractor
 
 pytestmark = [
     pytest.mark.anyio,

@@ -10,6 +10,7 @@ from datetime import timedelta
 import anyio
 from sqlalchemy import func, select
 
+from src.adapters.storage.postgres.boundaries import database_call
 from src.adapters.storage.postgres.models import ProcessingDelivery, ProcessingEvent
 
 RETENTION = timedelta(days=7)
@@ -20,6 +21,7 @@ class EventFeed:
     def __init__(self, sessions):
         self.sessions = sessions
 
+    @database_call
     async def publish(self):
         with anyio.CancelScope(shield=True):
             async with self.sessions.begin() as session:
@@ -41,6 +43,7 @@ class EventFeed:
                 )
                 session.add_all(ProcessingDelivery(event_id=id_) for id_ in ids)
 
+    @database_call
     async def bounds(self):
         with anyio.CancelScope(shield=True):
             async with self.sessions() as session:
@@ -52,6 +55,7 @@ class EventFeed:
                 )
                 return low, high
 
+    @database_call
     async def cursor_retained(self, cursor):
         with anyio.CancelScope(shield=True):
             async with self.sessions() as session:
@@ -67,6 +71,7 @@ class EventFeed:
                     is not None
                 )
 
+    @database_call
     async def read(self, owner, after, limit=100):
         with anyio.CancelScope(shield=True):
             async with self.sessions() as session:

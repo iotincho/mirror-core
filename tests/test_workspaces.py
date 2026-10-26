@@ -11,8 +11,8 @@ from src.adapters.storage.postgres.workspace_repository import (
     workspace_database_name,
     workspace_graph_username,
 )
+from src.bootstrap.settings import Settings
 from src.bootstrap.workspaces import WorkspaceSecretCipher
-from src.config import Settings
 from src.core.workspaces.errors import WorkspaceSecretError
 
 

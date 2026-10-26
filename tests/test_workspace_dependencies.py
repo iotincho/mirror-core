@@ -6,12 +6,12 @@ import pytest
 from fastapi import HTTPException
 
 from src.adapters.storage.postgres.workspace_models import WorkspaceStatus
+from src.bootstrap.settings import Settings
 from src.bootstrap.workspaces import (
     WorkspaceSecretCipher,
     build_workspace_runtime,
     get_workspace_binding,
 )
-from src.config import Settings
 from src.core.auth.identity import AuthenticatedUser
 from src.core.workspaces.context import UserWorkspaceContext, WorkspaceBinding
 from src.core.workspaces.models import Workspace

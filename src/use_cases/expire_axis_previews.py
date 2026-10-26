@@ -5,8 +5,12 @@ from uuid import UUID
 
 from sqlalchemy import delete, func, or_, select
 
+from src.adapters.storage.postgres.models import (
+    ProcessingOutbox,
+    ProcessingReceipt,
+    ProcessingRecord,
+)
 from src.extractors.personal_axes.preview_store import PreviewStore
-from src.processing.models import ProcessingOutbox, ProcessingReceipt, ProcessingRecord
 
 _orphan_cursors = {}
 

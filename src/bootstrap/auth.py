@@ -20,7 +20,7 @@ from src.adapters.storage.postgres.authentication import PostgresAuthentication
 from src.bootstrap.database import get_access_token_db, get_user_db
 from src.bootstrap.oauth import get_google_oauth_configuration
 from src.bootstrap.recovery import router as recovery_router
-from src.config import get_settings
+from src.bootstrap.settings import get_settings
 from src.core.auth.identity import AuthenticatedUser as AuthenticatedUser
 from src.use_cases.auth.authenticate import AuthenticateUser
 

@@ -168,9 +168,9 @@ nuevas. No hace falta otro contenedor ni un timer dentro del proceso web.
 Arranque fuera de Compose, con PostgreSQL migrado y RabbitMQ disponibles:
 
 ```sh
-python -m taskiq worker src.processing.broker:broker src.processing.tasks \
+python -m taskiq worker src.bootstrap.messaging:broker src.bootstrap.worker \
   --workers 1 --max-async-tasks 4 --max-prefetch 0 --ack-type manual
-python -m src.processing.dispatcher
+python -m src.bootstrap.dispatcher
 ```
 
 `DATABASE_URL`, `RABBITMQ_URL` y `PROCESSING_QUEUE_NAME` deben corresponder al

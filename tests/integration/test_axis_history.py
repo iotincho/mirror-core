@@ -12,16 +12,17 @@ from test_emotion_processing import pipeline, run  # noqa: F401
 from test_personal_axis_processing import active, approve  # noqa: F401
 from test_processing_postgres import store  # noqa: F401
 
-from src.domain.documents import NewDocument, build_document
-from src.extractors.contracts import content_hash
+from src.adapters.storage.postgres.models import ProcessingEvent, ProcessingRecord
+from src.bootstrap.processing import build_executor as ExecuteProcessing
+from src.core.domain.documents import NewDocument, build_document
+from src.core.extractors.contracts import content_hash
+from src.core.processing.errors import WorkflowFailure
 from src.extractors.personal_axes.contracts import AxisError, AxisSpecification
 from src.extractors.personal_axes.history import AxisHistory
 from src.extractors.personal_axes.history_models import AxisHistoryBatch, AxisHistoryItem
 from src.extractors.personal_axes.history_schemas import HistoryRequest
 from src.extractors.personal_axes.models import PersonalAxisVersion
 from src.extractors.personal_axes.prompt_builder import VOICE_RULES
-from src.processing.execution import ExecuteProcessing, WorkflowFailure
-from src.processing.models import ProcessingEvent, ProcessingRecord
 from src.use_cases.process_axis_history import ProcessAxisHistory
 
 pytestmark = [
@@ -337,7 +338,7 @@ async def test_history_http_authorization_validation_and_recovery(history, monke
     app.dependency_overrides[get_authenticated_user] = lambda: AuthenticatedUser(
         id=env.owner, email="test@example.test"
     )
-    monkeypatch.setattr("src.processing.runtime.get_repository", lambda: env.repo)
+    monkeypatch.setattr("src.bootstrap.processing.get_repository", lambda: env.repo)
 
     @app.exception_handler(AxisError)
     async def error(_, cause):
@@ -496,7 +497,7 @@ async def test_concurrent_writes_from_the_same_snapshot_keep_only_the_newer_run(
 
     from test_axis_previews import Provider
 
-    from src.extractors.artifacts import LayerArtifacts
+    from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
     from src.extractors.personal_axes.extractor import PersonalAxisExtractor
     from src.extractors.personal_axes.store import ArcadeDBAxisStore
 

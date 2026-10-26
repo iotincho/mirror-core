@@ -77,12 +77,12 @@ async def test_original_to_title_and_projection_recovery_uses_only_injected_port
 
 def test_legacy_model_and_error_imports_preserve_runtime_identity():
     from src.core.domain.audio_notes import AudioNote
+    from src.core.domain.audio_notes import AudioNote as LegacyAudioNote
     from src.core.domain.documents import Document
+    from src.core.domain.documents import Document as LegacyDocument
+    from src.core.extractors.document_title import DocumentTitle as LegacyTitle
     from src.core.processing.errors import WorkflowFailure
-    from src.domain.audio_notes import AudioNote as LegacyAudioNote
-    from src.domain.documents import Document as LegacyDocument
-    from src.extractors.document_title import DocumentTitle as LegacyTitle
-    from src.processing.execution import WorkflowFailure as LegacyFailure
+    from src.core.processing.errors import WorkflowFailure as LegacyFailure
 
     assert (Document, AudioNote, DocumentTitle, WorkflowFailure) == (
         LegacyDocument, LegacyAudioNote, LegacyTitle, LegacyFailure,

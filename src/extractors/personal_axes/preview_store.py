@@ -5,9 +5,9 @@ import shutil
 from datetime import UTC, datetime
 from uuid import UUID, uuid5
 
-from src.extractors.artifacts import LayerArtifacts
+from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
+from src.adapters.storage.filesystem.processing_artifacts import ProcessingArtifacts
 from src.extractors.personal_axes.contracts import AxisError
-from src.processing.artifacts import ProcessingArtifacts
 
 
 class PreviewStore:

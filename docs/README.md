@@ -9,8 +9,6 @@ contexto. Las guías describen código implementado; no acreditan despliegue.
 - [Mapa de módulos y pruebas](development/repository-map.md).
 - [Reglas de implementación y fronteras](development/implementation.md).
 - [Arquitectura, responsabilidades y criterios para nuevos módulos](../ARCHITECTURE.md).
-- [Plan de migración hexagonal](development/hexagonal-migration-plan.md): etapa 0
-  completada, piloto pendiente y ejes fuera del refactor interno inicial.
 - [Chequeo de fronteras e inventario](development/architecture-checks.md).
 - [Verificación y servicios aislados](development/testing.md).
 - [Configuración de agentes y presupuesto de contexto](development/agents.md).
@@ -23,7 +21,7 @@ contexto. Las guías describen código implementado; no acreditan despliegue.
 | Runtime durable | [processing-runtime](processing-runtime.md) | [Eventos PWA/SSE](processing-pwa-events.md) |
 | Ingestión diferida | [deferred-ingestion](deferred-ingestion.md) | [Reprocesamiento](reprocess-notes.md) |
 | Extractores independientes | [extractor-jobs](extractor-jobs.md) | [Migraciones de datos](data-migrations.md) |
-| Emociones | [emotion-extractor](emotion-extractor.md) | [Navegación y grafo](../src/graph/README.md) |
+| Emociones | [emotion-extractor](emotion-extractor.md) | [Navegación y grafo](graph-navigation.md) |
 | Embeddings | [document-embeddings](document-embeddings.md) | La búsqueda HTTP anterior sigue retirada |
 | Títulos | [document-title-extractor](document-title-extractor.md) | Generación independiente y títulos al leer |
 | Laboratorio / ejes | [personal-axes-api](personal-axes-api.md) | Versiones, pruebas, resultados e historial |

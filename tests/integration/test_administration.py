@@ -10,6 +10,7 @@ import pytest
 from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from src.adapters.storage.filesystem.documents import FileDocumentStore
 from src.adapters.storage.postgres.accounts import User
 from src.adapters.storage.postgres.administration import AdministrationRepository
 from src.adapters.storage.postgres.administration_models import (
@@ -19,15 +20,14 @@ from src.adapters.storage.postgres.administration_models import (
     UserActivity,
 )
 from src.adapters.storage.postgres.inventory import LOCK_ID
+from src.adapters.storage.postgres.models import ProcessingReceipt, ProcessingRecord
 from src.adapters.storage.postgres.workspace_models import UserWorkspace
-from src.admin_main import app
 from src.bootstrap.activity import record_access
 from src.bootstrap.admin_database import admin_session
+from src.bootstrap.administration import app
 from src.bootstrap.inventory_sync import SyncInventory
 from src.core.administration.rules import period_start
-from src.domain.documents import NewDocument, build_document
-from src.processing.models import ProcessingReceipt, ProcessingRecord
-from src.services.document_store import FileDocumentStore
+from src.core.domain.documents import NewDocument, build_document
 
 pytestmark = [
     pytest.mark.anyio,
@@ -172,7 +172,7 @@ async def test_api_is_separate_paginated_filtered_and_private(env):
     ).status_code == 422
     assert (await client.get(f"/api/admin/users/{uuid4()}")).status_code == 404
     assert (await client.delete(f"/api/admin/users/{owners[0]}")).status_code == 405
-    from src.main import app as public_app
+    from src.bootstrap.public_api import app as public_app
 
     assert not any("admin" in route for route in public_app.openapi()["paths"])
     assert not any("documents" in route for route in app.openapi()["paths"])
@@ -180,7 +180,7 @@ async def test_api_is_separate_paginated_filtered_and_private(env):
 
 async def test_laboratory_permission_uses_writable_transaction_and_persists(env, monkeypatch):
     from src.bootstrap.administration_settings import get_admin_settings
-    from src.config import get_settings
+    from src.bootstrap.settings import get_settings
     from src.extractors.personal_axes.access import laboratory_available
 
     sessions, owners, _, client = env

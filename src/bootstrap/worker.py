@@ -4,8 +4,8 @@ import asyncio as asyncio
 
 from src.adapters.access.workers.processing import register_tasks
 from src.bootstrap.messaging import broker
+from src.bootstrap.observability import initialize_sentry, report_issue, trace_operation
 from src.bootstrap.processing import get_executor
-from src.observability import initialize_sentry, report_issue, trace_operation
 
 
 async def close_resources():

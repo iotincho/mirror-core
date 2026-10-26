@@ -2,11 +2,11 @@
 
 from types import SimpleNamespace
 
-from src.extractors.document_title import TITLE_PROFILE
-from src.extractors.emotions import EMOTIONS_PROFILE
-from src.processing.configuration import document_workflow_version
-from src.processing.workflows import workflow_extractor
-from src.use_cases.submit_processing import workflow_config
+from src.bootstrap.acceptance import workflow_config
+from src.bootstrap.workflows import workflow_extractor
+from src.core.extractors.document_title import TITLE_PROFILE
+from src.core.extractors.emotions import EMOTIONS_PROFILE
+from src.core.processing.configuration import document_workflow_version
 
 
 def test_new_upload_pins_emotion_profile_provider_and_model(monkeypatch):
@@ -20,7 +20,7 @@ def test_new_upload_pins_emotion_profile_provider_and_model(monkeypatch):
         embedding_section_max_tokens=2000,
         embedding_section_target_tokens=1000,
     )
-    monkeypatch.setattr("src.use_cases.submit_processing.get_settings", lambda: settings)
+    monkeypatch.setattr("src.bootstrap.acceptance.get_settings", lambda: settings)
     config = workflow_config()
     settings.openai_model = "changed-after-acceptance"
     assert config["extractors"][:1] == [
@@ -53,7 +53,7 @@ def test_extraction_factory_uses_accepted_model_and_prompt(monkeypatch, tmp_path
         captured.append((name, model))
         return provider
 
-    monkeypatch.setattr("src.processing.workflows.emotion_provider_configured", configured)
+    monkeypatch.setattr("src.bootstrap.workflows.emotion_provider_configured", configured)
     runtime = SimpleNamespace(
         document_store=object(),
         context=SimpleNamespace(filesystem_root=tmp_path),
@@ -76,7 +76,7 @@ def test_persistence_factory_has_no_provider_dependency(monkeypatch, tmp_path):
     def forbidden(*args):
         raise AssertionError("persistence must not construct a model provider")
 
-    monkeypatch.setattr("src.processing.workflows.emotion_provider_configured", forbidden)
+    monkeypatch.setattr("src.bootstrap.workflows.emotion_provider_configured", forbidden)
     runtime = SimpleNamespace(
         document_store=object(),
         context=SimpleNamespace(filesystem_root=tmp_path),
@@ -96,7 +96,7 @@ def test_title_factory_pins_configuration_and_persistence_needs_no_provider(monk
         captured.append((name, model))
         return provider
 
-    monkeypatch.setattr("src.processing.workflows.title_provider_configured", configured)
+    monkeypatch.setattr("src.bootstrap.workflows.title_provider_configured", configured)
     runtime = SimpleNamespace(
         document_store=object(),
         context=SimpleNamespace(filesystem_root=tmp_path),

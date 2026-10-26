@@ -12,16 +12,17 @@ from test_emotion_layer import layer_database  # noqa: F401
 from test_emotion_processing import pipeline, run, upload  # noqa: F401
 from test_processing_postgres import store  # noqa: F401
 
-from src.extractors.artifacts import LayerArtifacts
-from src.extractors.contracts import ExtractorProfile, ProviderMetadata
-from src.extractors.document_title import TITLE_PROFILE, DocumentTitle, DocumentTitleExtractor
-from src.extractors.document_title_store import ArcadeDBDocumentTitleStore
-from src.processing.submissions import fingerprint
-from src.use_cases.document_archive import DocumentArchive, DocumentArchiveTransfer
-from src.use_cases.process_document_extractors import ProcessDocumentExtractors
-from src.use_cases.process_extractor import ProcessExtractor
-from src.use_cases.request_processing import RequestProcessing
-from src.use_cases.submit_processing import SubmitAudioNote, recover_submissions
+from src.adapters.storage.arcadedb.document_titles import ArcadeDBDocumentTitleStore
+from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
+from src.bootstrap.acceptance import SubmitAudioNote, recover_submissions
+from src.bootstrap.archives import DocumentArchive, DocumentArchiveTransfer
+from src.bootstrap.processing import build_document_coordinator as ProcessDocumentExtractors
+from src.bootstrap.processing import build_extractor_processor as ProcessExtractor
+from src.bootstrap.processing import build_processing_requests as RequestProcessing
+from src.core.extractors.contracts import ExtractorProfile, ProviderMetadata
+from src.core.extractors.document_title import TITLE_PROFILE, DocumentTitle
+from src.core.processing.submissions import fingerprint
+from src.use_cases.extraction.document_title import DocumentTitleExtractor
 
 pytestmark = [
     pytest.mark.anyio,
@@ -43,7 +44,7 @@ async def titled(pipeline, monkeypatch):
     config = env.registry.definitions[("document", 3)].run.__self__
     runtime_factory, emotion_factory = config.runtime_factory, config.extractor_factory
     # Reuse the fixture's accepted emotion configuration and add the independent title job.
-    from src.use_cases.submit_processing import workflow_config
+    from src.bootstrap.acceptance import workflow_config
 
     accepted = workflow_config()
     accepted["document_workflow_version"] = 4
@@ -83,7 +84,7 @@ async def titled(pipeline, monkeypatch):
     env.registry.register("document", 4, ProcessDocumentExtractors(runtime_factory).definition)
     env.registry.register("extractor", 1, ProcessExtractor(runtime_factory, factory).definition)
     env.runtime_factory = runtime_factory
-    monkeypatch.setattr("src.use_cases.document_archive.workflow_config", lambda: accepted)
+    monkeypatch.setattr("src.bootstrap.archives.workflow_config", lambda: accepted)
     return env
 
 
@@ -176,7 +177,7 @@ async def test_audio_title_reprocess_and_import_keep_transcript_and_existing_tit
 async def test_interrupted_import_recovery_and_legacy_receipt_replay(titled):
     env = titled
     doc = env.original.model_copy(update={"title": None, "id": uuid4()})
-    from src.use_cases.submit_processing import imported_document_identity, workflow_config
+    from src.bootstrap.acceptance import imported_document_identity, workflow_config
 
     receipt = await env.submit.reserve(
         user_id=env.owner,
@@ -201,7 +202,7 @@ async def test_interrupted_import_recovery_and_legacy_receipt_replay(titled):
     await run(env, parent)
     assert env.title_provider.extract.await_count == 0
     # Simulate an accepted pre-title-feature import receipt, whose hash included title.
-    from src.processing.models import ProcessingReceipt
+    from src.adapters.storage.postgres.models import ProcessingReceipt
 
     async with env.repo.sessions.begin() as session:
         legacy = await session.get(ProcessingReceipt, recovered.id)

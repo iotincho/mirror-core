@@ -97,9 +97,9 @@ los reintentos. El comando worker debe usar `--ack-type manual`.
 Para ejecutar sin Compose, con PostgreSQL migrado y RabbitMQ disponibles:
 
 ```bash
-python -m taskiq worker src.processing.broker:broker src.processing.tasks \
+python -m taskiq worker src.bootstrap.messaging:broker src.bootstrap.worker \
   --workers 1 --max-async-tasks 4 --max-prefetch 0 --ack-type manual
-python -m src.processing.dispatcher
+python -m src.bootstrap.dispatcher
 ```
 
 `DATABASE_URL`, `RABBITMQ_URL` y los paths de datos deben apuntar a los mismos
@@ -146,3 +146,13 @@ Referencias: [Taskiq CLI y ACK manual](https://taskiq-python.github.io/guide/cli
 [releases RabbitMQ](https://www.rabbitmq.com/release-information).
 La implementación usa la API publicada de `taskiq-aio-pika 0.5`, cuya firma
 difiere de la documentación de la rama `master`.
+
+## Ubicación y compatibilidad de procesos
+
+Los comandos canónicos son `src.bootstrap.messaging:broker` con
+`src.bootstrap.worker`, y `python -m src.bootstrap.dispatcher`. El registro de
+versiones se compone en `src/bootstrap/workflow_registry.py`, separado de las
+factories para evitar ciclos de imports. La tarea de transporte conserva su nombre
+`processing.execute`; este movimiento no cambia mensajes, versiones ni configuración
+ya aceptada. Los entrypoints `src.processing.*` aún usados por mirror-deploy sólo
+delegan a estos componentes y se retiran al actualizar ese consumidor externo.

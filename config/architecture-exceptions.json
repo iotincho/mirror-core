@@ -1,46 +1,11 @@
 {
   "version": 1,
-  "description": "Migración etapas 0-5. Excepciones exactas de consumidores heredados/entrypoints y ejes pospuesto; sin excepciones en core o aplicación canónicos.",
+  "description": "Capas migradas sin excepciones. Sólo imports exactos de ejes pospuesto y entrypoints todavía consumidos por mirror-deploy; sin implementación duplicada.",
   "legacy_files": [
     "src/admin_main.py",
-    "src/api/__init__.py",
-    "src/api/error_handlers.py",
-    "src/api/request_logging.py",
-    "src/api/router.py",
-    "src/api/routes/__init__.py",
-    "src/api/routes/audio_notes.py",
-    "src/api/routes/auth.py",
-    "src/api/routes/document_archive.py",
-    "src/api/routes/documents.py",
-    "src/api/routes/events.py",
-    "src/api/routes/graph.py",
-    "src/api/routes/processing.py",
-    "src/api/routes/retired.py",
-    "src/api/routes/system.py",
-    "src/api/schemas/__init__.py",
-    "src/api/schemas/audio_notes.py",
-    "src/api/schemas/documents.py",
-    "src/api/schemas/processing.py",
-    "src/config.py",
-    "src/dependencies.py",
-    "src/domain/__init__.py",
-    "src/domain/audio_notes.py",
-    "src/domain/documents.py",
+    "src/administration/__init__.py",
+    "src/administration/sync.py",
     "src/extractors/__init__.py",
-    "src/extractors/artifacts.py",
-    "src/extractors/backfill_titles.py",
-    "src/extractors/base.py",
-    "src/extractors/cli.py",
-    "src/extractors/contracts.py",
-    "src/extractors/document_embedding_store.py",
-    "src/extractors/document_embeddings.py",
-    "src/extractors/document_title.py",
-    "src/extractors/document_title_store.py",
-    "src/extractors/emotion_evidence.py",
-    "src/extractors/emotions.py",
-    "src/extractors/openai_document_embeddings.py",
-    "src/extractors/openai_document_title.py",
-    "src/extractors/openai_emotions.py",
     "src/extractors/personal_axes/__init__.py",
     "src/extractors/personal_axes/access.py",
     "src/extractors/personal_axes/configuration.py",
@@ -62,672 +27,377 @@
     "src/extractors/personal_axes/routes.py",
     "src/extractors/personal_axes/schemas.py",
     "src/extractors/personal_axes/store.py",
-    "src/extractors/registry.py",
     "src/graph/__init__.py",
     "src/graph/arcadedb/__init__.py",
-    "src/graph/arcadedb/client.py",
-    "src/graph/arcadedb/queries.py",
     "src/graph/arcadedb/schema.py",
-    "src/graph/arcadedb/store.py",
-    "src/graph/contracts.py",
-    "src/graph/emotion_exploration.py",
-    "src/logging.py",
     "src/main.py",
     "src/maintenance/__init__.py",
-    "src/maintenance/cleanup_extractions.py",
     "src/maintenance/data_migrations.py",
-    "src/maintenance/extraction_cleanup.py",
-    "src/maintenance/models.py",
-    "src/observability.py",
     "src/processing/__init__.py",
-    "src/processing/artifacts.py",
     "src/processing/broker.py",
-    "src/processing/configuration.py",
     "src/processing/dispatcher.py",
-    "src/processing/events.py",
-    "src/processing/execution.py",
-    "src/processing/failures.py",
-    "src/processing/models.py",
-    "src/processing/projections.py",
-    "src/processing/repository.py",
-    "src/processing/runtime.py",
-    "src/processing/submissions.py",
-    "src/processing/tasks.py",
-    "src/processing/workflows.py",
-    "src/services/__init__.py",
-    "src/services/async_provider.py",
-    "src/services/audio_note_store.py",
-    "src/services/audio_transcoding.py",
-    "src/services/document_store.py",
-    "src/services/durable_files.py",
-    "src/services/graph_store.py",
-    "src/services/openai_transcription_provider.py",
-    "src/services/transcription_provider.py"
+    "src/processing/tasks.py"
   ],
   "exceptions": [
     {
       "source": "src/admin_main.py",
       "target": "src.bootstrap.administration.app",
-      "reason": "Entrypoint LAN conservado para comandos Docker/deploy existentes; sólo expone la aplicación independiente de bootstrap.",
-      "remove_in": "6"
+      "reason": "Entrypoint consumido por ../mirror-deploy/docker-compose.yml o deploy.sh. Sólo reexporta composición, sin lógica. Retirar cuando mirror-deploy use bootstrap y se valide su arranque.",
+      "remove_in": "actualización de comandos de mirror-deploy"
     },
     {
-      "source": "src/api/router.py",
-      "target": "src.bootstrap.auth.require_authenticated",
-      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/api/router.py",
-      "target": "src.bootstrap.public_channels.activity_router",
-      "reason": "Router público heredado conecta las rutas ya compuestas de actividad; consolidar aplicación pública en etapa 6.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/api/router.py",
-      "target": "src.bootstrap.public_channels.invitation_router",
-      "reason": "Router público heredado conecta las rutas ya compuestas de invitaciones; consolidar aplicación pública en etapa 6.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/api/router.py",
-      "target": "src.bootstrap.public_channels.notification_router",
-      "reason": "Router público heredado conecta las rutas ya compuestas de bandeja; consolidar aplicación pública en etapa 6.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/api/router.py",
-      "target": "src.bootstrap.workspaces.router",
-      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/api/routes/auth.py",
-      "target": "src.bootstrap.auth.router",
-      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/api/routes/document_archive.py",
-      "target": "src.bootstrap.auth.get_authenticated_user",
-      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/api/routes/document_archive.py",
-      "target": "src.bootstrap.database.get_async_session",
-      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/api/routes/document_archive.py",
-      "target": "src.bootstrap.workspaces.get_workspace_runtime",
-      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/api/routes/events.py",
-      "target": "src.bootstrap.auth.COOKIE_NAME",
-      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/api/routes/events.py",
-      "target": "src.bootstrap.database.get_session_maker",
-      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/api/routes/processing.py",
-      "target": "src.bootstrap.workspaces.get_workspace_runtime",
-      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/dependencies.py",
-      "target": "src.bootstrap.workspaces.get_workspace_runtime",
-      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/extractors/backfill_titles.py",
-      "target": "src.bootstrap.database.close_database",
-      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/extractors/cli.py",
-      "target": "src.bootstrap.database.close_database",
-      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/extractors/document_embeddings.py",
-      "target": "src.bootstrap.extraction.build_embedding_extractor",
-      "reason": "Puente exacto de constructor/import o CLI para consumidores identificados. Implementación única en capas canónicas; retirar con sus consumidores en consolidación.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/extractors/emotions.py",
-      "target": "src.bootstrap.extraction.build_emotion_extractor",
-      "reason": "Puente exacto de constructor/import o CLI para consumidores identificados. Implementación única en capas canónicas; retirar con sus consumidores en consolidación.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/extractors/openai_document_embeddings.py",
-      "target": "src.bootstrap.extraction.build_document_embeddings_provider",
-      "reason": "Puente exacto de constructor/import o CLI para consumidores identificados. Implementación única en capas canónicas; retirar con sus consumidores en consolidación.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/extractors/openai_document_title.py",
-      "target": "src.bootstrap.documents.build_title_provider",
-      "reason": "Constructor heredado de títulos: adapta defaults de entorno en bootstrap hasta migrar consumidores; SDK solo en adapters. Puente conservado para HTTP/CLI, workspace, mantenimiento o ejes; consolidar imports y entrypoints en etapa 6.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/extractors/openai_emotions.py",
-      "target": "src.bootstrap.extraction.build_emotions_provider",
-      "reason": "Puente exacto de constructor/import o CLI para consumidores identificados. Implementación única en capas canónicas; retirar con sus consumidores en consolidación.",
-      "remove_in": "6"
+      "source": "src/administration/sync.py",
+      "target": "src.bootstrap.inventory_sync.main",
+      "reason": "Entrypoint consumido por ../mirror-deploy/docker-compose.yml o deploy.sh. Sólo reexporta composición, sin lógica. Retirar cuando mirror-deploy use bootstrap y se valide su arranque.",
+      "remove_in": "actualización de comandos de mirror-deploy"
     },
     {
       "source": "src/extractors/personal_axes/access.py",
       "target": "src.bootstrap.auth.get_authenticated_user",
-      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
-      "remove_in": "6"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/extractors/personal_axes/access.py",
       "target": "src.bootstrap.database.get_async_session",
-      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
-      "remove_in": "6"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+    },
+    {
+      "source": "src/extractors/personal_axes/access.py",
+      "target": "src.bootstrap.settings.get_settings",
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+    },
+    {
+      "source": "src/extractors/personal_axes/dependencies.py",
+      "target": "src.bootstrap.processing.get_repository",
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+    },
+    {
+      "source": "src/extractors/personal_axes/dependencies.py",
+      "target": "src.bootstrap.settings.get_settings",
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/extractors/personal_axes/dependencies.py",
       "target": "src.bootstrap.workspaces.get_workspace_runtime",
-      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
-      "remove_in": "6"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+    },
+    {
+      "source": "src/extractors/personal_axes/history.py",
+      "target": "src.bootstrap.processing.AxisHistoryRequests",
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+    },
+    {
+      "source": "src/extractors/personal_axes/provider.py",
+      "target": "src.bootstrap.axis_provider.AsyncProvider",
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/extractors/personal_axes/routes.py",
       "target": "src.bootstrap.auth.get_authenticated_user",
-      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
-      "remove_in": "6"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/extractors/personal_axes/routes.py",
       "target": "src.bootstrap.database.get_async_session",
-      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
-      "remove_in": "6"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/extractors/personal_axes/routes.py",
       "target": "src.bootstrap.public_security.require_same_origin",
-      "reason": "Ejes pospuesto conserva la dependencia configurada de protección de origen; no cambia rutas ni internals de ejes.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/extractors/registry.py",
-      "target": "src.bootstrap.extractor_registry.ExtractorRegistry",
-      "reason": "Puente exacto de constructor/import o CLI para consumidores identificados. Implementación única en capas canónicas; retirar con sus consumidores en consolidación.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/graph/arcadedb/client.py",
-      "target": "src.bootstrap.graph.build_graph_client",
-      "reason": "Puente exacto de constructor/import o CLI para consumidores identificados. Implementación única en capas canónicas; retirar con sus consumidores en consolidación.",
-      "remove_in": "6"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/graph/arcadedb/schema.py",
-      "target": "src.bootstrap.graph_schema",
-      "reason": "Puente exacto de constructor/import o CLI para consumidores identificados. Implementación única en capas canónicas; retirar con sus consumidores en consolidación.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/graph/arcadedb/store.py",
-      "target": "src.bootstrap.graph.build_graph_store",
-      "reason": "Puente exacto de constructor/import o CLI para consumidores identificados. Implementación única en capas canónicas; retirar con sus consumidores en consolidación.",
-      "remove_in": "6"
+      "target": "src.bootstrap.graph_schema.main",
+      "reason": "Entrypoint consumido por ../mirror-deploy/docker-compose.yml o deploy.sh. Sólo reexporta composición, sin lógica. Retirar cuando mirror-deploy use bootstrap y se valide su arranque.",
+      "remove_in": "actualización de comandos de mirror-deploy"
     },
     {
       "source": "src/main.py",
-      "target": "src.bootstrap.database.close_database",
-      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/main.py",
-      "target": "src.bootstrap.workspaces.reconcile_active_workspaces",
-      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
-      "remove_in": "6"
+      "target": "src.bootstrap.public_api.app",
+      "reason": "Entrypoint consumido por ../mirror-deploy/docker-compose.yml o deploy.sh. Sólo reexporta composición, sin lógica. Retirar cuando mirror-deploy use bootstrap y se valide su arranque.",
+      "remove_in": "actualización de comandos de mirror-deploy"
     },
     {
       "source": "src/maintenance/data_migrations.py",
-      "target": "src.bootstrap.database.close_database",
-      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
-      "remove_in": "6"
+      "target": "src.bootstrap.data_migrations.DataMigrations",
+      "reason": "Entrypoint consumido por ../mirror-deploy/docker-compose.yml o deploy.sh. Sólo reexporta composición, sin lógica. Retirar cuando mirror-deploy use bootstrap y se valide su arranque.",
+      "remove_in": "actualización de comandos de mirror-deploy"
     },
     {
       "source": "src/maintenance/data_migrations.py",
-      "target": "src.bootstrap.database.get_session_maker",
-      "reason": "Consumidor/composición heredado retargeteado al módulo canónico de identidad/workspace al retirar las carpetas anteriores. Conserva la misma dependencia inyectada; mover este entrypoint en su etapa pendiente.",
-      "remove_in": "6"
+      "target": "src.bootstrap.data_migrations.main",
+      "reason": "Entrypoint consumido por ../mirror-deploy/docker-compose.yml o deploy.sh. Sólo reexporta composición, sin lógica. Retirar cuando mirror-deploy use bootstrap y se valide su arranque.",
+      "remove_in": "actualización de comandos de mirror-deploy"
     },
     {
       "source": "src/processing/broker.py",
       "target": "src.bootstrap.messaging.broker",
-      "remove_in": "6",
-      "reason": "Puente exacto de import/constructor o entrypoint para consumidores vigentes. Implementación y configuración canónicas en bootstrap; retirar al migrar consumidores. Puente conservado para HTTP/CLI, workspace, mantenimiento o ejes; consolidar imports y entrypoints en etapa 6."
+      "reason": "Entrypoint consumido por ../mirror-deploy/docker-compose.yml o deploy.sh. Sólo reexporta composición, sin lógica. Retirar cuando mirror-deploy use bootstrap y se valide su arranque.",
+      "remove_in": "actualización de comandos de mirror-deploy"
     },
     {
       "source": "src/processing/dispatcher.py",
-      "target": "src.bootstrap.dispatcher",
-      "remove_in": "6",
-      "reason": "Puente exacto de import/constructor o entrypoint para consumidores vigentes. Implementación y configuración canónicas en bootstrap; retirar al migrar consumidores. Puente conservado para HTTP/CLI, workspace, mantenimiento o ejes; consolidar imports y entrypoints en etapa 6."
-    },
-    {
-      "source": "src/processing/execution.py",
-      "target": "src.bootstrap.processing.build_executor",
-      "remove_in": "6",
-      "reason": "Puente exacto de import/constructor o entrypoint para consumidores vigentes. Implementación y configuración canónicas en bootstrap; retirar al migrar consumidores. Puente conservado para HTTP/CLI, workspace, mantenimiento o ejes; consolidar imports y entrypoints en etapa 6."
-    },
-    {
-      "source": "src/processing/failures.py",
-      "target": "src.bootstrap.failures.failure_for",
-      "reason": "Puente exacto de constructor/import o CLI para consumidores identificados. Implementación única en capas canónicas; retirar con sus consumidores en consolidación.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/processing/runtime.py",
-      "target": "src.bootstrap.processing",
-      "remove_in": "4",
-      "reason": "Puente exacto de import/constructor o entrypoint para consumidores vigentes. Implementación y configuración canónicas en bootstrap; retirar al migrar consumidores."
+      "target": "src.bootstrap.dispatcher.main",
+      "reason": "Entrypoint consumido por ../mirror-deploy/docker-compose.yml o deploy.sh. Sólo reexporta composición, sin lógica. Retirar cuando mirror-deploy use bootstrap y se valide su arranque.",
+      "remove_in": "actualización de comandos de mirror-deploy"
     },
     {
       "source": "src/processing/tasks.py",
-      "target": "src.bootstrap.worker",
-      "remove_in": "6",
-      "reason": "Puente exacto de import/constructor o entrypoint para consumidores vigentes. Implementación y configuración canónicas en bootstrap; retirar al migrar consumidores. Puente conservado para HTTP/CLI, workspace, mantenimiento o ejes; consolidar imports y entrypoints en etapa 6."
-    },
-    {
-      "source": "src/processing/workflows.py",
-      "target": "src.bootstrap.workflows",
-      "remove_in": "6",
-      "reason": "Puente exacto de import/constructor o entrypoint para consumidores vigentes. Implementación y configuración canónicas en bootstrap; retirar al migrar consumidores. Puente conservado para HTTP/CLI, workspace, mantenimiento o ejes; consolidar imports y entrypoints en etapa 6."
-    },
-    {
-      "source": "src/services/openai_transcription_provider.py",
-      "target": "src.bootstrap.audio.build_legacy_transcriber",
-      "reason": "Puente exacto de constructor/import o CLI para consumidores identificados. Implementación única en capas canónicas; retirar con sus consumidores en consolidación.",
-      "remove_in": "6"
+      "target": "src.bootstrap.worker.execute_processing",
+      "reason": "Entrypoint consumido por ../mirror-deploy/docker-compose.yml o deploy.sh. Sólo reexporta composición, sin lógica. Retirar cuando mirror-deploy use bootstrap y se valide su arranque.",
+      "remove_in": "actualización de comandos de mirror-deploy"
     },
     {
       "source": "src/use_cases/axis_previews.py",
       "target": "sqlalchemy.func",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/axis_previews.py",
       "target": "sqlalchemy.select",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/axis_previews.py",
-      "target": "src.extractors.contracts.content_hash",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "target": "src.adapters.storage.postgres.models.ProcessingReceipt",
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+    },
+    {
+      "source": "src/use_cases/axis_previews.py",
+      "target": "src.adapters.storage.postgres.models.ProcessingRecord",
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/axis_previews.py",
       "target": "src.extractors.personal_axes.contracts.AxisError",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/axis_previews.py",
       "target": "src.extractors.personal_axes.contracts.AxisSpecification",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/axis_previews.py",
       "target": "src.extractors.personal_axes.contracts.PreviewRequest",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/axis_previews.py",
       "target": "src.extractors.personal_axes.extractor.PersonalAxisExtractor",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/axis_previews.py",
       "target": "src.extractors.personal_axes.preview_projection.project_preview",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/axis_previews.py",
       "target": "src.extractors.personal_axes.preview_store.PreviewStore",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/axis_previews.py",
       "target": "src.extractors.personal_axes.repository.AxisRepository",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
-    },
-    {
-      "source": "src/use_cases/axis_previews.py",
-      "target": "src.processing.models.ProcessingReceipt",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
-    },
-    {
-      "source": "src/use_cases/axis_previews.py",
-      "target": "src.processing.models.ProcessingRecord",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
-    },
-    {
-      "source": "src/use_cases/axis_previews.py",
-      "target": "src.services.document_store.DocumentNotFoundError",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
-    },
-    {
-      "source": "src/use_cases/backfill_document_titles.py",
-      "target": "src.bootstrap.processing.build_title_backfill",
-      "remove_in": "6",
-      "reason": "Puente exacto de import/constructor o entrypoint para consumidores vigentes. Implementación y configuración canónicas en bootstrap; retirar al migrar consumidores. Puente conservado para HTTP/CLI, workspace, mantenimiento o ejes; consolidar imports y entrypoints en etapa 6."
-    },
-    {
-      "source": "src/use_cases/delete_document.py",
-      "target": "src.bootstrap.archives.build_delete_document",
-      "reason": "Puente exacto de constructor/import o CLI para consumidores identificados. Implementación única en capas canónicas; retirar con sus consumidores en consolidación.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/use_cases/document_archive.py",
-      "target": "src.bootstrap.archives",
-      "reason": "Puente exacto de constructor/import o CLI para consumidores identificados. Implementación única en capas canónicas; retirar con sus consumidores en consolidación.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/use_cases/ensure_document_titles.py",
-      "target": "src.bootstrap.documents.build_title_scheduler",
-      "reason": "Constructor de compatibilidad de rutas vigentes; el caso canónico recibe política y puerto sin infraestructura. Puente conservado para HTTP/CLI, workspace, mantenimiento o ejes; consolidar imports y entrypoints en etapa 6.",
-      "remove_in": "6"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/expire_axis_previews.py",
       "target": "sqlalchemy.delete",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/expire_axis_previews.py",
       "target": "sqlalchemy.func",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/expire_axis_previews.py",
       "target": "sqlalchemy.or_",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/expire_axis_previews.py",
       "target": "sqlalchemy.select",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+    },
+    {
+      "source": "src/use_cases/expire_axis_previews.py",
+      "target": "src.adapters.storage.postgres.models.ProcessingOutbox",
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+    },
+    {
+      "source": "src/use_cases/expire_axis_previews.py",
+      "target": "src.adapters.storage.postgres.models.ProcessingReceipt",
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+    },
+    {
+      "source": "src/use_cases/expire_axis_previews.py",
+      "target": "src.adapters.storage.postgres.models.ProcessingRecord",
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/expire_axis_previews.py",
       "target": "src.extractors.personal_axes.preview_store.PreviewStore",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
-    },
-    {
-      "source": "src/use_cases/expire_axis_previews.py",
-      "target": "src.processing.models.ProcessingOutbox",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
-    },
-    {
-      "source": "src/use_cases/expire_axis_previews.py",
-      "target": "src.processing.models.ProcessingReceipt",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
-    },
-    {
-      "source": "src/use_cases/expire_axis_previews.py",
-      "target": "src.processing.models.ProcessingRecord",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
-    },
-    {
-      "source": "src/use_cases/process_audio_note.py",
-      "target": "src.bootstrap.audio.build_audio_processor",
-      "reason": "Puente exacto de constructor/import o CLI para consumidores identificados. Implementación única en capas canónicas; retirar con sus consumidores en consolidación.",
-      "remove_in": "6"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/process_axis_history.py",
       "target": "sqlalchemy.exc.SQLAlchemyError",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/process_axis_history.py",
       "target": "sqlalchemy.func",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/process_axis_history.py",
       "target": "sqlalchemy.select",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/process_axis_history.py",
-      "target": "src.config.get_settings",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "target": "src.adapters.storage.filesystem.layer_artifacts.LayerArtifacts",
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/process_axis_history.py",
-      "target": "src.extractors.artifacts.LayerArtifacts",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "target": "src.bootstrap.failures.failure_for",
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/process_axis_history.py",
-      "target": "src.extractors.contracts.content_hash",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "target": "src.bootstrap.settings.get_settings",
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/process_axis_history.py",
       "target": "src.extractors.personal_axes.contracts.AxisError",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/process_axis_history.py",
       "target": "src.extractors.personal_axes.contracts.AxisSpecification",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/process_axis_history.py",
       "target": "src.extractors.personal_axes.history.AxisHistory",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/process_axis_history.py",
       "target": "src.extractors.personal_axes.history.current_extraction",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/process_axis_history.py",
       "target": "src.extractors.personal_axes.history_models.AxisHistoryBatch",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/process_axis_history.py",
       "target": "src.extractors.personal_axes.history_models.AxisHistoryItem",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/process_axis_history.py",
       "target": "src.extractors.personal_axes.persistence.bind_axis_write",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
-    },
-    {
-      "source": "src/use_cases/process_axis_history.py",
-      "target": "src.processing.execution.LeaseLost",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
-    },
-    {
-      "source": "src/use_cases/process_axis_history.py",
-      "target": "src.processing.execution.WorkflowDefinition",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
-    },
-    {
-      "source": "src/use_cases/process_axis_history.py",
-      "target": "src.processing.execution.WorkflowFailure",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
-    },
-    {
-      "source": "src/use_cases/process_axis_history.py",
-      "target": "src.processing.failures.failure_for",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
-    },
-    {
-      "source": "src/use_cases/process_axis_history.py",
-      "target": "src.services.document_store.DocumentNotFoundError",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/process_axis_preview.py",
       "target": "sqlalchemy.exc.SQLAlchemyError",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/process_axis_preview.py",
-      "target": "src.config.get_settings",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "target": "src.bootstrap.failures.failure_for",
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
+    },
+    {
+      "source": "src/use_cases/process_axis_preview.py",
+      "target": "src.bootstrap.settings.get_settings",
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/process_axis_preview.py",
       "target": "src.extractors.personal_axes.contracts.AxisError",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/process_axis_preview.py",
       "target": "src.extractors.personal_axes.contracts.AxisSpecification",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/process_axis_preview.py",
       "target": "src.extractors.personal_axes.contracts.PreviewRequest",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/process_axis_preview.py",
       "target": "src.extractors.personal_axes.extractor.PersonalAxisExtractor",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     },
     {
       "source": "src/use_cases/process_axis_preview.py",
       "target": "src.extractors.personal_axes.prompt_builder.build_specification",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
-    },
-    {
-      "source": "src/use_cases/process_axis_preview.py",
-      "target": "src.processing.execution.LeaseLost",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
-    },
-    {
-      "source": "src/use_cases/process_axis_preview.py",
-      "target": "src.processing.execution.WorkflowDefinition",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
-    },
-    {
-      "source": "src/use_cases/process_axis_preview.py",
-      "target": "src.processing.execution.WorkflowFailure",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
-    },
-    {
-      "source": "src/use_cases/process_axis_preview.py",
-      "target": "src.processing.failures.failure_for",
-      "reason": "Ejes pospuesto: dependencia existente; conservar hasta adaptar sus limites compartidos.",
-      "remove_in": "2 para compatibilidad; refactor interno de ejes posterior"
-    },
-    {
-      "source": "src/use_cases/process_document.py",
-      "target": "src.bootstrap.processing.build_source_processor",
-      "reason": "Constructor histórico delega configuración y artefactos a bootstrap; implementación canónica de aplicación sin infraestructura. Puente conservado para HTTP/CLI, workspace, mantenimiento o ejes; consolidar imports y entrypoints en etapa 6.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/use_cases/process_document_extractors.py",
-      "target": "src.bootstrap.processing.build_document_coordinator",
-      "remove_in": "6",
-      "reason": "Puente exacto de import/constructor o entrypoint para consumidores vigentes. Implementación y configuración canónicas en bootstrap; retirar al migrar consumidores. Puente conservado para HTTP/CLI, workspace, mantenimiento o ejes; consolidar imports y entrypoints en etapa 6."
-    },
-    {
-      "source": "src/use_cases/process_document_layers.py",
-      "target": "src.bootstrap.processing.build_legacy_layers_processor",
-      "reason": "Constructor histórico delega configuración y artefactos a bootstrap; implementación canónica de aplicación sin infraestructura. Puente conservado para HTTP/CLI, workspace, mantenimiento o ejes; consolidar imports y entrypoints en etapa 6.",
-      "remove_in": "6"
-    },
-    {
-      "source": "src/use_cases/process_extractor.py",
-      "target": "src.bootstrap.processing.build_extractor_processor",
-      "remove_in": "6",
-      "reason": "Puente exacto de import/constructor o entrypoint para consumidores vigentes. Implementación y configuración canónicas en bootstrap; retirar al migrar consumidores. Puente conservado para HTTP/CLI, workspace, mantenimiento o ejes; consolidar imports y entrypoints en etapa 6."
-    },
-    {
-      "source": "src/use_cases/request_processing.py",
-      "target": "src.bootstrap.processing.LegacyRequestFacade",
-      "remove_in": "6",
-      "reason": "Fachada de constructor para consumidores vigentes y reset(session,row,now) del histórico de ejes; traduce a unidad/estado sin SQL en el caso canónico. Puente conservado para HTTP/CLI, workspace, mantenimiento o ejes; consolidar imports y entrypoints en etapa 6."
-    },
-    {
-      "source": "src/use_cases/submit_processing.py",
-      "target": "src.bootstrap.acceptance",
-      "remove_in": "6",
-      "reason": "Puente exacto de import/constructor o entrypoint para consumidores vigentes. Implementación y configuración canónicas en bootstrap; retirar al migrar consumidores. Puente conservado para HTTP/CLI, workspace, mantenimiento o ejes; consolidar imports y entrypoints en etapa 6."
+      "reason": "Dependencia de ejes pospuesto; responsable: módulo de ejes. Retirar al separar sus capas e inyectar sus dependencias.",
+      "remove_in": "refactor interno de ejes (fuera del plan actual)"
     }
   ]
 }

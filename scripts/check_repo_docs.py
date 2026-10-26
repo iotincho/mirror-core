@@ -38,7 +38,7 @@ def main() -> int:
         {
             ROOT / "README.md",
             ROOT / "ARCHITECTURE.md",
-            ROOT / "src/graph/README.md",
+            ROOT / "docs/graph-navigation.md",
             *instructions,
             *(ROOT / "docs").rglob("*.md"),
         }

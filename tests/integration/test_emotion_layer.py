@@ -7,15 +7,15 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from src.domain.documents import NewDocument, build_document
-from src.extractors.artifacts import LayerArtifacts
-from src.extractors.contracts import ExtractorProfile, ProviderMetadata
-from src.extractors.emotion_evidence import EmotionResponse
-from src.extractors.emotions import EmotionExtractor, Emotions
-from src.graph.arcadedb.client import AsyncArcadeDBHTTPClient
-from src.graph.arcadedb.schema import schema_statements
-from src.graph.arcadedb.store import ArcadeDBGraphStore
-from src.services.document_store import FileDocumentStore
+from src.adapters.storage.filesystem.documents import FileDocumentStore
+from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
+from src.bootstrap.extraction import build_emotion_extractor as EmotionExtractor
+from src.bootstrap.graph import build_graph_client as AsyncArcadeDBHTTPClient
+from src.bootstrap.graph import build_graph_store as ArcadeDBGraphStore
+from src.bootstrap.graph_schema import schema_statements
+from src.core.domain.documents import NewDocument, build_document
+from src.core.extractors.contracts import ExtractorProfile, ProviderMetadata
+from src.core.extractors.emotion_evidence import EmotionResponse, Emotions
 
 pytestmark = [
     pytest.mark.anyio,

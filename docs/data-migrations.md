@@ -8,9 +8,17 @@ Contratos actuales: [ingestión](deferred-ingestion.md) y
 ## Responsables
 
 - Alembic (`migrations/`) actualiza PostgreSQL.
-- `src.graph.arcadedb.schema` prepara el esquema base del grafo.
-- `src.maintenance.data_migrations` coordina SQL, grafo y archivos.
+- `src.bootstrap.graph_schema` prepara el esquema base del grafo.
+- `src.bootstrap.data_migrations` coordina SQL, grafo y archivos.
   La revisión `20261006_06` crea su registro `data_migrations`.
+
+La coordinación vive en `src/use_cases/maintenance`, con contratos en
+`src/core/maintenance`. PostgreSQL conserva checkpoints/locks y reconciliación;
+ArcadeDB hace inventario y borrado transaccional; filesystem verifica backups,
+fingerprints y originales, publica con fsync y elimina sólo derivados conocidos.
+El backup y el ID de migración conservan su formato. Una comprobación de originales
+fallida aborta la transacción del grafo; una interrupción posterior se reanuda desde
+el backup verificado y los checkpoints durables. Los comandos no se ejecutan al importar.
 
 El migrador conserva `20261006-retire-exploratory-extraction` para instalaciones
 que aún tengan ese estado de datos. Descubre workspaces de `ARCADEDB_INSTANCE_KEY`,
@@ -38,7 +46,7 @@ inspecciona sin aplicar la migración:
 
 ```sh
 docker compose run --rm --no-deps --entrypoint python data-migrations \
-  -m src.maintenance.data_migrations
+  -m src.bootstrap.data_migrations
 ```
 
 Aplicar requiere `--apply --services-stopped`; el servicio de migración de Compose
@@ -57,7 +65,7 @@ Los originales, audio y transcripciones se conservan.
 Esta migración elimina derivados del pipeline retirado, invalida ejecuciones
 antiguas y reconstruye documentos base. No es una limpieza rutinaria para ejecutar
 de nuevo sobre capas actuales. La utilidad por workspace
-`src.maintenance.cleanup_extractions` tiene alcance distinto y no sustituye al
+`src.bootstrap.cleanup_extractions` tiene alcance distinto y no sustituye al
 migrador del despliegue.
 
 No existe una transacción conjunta SQL/ArcadeDB/filesystem. Respaldo y checkpoints

@@ -4,7 +4,7 @@
   Títulos se compone en `../bootstrap/documents.py`; emociones/embeddings en
   `../bootstrap/extraction.py`, con persistencia en `../adapters/storage/arcadedb/`
   y proveedores en `../adapters/providers/openai/`. El registro concreto vive en
-  `../bootstrap/extractor_registry.py`; esta carpeta conserva compatibilidad.
+  `../bootstrap/extractor_registry.py`; los wrappers anteriores fueron retirados.
   `personal_axes/` mantiene su implementación interna pendiente de otro alcance.
 - Separar extracción y persistencia. `dry_run` no escribe el grafo; conservar
   artefacto, profile, configuración y hashes para persistir sin repetir proveedor.

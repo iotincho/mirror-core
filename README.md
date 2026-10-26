@@ -11,7 +11,7 @@ producción se configura en `mirror-deploy`.
 ## Empezar aquí
 
 - **Implementar con un agente:** [AGENTS.md](AGENTS.md).
-- **Organización objetivo y migración:** [arquitectura](ARCHITECTURE.md) y [plan hexagonal](docs/development/hexagonal-migration-plan.md).
+- **Organización y responsabilidades:** [arquitectura](ARCHITECTURE.md) y [mapa del repositorio](docs/development/repository-map.md).
 - **Encontrar código y pruebas:** [mapa del repositorio](docs/development/repository-map.md).
 - **Agregar o modificar comportamiento:** [guía de implementación](docs/development/implementation.md).
 - **Ejecutar verificaciones:** [guía de pruebas](docs/development/testing.md).
@@ -26,7 +26,7 @@ producción se configura en `mirror-deploy`.
 | Aislamiento | Workspace por usuario con archivos y credenciales de grafo propios | [Mapa](docs/development/repository-map.md) |
 | Notas y audio | Ingestión `/v2`, transcripción, reintentos, SSE y originales recuperables | [Ingestión](docs/deferred-ingestion.md), [respaldos](docs/document-archives.md) |
 | Extractores | Emociones, embeddings de documentos y títulos como trabajos independientes | [Coordinación](docs/extractor-jobs.md) |
-| Exploración | Lectura del grafo y navegación por emociones con citas | [Grafo](src/graph/README.md) |
+| Exploración | Lectura del grafo y navegación por emociones con citas | [Grafo](docs/graph-navigation.md) |
 | Laboratorio | Ejes personales, pruebas temporales y versiones aceptadas | [Contrato](docs/personal-axes-api.md) |
 | Invitaciones | Preguntas diarias voluntarias, centro de notificaciones y respuestas de voz | [Notificaciones](docs/notification-center.md), [audio](docs/audio-invitation-replies.md) |
 | Administración | Proceso separado para inventario, métricas y permisos | [Administración](docs/admin-lan.md) |

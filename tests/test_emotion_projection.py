@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from src.graph import emotion_exploration as projection
-from src.graph.arcadedb.store import ArcadeDBGraphStore
-from src.services.graph_store import GraphPersistenceError
+from src.adapters.storage.arcadedb import emotion_projection as projection
+from src.bootstrap.graph import build_graph_store as ArcadeDBGraphStore
+from src.core.graph.ports import GraphPersistenceError
 
 
 @pytest.fixture

@@ -62,6 +62,11 @@ from src.use_cases.exteriorization import configure_invitations, generate_invita
 from src.use_cases.exteriorization import schedule_invitations, send_invitation
 from src.use_cases.notifications import center
 from src.use_cases.administration import query, sync_inventory, record_access
+from src.use_cases.auth import authorize_stream
+from src.use_cases.documents import resolve_originals
+from src.use_cases.processing import public
+from src.use_cases.extraction import run_command
+from src.use_cases.maintenance import data_migrations, cleanup_extractions, extraction_cleanup
 """
     subprocess.run([sys.executable, "-c", code], check=True, capture_output=True, text=True)
 

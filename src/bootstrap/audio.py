@@ -1,10 +1,8 @@
 """Bind speech providers, source preparation and durable audio artifacts explicitly."""
 
-from pathlib import Path
 
 from src.adapters.providers.openai.transcription import OpenAITranscriptionProvider
-from src.adapters.storage.filesystem.audio_transcoding import FileTranscriptionSource
-from src.config import get_settings
+from src.bootstrap.settings import get_settings
 
 
 def build_transcriber(api_key, model, client=None, *, max_retries=2):
@@ -17,23 +15,6 @@ def build_transcriber(api_key, model, client=None, *, max_retries=2):
         max_concurrency=settings.provider_max_concurrency,
         max_retries=max_retries,
     )
-
-
-class LegacyTranscriber:
-    def __init__(self, provider):
-        self._provider = provider
-
-    def __getattr__(self, name):
-        return getattr(self._provider, name)
-
-    async def transcribe(self, source):
-        if isinstance(source, Path):
-            source = FileTranscriptionSource(source)
-        return await self._provider.transcribe(source)
-
-
-def build_legacy_transcriber(api_key, model, client=None, *, max_retries=2):
-    return LegacyTranscriber(build_transcriber(api_key, model, client, max_retries=max_retries))
 
 
 def build_audio_processor(runtime_factory, provider_factory):

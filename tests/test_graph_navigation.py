@@ -10,13 +10,13 @@ import httpx
 import pytest
 
 from src.bootstrap.auth import get_database_strategy, get_user_manager, require_authenticated
-from src.dependencies import get_document_store, get_graph_store
-from src.domain.documents import NewDocument, build_document
-from src.graph.arcadedb.store import ArcadeDBGraphStore
-from src.graph.contracts import LinkNeighborhood, LinkType
-from src.main import app
-from src.services.document_store import DocumentNotFoundError
-from src.services.graph_store import GraphPersistenceError
+from src.bootstrap.graph import build_graph_store as ArcadeDBGraphStore
+from src.bootstrap.public_api import app
+from src.bootstrap.public_dependencies import get_document_store, get_graph_store
+from src.core.documents.ports import DocumentNotFoundError
+from src.core.domain.documents import NewDocument, build_document
+from src.core.graph.contracts import LinkNeighborhood, LinkType
+from src.core.graph.ports import GraphPersistenceError
 
 
 @pytest.fixture

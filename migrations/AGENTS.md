@@ -3,7 +3,7 @@
 - No editar revisiones ya aplicadas: crear otra revisión Alembic y comprobar un
   único head. Mantener nombres y estilo del directorio `versions/`.
 - Alembic administra SQL; esquema ArcadeDB y migración de archivos/grafo pertenecen
-  a `src/graph/arcadedb/schema.py` y `src/maintenance/` respectivamente.
+  a `src/bootstrap/graph_schema.py` y `src/use_cases/maintenance/` respectivamente.
 - Explicitar defaults/backfill/nullable para filas existentes y compatibilidad
   entre API, workers y dispatcher. No introducir llamadas a proveedores.
 - Probar upgrade y recuperación en PostgreSQL aislado. Revisar downgrade y señalar

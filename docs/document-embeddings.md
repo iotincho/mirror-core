@@ -72,15 +72,15 @@ No imprime texto ni vectores.
 
 ```sh
 # Generar y conservar el artefacto sin escribir derivados en ArcadeDB.
-python -m src.extractors.cli extract --extractor document_embeddings \
+python -m src.bootstrap.extraction_cli extract --extractor document_embeddings \
   --workspace UUID --document UUID
 
 # Persistir un artefacto generado anteriormente, sin proveedor.
-python -m src.extractors.cli persist --extractor document_embeddings \
+python -m src.bootstrap.extraction_cli persist --extractor document_embeddings \
   --workspace UUID --document UUID --run UUID
 
 # Regenerar y reemplazar el índice existente.
-python -m src.extractors.cli extract --extractor document_embeddings \
+python -m src.bootstrap.extraction_cli extract --extractor document_embeddings \
   --workspace UUID --document UUID --force --persist
 ```
 

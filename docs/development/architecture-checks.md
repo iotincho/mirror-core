@@ -1,8 +1,7 @@
 # Control de fronteras e inventario de migración
 
-Herramientas de la etapa 0 del [plan](hexagonal-migration-plan.md). Las reglas
-estables están en [ARCHITECTURE.md](../../ARCHITECTURE.md); este documento explica
-qué se verifica hoy y cómo reproducir la línea de base del primer recorrido.
+Las reglas estables están en [ARCHITECTURE.md](../../ARCHITECTURE.md); este
+documento explica el control vigente y cómo validar cada recorrido.
 
 ## Chequeo sin servicios
 
@@ -17,7 +16,7 @@ el chequeo y sus pruebas con Python 3.11, sin instalar dependencias del backend.
 
 Cobertura actual:
 
-- `src/core/` y el dominio heredado `src/domain/`: sólo dependencias internas
+- `src/core/`: sólo dependencias internas
   admitidas, biblioteca estándar y Pydantic; sin infraestructura ni aplicación.
 - `src/use_cases/`: core, colaboradores de aplicación, biblioteca estándar y
   Pydantic. Los imports existentes que aún incumplen requieren excepciones exactas.
@@ -28,10 +27,9 @@ Cobertura actual:
 - Ningún módulo exterior a `src/bootstrap/` importa bootstrap sin una excepción
   puntual de transición. Las ubicaciones nuevas deben pertenecer al árbol objetivo.
 
-Los demás archivos heredados aún no se declaran migrados. Su ubicación aparece
-individualmente en `legacy_files`; esa lista no desactiva el veto a importar bootstrap
-ni el control de imports dinámicos. No permite crear otra carpeta heredada o ampliar
-un paquete completo por un patrón.
+Las ubicaciones heredadas que permanecen son ejes y entrypoints externos usados
+por mirror-deploy. `legacy_files` los identifica individualmente; no desactiva el
+veto a importar bootstrap ni permite crear otros módulos fuera del árbol objetivo.
 
 ## Excepciones y alcance del análisis
 
@@ -72,21 +70,42 @@ Las referencias textuales incluyen strings de monkeypatch/CLI; no son sólo impo
 Python. Los comandos identifican líneas para revisar, no equivalen a un parser de
 Shell/Compose ni garantizan encontrar toda referencia construida dinámicamente.
 
-Puntos que el piloto debe conservar hasta adaptar consumidores:
+Puntos de composición y consumo que revisar al mover rutas:
 
-| Frente | Entradas actuales que revisar |
+| Frente | Responsables actuales |
 | --- | --- |
-| Composición HTTP/workspace | `src/dependencies.py`, `src/bootstrap/{auth,workspaces,database}.py`; overrides HTTP de las pruebas |
-| Composición de ejecución | `src/processing/runtime.py`, `src/processing/workflows.py`, dependencias de cada familia, incluida compatibilidad con ejes |
-| Contratos y stores | Modelos `src.domain`, `DocumentStore` y errores en `src.services.document_store`; stores de audio/grafo y artefactos |
-| Títulos | `document_title.py`, `document_title_store.py`, `openai_document_title.py`, `ensure_document_titles.py`, `backfill_document_titles.py`; strings de monkeypatch de sus tests |
-| Procesos | Dockerfiles: `src.main:app`; Compose: API pública/admin, Taskiq, dispatcher, sincronizador, esquema y migrador de datos |
-| Migraciones SQL | `migrations/env.py` registra modelos de las familias y comparte `Base`; no reescribir revisiones aplicadas por mover imports |
-| Empaquetado | `pyproject.toml` descubre `src*` y empaqueta `src.adapters.access.cli/announcements.json`; verificar el wheel al mover el recurso |
-| Scripts/operación | Comandos de ingestión, reprocess, respaldo, limpieza y helpers; mantener el entrypoint usado o un puente acotado |
+| API pública | `src/bootstrap/{public_api,public_router,public_dependencies}.py`; acceso HTTP en `src/adapters/access/api/public/` |
+| Procesamiento | `src/bootstrap/{processing,workflows,worker,dispatcher,messaging}.py`; puertos core, casos agrupados y adaptadores por tecnología |
+| Settings/diagnóstico | `src/bootstrap/{settings,logging,observability}.py`; proveedor Sentry en `src/adapters/providers/telemetry/` |
+| Mantenimiento | `src/bootstrap/{data_migrations,cleanup_extractions,graph_schema}.py`; aplicación sin SQL/paths, adaptadores separados |
+| Procesos externos | `mirror-deploy` consume los entrypoints mínimos registrados en la política; preservar hasta actualizar sus comandos |
+| Alembic | `migrations/env.py` importa modelos canónicos, incluido `migration_models`; no reescribir revisiones aplicadas |
+| Empaquetado | `pyproject.toml` descubre `src*` y empaqueta `src.adapters.access.cli/announcements.json`; comprobar wheel desde fuentes limpias |
 
-Los destinos específicos y su secuencia están en el plan. El inventario se vuelve
-a generar al iniciar cada etapa; sus contadores no son una medida de deuda resuelta.
+El inventario se genera bajo demanda y sus contadores no representan porcentaje
+de deuda resuelta. Las únicas excepciones actuales corresponden a ejes pospuesto
+y a comandos externos documentados; no hay excepciones en capas canónicas migradas.
+
+## Regresión de consolidación
+
+```bash
+.venv/bin/python -m pytest tests/test_consolidated_boundaries.py \
+  tests/test_processing_application.py tests/test_event_stream_logging.py \
+  tests/test_document_archive.py tests/test_observability.py
+```
+
+Luego, con motores desechables configurados según las fixtures:
+
+```bash
+.venv/bin/python -m pytest tests/integration/test_processing_events.py \
+  tests/integration/test_data_migrations.py tests/integration/test_extraction_cleanup.py \
+  tests/integration/test_deferred_ingestion.py tests/integration/test_reprocess_notes.py -rs
+```
+
+Esas familias requieren PostgreSQL/RabbitMQ y ArcadeDB según el test; cleanup usa
+`CLEANUP_TEST_ARCADEDB_URL` y `CLEANUP_TEST_ARCADEDB_PASSWORD`. Completar también
+regresión de jobs/capas/ejes y revocación al cambiar estas fronteras. Comprobar imagen
+e inicio/cierre de procesos por separado; la colección de tests no valida servicios.
 
 ## Regresión de invitaciones, bandeja y administración
 
@@ -138,7 +157,7 @@ Las fixtures de títulos crean/eliminan sus propias bases ArcadeDB. La prueba
 `test_real_arcadedb_document_write_and_replay` requiere además una base llamada
 `processing_test` ya creada con esquema base. En el servidor desechable, crearla
 mediante `/api/v1/server` (`create database processing_test`) y aplicar
-`src.graph.arcadedb.schema` con URL, nombre y credenciales de ese servidor explícitos.
+`src.bootstrap.graph_schema` con URL, nombre y credenciales de ese servidor explícitos.
 Ese comando aplica esquema; no crea por sí mismo la base.
 
 Exportar las variables del entorno aislado:
@@ -159,7 +178,7 @@ El recorrido valida originales, aceptación idempotente, lectura inmediata de gr
 títulos, retry sin repetir proveedor y generación acotada al leer. El caso opcional
 de worker real necesita también `PROCESSING_TEST_RABBITMQ_URL` de un broker aislado;
 si se omite, registrar el skip y no acreditar transporte real. Su validación completa
-corresponde al alcance de procesamiento durable de la etapa 2.
+se comprueba en la regresión de procesamiento durable.
 
 Eliminar después sólo los contenedores/volúmenes desechables de la ejecución. No
 usar la configuración privada del Compose habitual ni un `down -v` sobre el proyecto.
@@ -168,8 +187,8 @@ aislamiento permitido; no presentar un bloqueo del entorno como regresión del p
 
 ## Regresión de procesamiento durable
 
-La etapa 2 conserva los comandos/imports de procesos anteriores y mueve las
-implementaciones según el [mapa](repository-map.md). Primero validar aplicación
+Las implementaciones durables están separadas según el [mapa](repository-map.md),
+con entrypoints externos mínimos cuando siguen en uso. Primero validar aplicación
 sin motores; la prueba de imports bloquea infraestructura explícitamente:
 
 ```bash
@@ -196,7 +215,7 @@ y el `PYTHONPATH` de sus fixtures; no usar un Compose con datos de personas.
 
 ## Regresión de audio, extractores, grafo y respaldos
 
-Etapa 3: los casos migrados usan puertos de audio, persistencia de emociones,
+Los casos usan puertos de audio, persistencia de emociones,
 embeddings, lectura/borrado y aceptación de respaldos. La prueba de imports incluye
 esas aplicaciones y bloquea también tiktoken. Primero:
 
@@ -220,10 +239,10 @@ servidor de prueba. Agregar a la regresión durable:
 La fixture de exploración inserta ejecuciones históricas duplicadas explícitamente;
 las extracciones actuales reemplazan su capa. Así se prueba deduplicación de lectura
 sin cambiar el reemplazo atómico para satisfacer una expectativa antigua.
-Conservar los puentes exactos de ejes, identidad/workspace e invitaciones del plan.
+Conservar sólo los puentes de ejes y entrypoints externos registrados en la política.
 ## Regresión de identidad y workspaces
 
-Etapa 4: política de contraseña, credenciales, sesión y recuperación en core;
+Política de contraseña, credenciales, sesión y recuperación en core;
 login, recuperación, entrega de correo, acceso/provisión/reconciliación en aplicación.
 Los casos se importan con FastAPI Users, cryptography y demás infraestructura bloqueados.
 
@@ -247,8 +266,9 @@ La prueba asigna principales por cuenta y comprueba sus permisos reales.
 ```
 
 También ejecutar la regresión durable anterior: cambia la identidad de imports
-usada por API, workers, scripts, Alembic y familias pendientes. No reescribir
+usada por API, workers, scripts y Alembic. No reescribir
 revisiones ya aplicadas. Alembic debe seguir informando que no hay cambios nuevos.
 Las carpetas antiguas de identidad/workspace y sus entradas de excepciones se
 retiraron; no restaurarlas para corregir un importador sin migrar.
-Próximo alcance: etapa 5, invitaciones, notificaciones y administración.
+Invitaciones, notificaciones y administración tienen capas separadas; los
+consumidores externos y puentes vigentes se describen en el mapa.

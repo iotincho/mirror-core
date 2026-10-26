@@ -5,13 +5,13 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from src.extractors.backfill_titles import build_parser, execute
-from src.extractors.document_title import TITLE_PROFILE
+from src.bootstrap.acceptance import document_title_specification
+from src.bootstrap.title_backfill import build_parser, execute
+from src.core.extractors.document_title import TITLE_PROFILE
 from src.use_cases.documents.backfill_document_titles import (
     BackfillDocumentTitles,
     TitleBackfillResult,
 )
-from src.use_cases.submit_processing import document_title_specification
 
 
 @pytest.fixture
@@ -81,10 +81,10 @@ async def test_cli_preview_needs_no_llm_credentials_and_does_not_apply(monkeypat
     def configuration():
         raise AssertionError("Preview must not inspect LLM credentials")
 
-    monkeypatch.setattr("src.extractors.backfill_titles.worker_runtime", runtime)
-    monkeypatch.setattr("src.extractors.backfill_titles.get_repository", lambda: "repository")
-    monkeypatch.setattr("src.extractors.backfill_titles.get_settings", configuration)
-    monkeypatch.setattr("src.extractors.backfill_titles.BackfillDocumentTitles", lambda *_: batch)
+    monkeypatch.setattr("src.bootstrap.title_backfill.worker_runtime", runtime)
+    monkeypatch.setattr("src.bootstrap.title_backfill.get_repository", lambda: "repository")
+    monkeypatch.setattr("src.bootstrap.title_backfill.get_settings", configuration)
+    monkeypatch.setattr("src.bootstrap.title_backfill.BackfillDocumentTitles", lambda *_: batch)
     assert await execute(build_parser().parse_args(["--workspace", str(owner)])) == report
     batch.run.assert_awaited_once_with(apply=False, limit=100, document_ids=None)
 
@@ -92,7 +92,7 @@ async def test_cli_preview_needs_no_llm_credentials_and_does_not_apply(monkeypat
 @pytest.mark.anyio
 async def test_apply_checks_provider_configuration_before_enqueuing(monkeypatch):
     monkeypatch.setattr(
-        "src.extractors.backfill_titles.get_settings",
+        "src.bootstrap.title_backfill.get_settings",
         lambda: SimpleNamespace(
             llm_provider="openai",
             openai_model=None,

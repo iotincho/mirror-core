@@ -15,7 +15,7 @@ from src.adapters.storage.postgres.workspaces import PostgresWorkspaces
 from src.bootstrap.auth import get_authenticated_user
 from src.bootstrap.database import get_async_session, get_session_maker
 from src.bootstrap.graph import build_graph_store
-from src.config import get_settings
+from src.bootstrap.settings import get_settings
 from src.core.auth.identity import AuthenticatedUser
 from src.core.workspaces.context import UserWorkspaceContext, WorkspaceBinding, WorkspaceRuntime
 from src.core.workspaces.models import WorkspaceUnavailable

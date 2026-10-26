@@ -14,6 +14,7 @@ import pytest
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from src.adapters.storage.filesystem.documents import FileDocumentStore
 from src.adapters.storage.postgres.accounts import User
 from src.adapters.storage.postgres.invitation_models import (
     Invitation,
@@ -23,28 +24,29 @@ from src.adapters.storage.postgres.invitation_models import (
     PushSubscription,
 )
 from src.adapters.storage.postgres.invitations import InvitationRepository
-from src.adapters.storage.postgres.notification_models import Notification
-from src.adapters.storage.postgres.workspace_models import UserWorkspace
-from src.bootstrap.auth import require_authenticated
-from src.bootstrap.invitations import get_invitations
-from src.bootstrap.notifications import build_notification_center as NotificationRepository
-from src.core.exteriorization.models import InvitationError, PushResult
-from src.domain.documents import NewDocument
-from src.main import app
-from src.processing.execution import ExecuteProcessing, WorkflowRegistry
-from src.processing.models import (
+from src.adapters.storage.postgres.models import (
     ProcessingEvent,
     ProcessingOutbox,
     ProcessingReceipt,
     ProcessingRecord,
 )
-from src.processing.repository import ProcessingRepository
-from src.processing.submissions import SubmissionConflict, SubmissionRepository
-from src.services.document_store import FileDocumentStore
+from src.adapters.storage.postgres.notification_models import Notification
+from src.adapters.storage.postgres.repository import ProcessingRepository
+from src.adapters.storage.postgres.submissions import SubmissionRepository
+from src.adapters.storage.postgres.workspace_models import UserWorkspace
+from src.bootstrap.acceptance import SubmitDocument, recover_submissions
+from src.bootstrap.auth import require_authenticated
+from src.bootstrap.invitations import get_invitations
+from src.bootstrap.notifications import build_notification_center as NotificationRepository
+from src.bootstrap.processing import build_executor as ExecuteProcessing
+from src.bootstrap.public_api import app
+from src.core.domain.documents import NewDocument
+from src.core.exteriorization.models import InvitationError, PushResult
+from src.core.processing.submissions import SubmissionConflict
+from src.core.processing.workflows import WorkflowRegistry
 from src.use_cases.exteriorization.configure_invitations import ConfigureInvitations
 from src.use_cases.exteriorization.schedule_invitations import ScheduleInvitations
 from src.use_cases.exteriorization.send_invitation import SendInvitation
-from src.use_cases.submit_processing import SubmitDocument, recover_submissions
 
 pytestmark = [
     pytest.mark.anyio,
@@ -485,7 +487,7 @@ async def test_recovery_after_accepted_send_does_not_repeat_external_effect(stor
     leased = await processing.acquire(job.id, 1, "interrupted-worker")
     transport = Transport()
     sender = SendInvitation(repo, transport)
-    from src.processing.execution import ExecutionContext
+    from src.use_cases.processing.context import ExecutionContext
 
     await sender.execute(ExecutionContext(processing, leased, sender.definition))
     # Simulate process death after persisting acceptance, before runner completion.
@@ -597,7 +599,7 @@ async def test_real_taskiq_workers_handle_duplicate_deliveries(store, tmp_path):
 
     from taskiq_aio_pika import AioPikaBroker
 
-    from src.processing.dispatcher import dispatch_once
+    from src.bootstrap.dispatcher import dispatch_once
 
     repo, owner, _, _ = await setup(store, devices=2)
     await ScheduleInvitations(repo).execute(await due_now(repo, owner))
@@ -640,8 +642,8 @@ async def test_real_taskiq_workers_handle_duplicate_deliveries(store, tmp_path):
                         "-m",
                         "taskiq",
                         "worker",
-                        "src.processing.broker:broker",
-                        "src.processing.tasks",
+                        "src.bootstrap.messaging:broker",
+                        "src.bootstrap.worker",
                         "invitation_worker_fixture",
                         "--workers",
                         "1",
@@ -709,9 +711,8 @@ async def test_http_document_upload_preserves_typed_invitation_contract(
     app.dependency_overrides[require_authenticated] = lambda: SimpleNamespace(id=owner)
     app.dependency_overrides[get_workspace_runtime] = lambda: runtime
     monkeypatch.setattr("src.bootstrap.invitations.get_invitation_repository", lambda: repo)
-    monkeypatch.setattr(
-        "src.api.routes.processing.get_repository", lambda: ProcessingRepository(repo.sessions)
-    )
+    from src.bootstrap.processing import get_repository
+    app.dependency_overrides[get_repository] = lambda: ProcessingRepository(repo.sessions)
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app), base_url="https://test"
     ) as client:

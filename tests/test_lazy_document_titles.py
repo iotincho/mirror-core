@@ -5,11 +5,10 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from src.config import Settings
-from src.core.documents.title_scheduling import TitleReadPolicy
-from src.use_cases.backfill_document_titles import TitleBackfillResult
+from src.bootstrap.settings import Settings
+from src.core.documents.title_scheduling import TitleBackfillResult, TitleReadPolicy
 from src.use_cases.documents.ensure_document_titles import EnsureDocumentTitles
-from src.use_cases.list_documents import ListDocuments
+from src.use_cases.documents.list_documents import ListDocuments
 
 
 @pytest.fixture

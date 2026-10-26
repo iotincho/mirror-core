@@ -8,17 +8,17 @@ import httpx
 import pytest
 from pydantic import ValidationError
 
-from src.api.routes.document_archive import get_archive_store
+from src.adapters.storage.filesystem.documents import FileDocumentStore
+from src.bootstrap.acceptance import imported_document_identity
+from src.bootstrap.archives import ArchiveConflict, DocumentArchive, DocumentArchiveTransfer
 from src.bootstrap.auth import require_authenticated
+from src.bootstrap.processing import get_repository
+from src.bootstrap.public_api import app
+from src.bootstrap.public_dependencies import get_archive_store
 from src.bootstrap.workspaces import get_workspace_runtime
-from src.domain.documents import Document
-from src.main import app
-from src.processing.runtime import get_repository
-from src.processing.submissions import SubmissionConflict, fingerprint
-from src.services.document_store import FileDocumentStore
-from src.services.graph_store import GraphPersistenceError
-from src.use_cases.document_archive import ArchiveConflict, DocumentArchive, DocumentArchiveTransfer
-from src.use_cases.submit_processing import imported_document_identity
+from src.core.domain.documents import Document
+from src.core.graph.ports import GraphPersistenceError
+from src.core.processing.submissions import SubmissionConflict, fingerprint
 
 
 @pytest.fixture
@@ -272,7 +272,7 @@ def test_rejects_duplicate_unknown_fields_version_and_naive_dates():
 @pytest.mark.anyio
 async def test_authenticated_download_upload_and_invalid_file(tmp_path, monkeypatch):
     monkeypatch.setattr(
-        "src.use_cases.document_archive.SubmissionRepository", lambda processing: Submissions()
+        "src.bootstrap.archives.SubmissionRepository", lambda processing: Submissions()
     )
     store = FileDocumentStore(tmp_path)
     doc = document()
@@ -336,7 +336,8 @@ async def test_offline_export_is_importable_without_database(tmp_path):
 
 @pytest.mark.anyio
 async def test_export_store_scoped_to_user_without_active_graph(tmp_path, monkeypatch):
-    import src.api.routes.document_archive as routes
+    from src.adapters.storage.filesystem.owner_originals import FileOwnerOriginals
+    from src.use_cases.documents.resolve_originals import ResolveOriginals
 
     owner, other = uuid4(), uuid4()
     one, two = document(), document()
@@ -344,19 +345,13 @@ async def test_export_store_scoped_to_user_without_active_graph(tmp_path, monkey
     await FileDocumentStore(tmp_path / str(other) / "documents").save(two)
 
     class Repository:
-        def __init__(self, session):
-            pass
-
-        async def get(self, user):
+        async def read(self, user):
+            assert user == owner
             return SimpleNamespace(status="suspended", arcadedb_instance_key="test")
 
-    monkeypatch.setattr(routes, "WorkspaceRepository", Repository)
-    monkeypatch.setattr(
-        routes,
-        "get_settings",
-        lambda: SimpleNamespace(arcadedb_instance_key="test", workspaces_path=tmp_path),
+    store = await ResolveOriginals(Repository(), FileOwnerOriginals(tmp_path), "test").execute(
+        owner
     )
-    store = await routes.get_archive_store(SimpleNamespace(id=owner), None)
     archive = await DocumentArchiveTransfer(store).export()
     assert [doc.id for doc in archive.documents] == [one.id]
 

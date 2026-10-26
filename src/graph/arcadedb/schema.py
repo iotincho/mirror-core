@@ -1,10 +1,6 @@
-"""Compatibility CLI; schema implementation and environment composition are separate."""
+"""External mirror-deploy entrypoint; remove after its commands migrate to bootstrap."""
 
-import sys
-
-from src.bootstrap import graph_schema as canonical
-
-sys.modules[__name__] = canonical
+from src.bootstrap.graph_schema import main as main
 
 if __name__ == "__main__":
-    raise SystemExit(canonical.main())
+    raise SystemExit(main())

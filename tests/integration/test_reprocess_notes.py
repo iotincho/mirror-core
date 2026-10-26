@@ -12,15 +12,20 @@ import pytest
 from sqlalchemy import func, select, update
 from test_processing_postgres import anyio_backend, store  # noqa: F401
 
-from src.api.routes import processing as routes
+from src.adapters.storage.filesystem.documents import FileDocumentStore
+from src.adapters.storage.postgres.models import (
+    ProcessingOutbox,
+    ProcessingReceipt,
+    ProcessingRecord,
+)
 from src.bootstrap.auth import require_authenticated
+from src.bootstrap.processing import build_processing_requests as RequestProcessing
+from src.bootstrap.processing import get_repository
+from src.bootstrap.public_api import app
 from src.bootstrap.workspaces import get_workspace_runtime
-from src.domain.documents import NewDocument, build_document
-from src.main import app
-from src.processing.models import ProcessingOutbox, ProcessingReceipt, ProcessingRecord
-from src.processing.submissions import SubmissionConflict
-from src.services.document_store import DocumentNotFoundError, FileDocumentStore
-from src.use_cases.request_processing import RequestProcessing
+from src.core.documents.ports import DocumentNotFoundError
+from src.core.domain.documents import NewDocument, build_document
+from src.core.processing.submissions import SubmissionConflict
 
 pytestmark = [
     pytest.mark.anyio,
@@ -116,7 +121,7 @@ async def test_locked_selection_rolls_back_and_releases_all_guards(batch):
 
 async def test_batch_api_validation_ownership_and_replay(batch, monkeypatch):
     repo, runtime, notes, _ = batch
-    monkeypatch.setattr(routes, "get_repository", lambda: repo)
+    app.dependency_overrides[get_repository] = lambda: repo
     app.dependency_overrides[require_authenticated] = lambda: runtime.context
     app.dependency_overrides[get_workspace_runtime] = lambda: runtime
     try:

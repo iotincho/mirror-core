@@ -8,10 +8,10 @@ from uuid import uuid4
 import pytest
 from test_emotion_layer import layer_database  # noqa: F401
 
-from src.domain.documents import NewDocument, build_document
-from src.extractors.emotion_evidence import EmotionResponse
-from src.graph.emotion_exploration import group_id
-from src.services.graph_store import EmotionNotFoundError
+from src.adapters.storage.arcadedb.emotion_projection import group_id
+from src.core.domain.documents import NewDocument, build_document
+from src.core.extractors.emotion_evidence import EmotionResponse
+from src.core.graph.ports import EmotionNotFoundError
 
 pytestmark = [
     pytest.mark.anyio,

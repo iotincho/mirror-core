@@ -14,11 +14,17 @@ from test_emotion_layer import layer_database  # noqa: F401
 from test_emotion_processing import pipeline, run, upload  # noqa: F401
 from test_processing_postgres import store  # noqa: F401
 
+from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
 from src.adapters.storage.postgres.accounts import User
+from src.bootstrap.acceptance import SubmitAudioNote
+from src.bootstrap.archives import build_delete_document as DeleteDocument
 from src.bootstrap.auth import require_authenticated
-from src.config import get_settings
-from src.extractors.artifacts import LayerArtifacts
-from src.extractors.contracts import ExtractorProfile
+from src.bootstrap.processing import build_document_coordinator as ProcessDocumentExtractors
+from src.bootstrap.processing import build_extractor_processor as ProcessExtractor
+from src.bootstrap.processing import build_processing_requests as RequestProcessing
+from src.bootstrap.public_api import app
+from src.bootstrap.settings import get_settings
+from src.core.extractors.contracts import ExtractorProfile
 from src.extractors.personal_axes.contracts import (
     AxisError,
     AxisSpecification,
@@ -30,13 +36,7 @@ from src.extractors.personal_axes.exploration import AxisExploration
 from src.extractors.personal_axes.extractor import PersonalAxisExtractor
 from src.extractors.personal_axes.repository import AxisRepository
 from src.extractors.personal_axes.store import ArcadeDBAxisStore
-from src.main import app
 from src.use_cases.axis_previews import AxisPreviews
-from src.use_cases.delete_document import DeleteDocument
-from src.use_cases.process_document_extractors import ProcessDocumentExtractors
-from src.use_cases.process_extractor import ProcessExtractor
-from src.use_cases.request_processing import RequestProcessing
-from src.use_cases.submit_processing import SubmitAudioNote
 
 pytestmark = [
     pytest.mark.anyio,
@@ -445,12 +445,8 @@ async def test_persistence_retry_uses_artifact_without_provider_and_sanitizes_er
 async def test_failed_upload_reservation_keeps_snapshot_and_archive_does_not_add_axes(
     active, monkeypatch
 ):
-    from src.domain.documents import NewDocument, build_document
-    from src.use_cases.document_archive import (
-        ArchivedDocument,
-        DocumentArchive,
-        DocumentArchiveTransfer,
-    )
+    from src.bootstrap.archives import ArchivedDocument, DocumentArchive, DocumentArchiveTransfer
+    from src.core.domain.documents import NewDocument, build_document
 
     env = active
     a = await approve(env)
@@ -474,7 +470,7 @@ async def test_failed_upload_reservation_keeps_snapshot_and_archive_does_not_add
     await env.axes.set_enabled(env.owner, UUID(a["id"]), True)
     # Archive import uses its established baseline, even with active accepted axes.
     monkeypatch.setattr(
-        "src.use_cases.document_archive.workflow_config",
+        "src.bootstrap.archives.workflow_config",
         lambda: {"extractors": [], "document_workflow_version": 4},
     )
     document = build_document(NewDocument(content="Original importado"))
@@ -495,7 +491,7 @@ async def test_failed_upload_reservation_keeps_snapshot_and_archive_does_not_add
 async def test_batch_reprocess_pins_once_and_recovers_v5_parent(active):
     from sqlalchemy import update
 
-    from src.processing.models import ProcessingRecord
+    from src.adapters.storage.postgres.models import ProcessingRecord
 
     env = active
     a = await approve(env)
@@ -557,7 +553,7 @@ async def test_truncated_or_partial_graph_is_an_error(active, monkeypatch):
 async def test_database_branch_keys_preserve_legacy_writers_and_reject_duplicates(store):
     from sqlalchemy.exc import IntegrityError
 
-    from src.processing.models import ProcessingRecord
+    from src.adapters.storage.postgres.models import ProcessingRecord
 
     repo, owner = store
     async with repo.sessions.begin() as session:

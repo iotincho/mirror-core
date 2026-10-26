@@ -2,7 +2,7 @@
 
 from src.adapters.storage.arcadedb.client import AsyncArcadeDBHTTPClient
 from src.adapters.storage.arcadedb.graph import ArcadeDBGraphStore
-from src.config import get_settings
+from src.bootstrap.settings import get_settings
 
 
 def build_graph_client(http_url, database, username, password, *, client=None):

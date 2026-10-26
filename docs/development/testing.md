@@ -75,12 +75,12 @@ Con servicios de desarrollo preparados, aplicar esquema antes de consumir jobs:
 
 ```bash
 .venv/bin/python -m alembic upgrade head
-.venv/bin/python -m src.graph.arcadedb.schema
-.venv/bin/python -m uvicorn src.main:app --host 127.0.0.1 --port 8000
+.venv/bin/python -m src.bootstrap.graph_schema
+.venv/bin/python -m uvicorn src.bootstrap.public_api:app --host 127.0.0.1 --port 8000
 # En terminales separadas, con la misma configuración y volumen:
-.venv/bin/python -m taskiq worker src.processing.broker:broker src.processing.tasks \
+.venv/bin/python -m taskiq worker src.bootstrap.messaging:broker src.bootstrap.worker \
   --workers 1 --max-async-tasks 4 --max-prefetch 0 --ack-type manual
-.venv/bin/python -m src.processing.dispatcher
+.venv/bin/python -m src.bootstrap.dispatcher
 ```
 
 Estos comandos aplican a un entorno de desarrollo preparado. Un entorno con datos

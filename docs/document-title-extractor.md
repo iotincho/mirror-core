@@ -5,20 +5,19 @@ documentos anteriores sin título, sin repetir otras capas.
 
 ## Ubicación del código
 
-El piloto hexagonal mantiene el contrato funcional y separa sus responsabilidades:
+Las responsabilidades están separadas según la arquitectura vigente:
 modelos/profile/puertos en `src/core/extractors/document_title.py`; ciclo y escritura
 coordinada en `src/use_cases/extraction/`; programación acotada al leer en
 `src/use_cases/documents/ensure_document_titles.py`; implementaciones filesystem,
 ArcadeDB y OpenAI en `src/adapters/`. `src/bootstrap/documents.py` inyecta
 configuración y dependencias del workspace. Los módulos anteriores de títulos
-conservan imports/constructores de compatibilidad, con una sola implementación.
+se retiraron al actualizar sus consumidores.
 
 `TitleReadPolicy` contiene límite/habilitación, sin claves. `TitleScheduling`
 expone programación durable sin sesiones SQL al caso de lectura; bootstrap lo
 conecta al backfill en `src/use_cases/documents/backfill_document_titles.py`, que
 usa transacciones de procesamiento sin sesiones SQL. El registro de workflows y
-su configuración se componen en bootstrap desde la etapa 2 del
-[plan](development/hexagonal-migration-plan.md).
+su configuración se componen en bootstrap; ver [arquitectura](../ARCHITECTURE.md).
 
 ## Contrato y ejecución
 
@@ -153,13 +152,13 @@ a PostgreSQL y al workspace activo, pero no credenciales del LLM ni consultas al
 grafo. Por defecto sólo inspecciona:
 
 ```bash
-python -m src.extractors.backfill_titles --workspace "$WORKSPACE_ID" --limit 100
+python -m src.bootstrap.title_backfill --workspace "$WORKSPACE_ID" --limit 100
 ```
 
 Para encolar el lote revisado:
 
 ```bash
-python -m src.extractors.backfill_titles --workspace "$WORKSPACE_ID" --limit 100 --apply
+python -m src.bootstrap.title_backfill --workspace "$WORKSPACE_ID" --limit 100 --apply
 ```
 
 `--apply` verifica la configuración del proveedor antes de escribir. Dispatcher
@@ -171,7 +170,7 @@ Repetirlo permite avanzar con los siguientes documentos sin duplicar los anterio
 Para seleccionar documentos concretos se puede repetir `--document`:
 
 ```bash
-python -m src.extractors.backfill_titles --workspace "$WORKSPACE_ID" --document "$DOCUMENT_ID"
+python -m src.bootstrap.title_backfill --workspace "$WORKSPACE_ID" --document "$DOCUMENT_ID"
 ```
 
 El JSON informa `mode`, `workspace`, `limit`, `total_documents`, `counts` y los IDs

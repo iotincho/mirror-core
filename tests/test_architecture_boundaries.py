@@ -136,14 +136,14 @@ def test_relative_imports_in_package_initializers_are_resolved():
 def test_inventory_includes_consumers_configuration_and_package_data_without_env(tmp_path):
     write(tmp_path, "src/core/model.py", "from pydantic import BaseModel")
     write(tmp_path, "tests/test_document.py", "import src.core.model")
-    write(tmp_path, "Dockerfile", 'CMD ["uvicorn", "src.main:app"]')
+    write(tmp_path, "Dockerfile", 'CMD ["uvicorn", "src.bootstrap.public_api:app"]')
     write(tmp_path, ".env", "PRIVATE_SENTINEL=must-not-be-read")
     write(tmp_path, "pyproject.toml", '[tool.setuptools.package-data]\n'
           '"src.notifications"=["announcements.json"]')
     _, edges, dynamic, sources = audit(tmp_path, policy())
     result = inventory(tmp_path, edges, dynamic, sources)
     assert {item["target"] for item in result["consumer_references"]} == {
-        "src.core.model", "src.main:app", "src.notifications"
+        "src.core.model", "src.bootstrap.public_api:app", "src.notifications"
     }
     assert result["package_data"] == {"src.notifications": ["announcements.json"]}
     assert "PRIVATE_SENTINEL" not in json.dumps(result)

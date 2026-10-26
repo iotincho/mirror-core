@@ -1,11 +1,11 @@
 import httpx
 import pytest
 
+from src.adapters.storage.filesystem.audio_notes import FileAudioNoteStore
 from src.bootstrap.auth import require_authenticated
-from src.dependencies import get_audio_note_store
-from src.main import app
-from src.services.audio_note_store import FileAudioNoteStore
-from src.use_cases.create_audio_note import CreateAudioNote
+from src.bootstrap.public_api import app
+from src.bootstrap.public_dependencies import get_audio_note_store
+from src.use_cases.audio.create_audio_note import CreateAudioNote
 
 
 @pytest.fixture

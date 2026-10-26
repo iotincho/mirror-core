@@ -2,7 +2,7 @@ from fastapi import FastAPI
 
 from src.bootstrap.auth import build_router
 from src.bootstrap.oauth import get_google_oauth_configuration
-from src.config import Settings
+from src.bootstrap.settings import Settings
 
 
 def google_settings(**values: object) -> Settings:

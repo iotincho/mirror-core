@@ -13,13 +13,24 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import DBAPIError, IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from src.adapters.storage.filesystem.documents import FileDocumentStore
 from src.adapters.storage.postgres.accounts import User
+from src.adapters.storage.postgres.models import (
+    ProcessingEvent,
+    ProcessingOutbox,
+    ProcessingReceipt,
+    ProcessingRecord,
+)
+from src.adapters.storage.postgres.repository import ProcessingRepository
 from src.adapters.storage.postgres.workspace_models import UserWorkspace
 from src.bootstrap.auth import require_authenticated
-from src.config import Settings
+from src.bootstrap.processing import build_executor as ExecuteProcessing
+from src.bootstrap.public_api import app
+from src.bootstrap.settings import Settings
+from src.core.domain.documents import NewDocument, build_document
+from src.core.extractors.contracts import ProviderMetadata
 from src.core.processing.errors import StorageUnavailable
-from src.domain.documents import NewDocument, build_document
-from src.extractors.contracts import ProviderMetadata
+from src.core.processing.workflows import WorkflowRegistry
 from src.extractors.personal_axes.contracts import (
     AxisError,
     Criterion,
@@ -28,16 +39,6 @@ from src.extractors.personal_axes.contracts import (
 )
 from src.extractors.personal_axes.dependencies import get_axis_previews
 from src.extractors.personal_axes.models import PersonalAxis, PersonalAxisVersion
-from src.main import app
-from src.processing.execution import ExecuteProcessing, WorkflowRegistry
-from src.processing.models import (
-    ProcessingEvent,
-    ProcessingOutbox,
-    ProcessingReceipt,
-    ProcessingRecord,
-)
-from src.processing.repository import ProcessingRepository
-from src.services.document_store import FileDocumentStore
 from src.use_cases.axis_previews import AxisPreviews
 from src.use_cases.expire_axis_previews import expire_axis_previews
 from src.use_cases.process_axis_preview import ProcessAxisPreview

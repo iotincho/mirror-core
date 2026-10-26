@@ -3,7 +3,7 @@
 import base64
 import json
 
-from src.extractors.contracts import digest
+from src.core.extractors.contracts import digest
 from src.extractors.personal_axes.contracts import AxisError
 
 

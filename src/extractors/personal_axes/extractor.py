@@ -1,13 +1,13 @@
 """One concrete extractor shared by sample dry runs and deferred active persistence."""
 
-from src.extractors.base import Extractor
-from src.extractors.contracts import content_hash
+from src.core.extractors.contracts import content_hash
 from src.extractors.personal_axes.contracts import (
     AxisSpecification,
     Findings,
     FindingsResponse,
     label_key,
 )
+from src.use_cases.extraction.base import Extractor
 
 
 def evidence_issues(response, content):
@@ -107,7 +107,7 @@ class PersonalAxisExtractor(Extractor):
                 await storage.write(phase, identity, saved)
             if saved["context"] != context:
                 raise ValueError("run_configuration_changed")
-            from src.extractors.contracts import ProviderMetadata
+            from src.core.extractors.contracts import ProviderMetadata
 
             return (
                 FindingsResponse.model_validate(saved["response"]),

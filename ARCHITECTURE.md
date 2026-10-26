@@ -1,14 +1,10 @@
 # Arquitectura del backend
 
-Estado al 2026-10-26: arquitectura objetivo acordada; etapas 0–5 completadas.
-Documentos, audio, extractores de títulos/emociones/embeddings, grafo, respaldos,
-procesamiento durable, identidad, recuperación, workspaces, invitaciones,
-notificaciones y administración migrados, con enlaces
-explícitos a áreas pendientes.
-El resto del código todavía no cumple todas estas fronteras.
-El [mapa del repositorio](docs/development/repository-map.md)
-describe el árbol existente; el [plan de migración](docs/development/hexagonal-migration-plan.md)
-define cómo llegar a esta organización sin cambiar el comportamiento del producto.
+Organización vigente al 2026-10-26 para el alcance migrado: núcleo, aplicación,
+adaptadores y composición separados y validados con motores aislados e imagen de
+producción. Ejes conserva su reorganización interna pospuesta; los comandos externos
+que siguen en uso mantienen puentes mínimos documentados. El
+[mapa](docs/development/repository-map.md) ubica las implementaciones actuales.
 
 Este documento es la referencia de responsabilidades, dependencias y crecimiento
 del backend. [AGENTS.md](AGENTS.md) contiene instrucciones de trabajo; los contratos
@@ -46,10 +42,10 @@ de salida describe una necesidad de la aplicación, por ejemplo guardar un origi
 obtener un artefacto o aceptar un trabajo durable. Un cliente HTTP o una sesión SQL
 no constituyen ese contrato.
 
-## Estructura objetivo
+## Estructura de responsabilidades
 
 ```text
-src/                              # Backend; estructura objetivo tras la migración
+src/                              # Backend; organización por responsabilidades
 ├── core/                         # Modelos, reglas y contratos internos
 │   ├── domain/                   # Document, AudioNote y valores compartidos
 │   ├── documents/                # Reglas y puertos propios de documentos
@@ -61,7 +57,8 @@ src/                              # Backend; estructura objetivo tras la migraci
 │   ├── workspaces/               # Identidad, alcance y disponibilidad del espacio
 │   ├── auth/                     # Identidad, contraseñas, sesiones y recuperación
 │   ├── exteriorization/          # Invitaciones, horarios y consentimiento
-│   └── administration/           # Contratos de inventario, métricas y permisos
+│   ├── administration/           # Contratos de inventario, métricas y permisos
+│   └── maintenance/              # Hechos y puertos de migraciones operativas
 ├── use_cases/                    # Acciones de aplicación y coordinación por puertos
 │   ├── documents/                # Aceptar, consultar, borrar y respaldar notas
 │   ├── audio/                    # Aceptar audio y obtener su documento derivado
@@ -72,7 +69,8 @@ src/                              # Backend; estructura objetivo tras la migraci
 │   ├── workspaces/               # Preparar, resolver y reconciliar espacios
 │   ├── auth/                     # Login, recuperación y revocación de sesiones
 │   ├── exteriorization/          # Configurar, programar y enviar invitaciones
-│   └── administration/           # Consultar inventario y administrar permisos
+│   ├── administration/           # Consultar inventario y administrar permisos
+│   └── maintenance/              # Coordinar backups, cutover y recuperación
 ├── adapters/                     # Entrada/salida y tecnologías concretas
 │   ├── access/                   # Traducir entradas externas a casos de uso
 │   │   ├── api/                  # HTTP: rutas, schemas y traducción de errores
@@ -88,15 +86,19 @@ src/                              # Backend; estructura objetivo tras la migraci
 │   │   ├── openai/               # Extracción, embeddings y transcripción
 │   │   ├── email/                # Entrega de correo y traducción de fallos
 │   │   ├── security/             # Cifrado y protección de credenciales técnicas
-│   │   └── web_push/             # Envíos push y respuestas del proveedor
+│   │   ├── web_push/             # Envíos push y respuestas del proveedor
+│   │   └── telemetry/            # Diagnósticos filtrados y trazas técnicas
 │   └── messaging/                # Transporte de mensajes de procesamiento
 │       └── rabbitmq/             # Publicación, cola y confirmación del broker
 └── bootstrap/                    # Construir, conectar y cerrar componentes
     ├── settings.py               # Leer y validar configuración del entorno
-    ├── dependencies.py           # Ensamblar casos de uso y adaptadores
-    ├── public_api.py             # Componer la aplicación HTTP pública
-    ├── admin_api.py              # Componer la aplicación HTTP administrativa
-    └── worker.py                 # Componer el worker y sus recursos
+    ├── public_dependencies.py    # Inyectar casos de uso a las rutas públicas
+    ├── public_router.py          # Registrar endpoints y dependencias de sesión
+    ├── public_api.py             # Aplicación pública y ciclo de vida
+    ├── administration.py         # Aplicación administrativa independiente
+    ├── worker.py                 # Componer worker, tareas y cierre de recursos
+    ├── dispatcher.py             # Componer despacho durable y programadores
+    └── data_migrations.py        # Conectar CLI, puertos y recursos de mantenimiento
 ```
 
 Es un esquema de ubicación, no una orden de crear carpetas vacías. Cada área
@@ -238,103 +240,44 @@ proveedor de transcripción implementa su puerto; un extractor de temas aporta s
 reglas/tipos y adaptadores bajo extracción. Ninguno necesita un `utils` o `services`
 global donde mezclar responsabilidades sin dueño.
 
-## Comprobación y transición
+## Comprobación y compatibilidad
 
-La etapa 0 incorpora [controles de imports](docs/development/architecture-checks.md)
-para núcleo, aplicación y adaptadores, con excepciones heredadas por archivo/import.
-También impide agregar ubicaciones nuevas fuera del árbol objetivo. Los módulos
-heredados sin migrar no se declaran limpios; su inventario y compatibilidad siguen
-el plan. El chequeo documental es independiente de este control de código.
+El [control de imports](docs/development/architecture-checks.md) verifica núcleo,
+aplicación y adaptadores, impide nuevas ubicaciones fuera del árbol objetivo y
+rechaza excepciones obsoletas. Las capas migradas no requieren excepciones.
+El chequeo documental es independiente del control de código.
 
 Un recorrido cumple esta arquitectura cuando puede ejecutar su caso de uso con
-puertos falsos sin iniciar FastAPI, ORM, broker o proveedor real; las pruebas de
-adaptadores e integración comprueban después la infraestructura y la atomicidad.
-Una prueba con mocks no acredita locks o transacciones de motores reales.
+puertos falsos sin iniciar FastAPI, ORM, broker o proveedor real. Los adaptadores
+devuelven estados independientes del ORM y traducen fallos SQL a `StorageUnavailable`.
+Las pruebas de integración comprueban después la atomicidad; los mocks no acreditan
+locks, motores o transporte real.
 
-El piloto ubica originales y puertos en `core/domain`, `core/documents` y
-`core/extractors`; los casos en `use_cases/documents` y `use_cases/extraction`;
-persistencia en `adapters/storage/{filesystem,arcadedb}` y el proveedor de títulos
-en `adapters/providers/openai`. `bootstrap/documents.py` conecta esos componentes.
-`TitleReadPolicy` entrega configuración sin credenciales a la aplicación.
-`TitleScheduling` aísla la aceptación durable: `BackfillDocumentTitles` usa ahora
-el puerto transaccional de procesamiento, sin SQL en el caso de uso.
+La API pública recibe casos y límites explícitos. SSE consulta sesión y workspace
+mediante un puerto, cierra la sesión SQL y vuelve a autorizar en cada heartbeat.
+La exportación resuelve originales por dueño/instancia sin abrir el grafo ni
+necesitar su disponibilidad. El SDK de diagnóstico recibe configuración desde
+bootstrap; HTTP obtiene un callback y no importa proveedores concretos.
 
-Procesamiento separa `ProcessingJob`, `SubmissionReceipt` y `OutboxDelivery` de sus
-modelos ORM. `ProcessingTransaction` expresa operaciones de recibos, trabajos,
-eventos y outbox en una misma transacción; sólo el adaptador conoce la sesión.
-`ExecutionStore` conserva leases, fencing, checkpoints y coordinación padre/hijos.
-Los adaptadores entregan copias independientes y traducen fallos SQL a
-`StorageUnavailable`: la aplicación deja el lease sin resolver y el transporte
-mantiene el mensaje sin ACK. El acceso HTTP conserva su respuesta 503.
+Mantenimiento expresa estado durable, recursos de grafo y archivos como puertos.
+La aplicación controla checkpoints, dry run, cutover y reanudación. PostgreSQL
+implementa locks y reconciliación; ArcadeDB hace borrado transaccional; filesystem
+verifica backups/fingerprints, publica con fsync y elimina sólo derivados conocidos.
+La comprobación de originales ocurre antes de confirmar el borrado del grafo.
+Mover módulos no modifica IDs de migración ni revisiones Alembic aplicadas.
 
-Los casos durables viven en `use_cases/processing`; PostgreSQL en
-`adapters/storage/postgres`; recepción Taskiq en `adapters/access/workers` y
-construcción del broker RabbitMQ en `adapters/messaging/rabbitmq`. Bootstrap conecta
-registro, configuración aceptada, recursos y limpieza del dispatcher/worker.
-Las rutas HTTP y el workspace actuales siguen siendo entrypoints; los módulos
-anteriores delegan, sin duplicar algoritmos.
+La API administrativa conserva pool/configuración/lifespan independientes. Sus
+métricas usan hechos tipados y cobertura desconocida `null`. La bandeja funciona
+sin permiso push y comparte transacción con las invitaciones que la originan.
+Workspaces conserva principales restringidos por dueño; root se usa para provisión
+y mantenimiento administrativo explícito, nunca para servir lecturas públicas.
 
-Emociones separa evidencia/perfiles en core, coordinación en aplicación y reemplazo
-atómico en `adapters/storage/arcadedb/emotions.py`. Embeddings recibe su contador de
-tokens como dependencia; tiktoken y OpenAI quedan en adaptadores. Cada capa sigue
-siendo dueña de sus artefactos y de la sustitución de su proyección.
+Ejes mantiene puentes explícitos: preparación/orden de escritura y clasificación
+de fallos privados, contexto SQL en workflows experimentales y `AxisHistoryRequests`
+para su reset transaccional. `bootstrap/axis_provider.py` configura su cliente.
+Esos puentes se retiran al reorganizar e inyectar dependencias dentro de ejes.
 
-Audio usa `AudioNoteStore`, `TranscriptionSource` y `TranscriptionProvider`:
-la aplicación conserva checkpoints y deriva documentos sin manejar paths ni SDK.
-El adaptador filesystem prepara el upload y limpia temporales; el proveedor gestiona
-su cliente y concurrencia. La composición conecta estos puertos sin dependencias
-directas entre los adaptadores de archivos y OpenAI. Los hashes históricos no cambian.
-
-`ReadGraph` verifica originales y coordina las lecturas; los contratos viven en
-`core/graph` y las consultas/proyecciones en el adaptador ArcadeDB. Respaldos y
-borrado usan puertos de originales, proyección y procesamiento transaccional.
-`FailureFacts` separa hechos técnicos normalizados en el adaptador de la política
-de errores/retry del núcleo. Bootstrap conecta esas responsabilidades por capacidad.
-
-Ejes mantiene dos puentes explícitos en bootstrap: preparación/orden de escritura
-y clasificación de fallos privados para el extractor; contexto SQL sólo para sus
-workflows experimentales de preview/histórico. El procesador genérico no conoce
-el nombre de ejes ni accede a sesiones. La revocación de sesiones e invitaciones
-comparte la transacción PostgreSQL sin importar módulos de aplicación desde storage.
-Los consumidores HTTP y comandos
-heredados conservan constructores/imports compatibles hasta su consolidación;
-los casos canónicos no reciben ORM ni leen configuración global.
-
-Identidad y recuperación usan tipos independientes en `core/auth` y acciones en
-`use_cases/auth`. FastAPI Users adapta cookies, registro y OAuth en acceso público;
-bootstrap conecta el proveedor de hashing y el store de cuentas. La autenticación
-conserva el lock compartido con reset y la versión de sesión, incluso al rehashear.
-La transacción de recuperación aplica presupuestos, desafío, contraseña, revocación
-y outbox juntos; sólo el adaptador conoce sus modelos SQL. Los errores del núcleo
-contienen códigos y esperas; acceso decide HTTP y `Retry-After`.
-
-Workspace define estados, contexto y puertos en `core/workspaces`, y coordina acceso,
-provisión y reconciliación en `use_cases/workspaces`. El adaptador ArcadeDB usa root
-sólo para provisionar; los runtimes reciben el principal restringido al dueño.
-El cifrado conserva sus claves y separación de dominios. `bootstrap/workspaces.py`
-crea y cierra los stores una vez resuelto ese límite. Las carpetas anteriores
-`src/user_management`, `src/workspaces` y `src/auth` se eliminaron al migrar sus
-consumidores; no conservan implementaciones ni shims duplicados.
-
-Invitaciones mantiene selección, horarios y estados en `core/exteriorization`,
-y consentimiento, programación y envío en sus casos de uso. Sus puertos
-transaccionales entregan estados independientes del ORM. PostgreSQL conserva
-los locks y la confirmación conjunta de invitación, aviso, delivery, job y outbox;
-Web Push valida y envía mediante puertos separados. La bandeja funciona sin push.
-Notificaciones separa reglas/acciones tipadas, coordinación y persistencia; las
-publicaciones son explícitas e inmutables y su distribución conserva el cursor durable.
-
-Administración calcula períodos y métricas desde hechos tipados; la cobertura
-desconocida sigue siendo `null`. El lector filesystem entrega sólo metadatos al
-sincronizador, que coordina su proyección mediante un puerto. Consultas y cambios
-de permisos usan transacciones distintas, con commit explícito para las escrituras.
-`bootstrap/administration.py` compone su API y su pool SQL independientes.
-`bootstrap/public_channels.py` ensambla los canales HTTP públicos; los módulos de
-servicios no cargan esas rutas al iniciar CLIs, dispatcher o workers. Las carpetas
-anteriores `src/exteriorization`, `src/notifications` y `src/administration` se retiraron.
-
-Mover archivos no basta si persisten sesiones SQL en los casos de uso o clientes
-concretos detrás de un runtime. Durante la transición se mantienen puentes de import
-y entrypoints sólo donde sean necesarios para consumidores identificados, con
-condición de retiro. No hay dos implementaciones canónicas ni excepciones generales
-para paquetes completos. El plan y el mapa se actualizan al completar cada etapa.
+Los entrypoints antiguos aún usados por `mirror-deploy` sólo delegan a bootstrap.
+Su consumidor, motivo y condición de retiro constan en el [mapa](docs/development/repository-map.md)
+y la [política](config/architecture-exceptions.json). Mantenerlos permite actualizar
+los comandos externos en otra entrega autorizada, sin duplicar implementaciones.

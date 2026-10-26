@@ -12,11 +12,11 @@ from test_emotion_layer import layer_database  # noqa: F401
 from test_emotion_processing import pipeline, run, upload  # noqa: F401
 from test_processing_postgres import store  # noqa: F401
 
-from src.extractors.document_embedding_store import ArcadeDBDocumentEmbeddingStore
-from src.extractors.document_embeddings import EMBEDDINGS_PROFILE, EmbeddingConfiguration
-from src.processing.workflows import workflow_extractor
-from src.use_cases.process_document_extractors import ProcessDocumentExtractors
-from src.use_cases.process_extractor import ProcessExtractor
+from src.adapters.storage.arcadedb.document_embeddings import ArcadeDBDocumentEmbeddingStore
+from src.bootstrap.processing import build_document_coordinator as ProcessDocumentExtractors
+from src.bootstrap.processing import build_extractor_processor as ProcessExtractor
+from src.bootstrap.workflows import workflow_extractor
+from src.core.extractors.document_embeddings import EMBEDDINGS_PROFILE, EmbeddingConfiguration
 
 pytestmark = [
     pytest.mark.anyio,
@@ -36,8 +36,8 @@ def anyio_backend():
 async def test_note_upload_runs_embeddings_and_resumes_ambiguous_persistence(
     pipeline, monkeypatch, source
 ):
-    from src.use_cases.request_processing import RequestProcessing
-    from src.use_cases.submit_processing import SubmitAudioNote, workflow_config
+    from src.bootstrap.acceptance import SubmitAudioNote, workflow_config
+    from src.bootstrap.processing import build_processing_requests as RequestProcessing
 
     env = pipeline
     configuration = EmbeddingConfiguration(segmentation_model="test", dimensions=3)
@@ -53,10 +53,10 @@ async def test_note_upload_runs_embeddings_and_resumes_ambiguous_persistence(
     )
     provider = Provider()
     monkeypatch.setattr(
-        "src.processing.workflows.embedding_provider_configured", lambda model: provider
+        "src.bootstrap.workflows.embedding_provider_configured", lambda model: provider
     )
     monkeypatch.setattr(
-        "src.processing.workflows.emotion_provider_configured", lambda *args: env.provider
+        "src.bootstrap.workflows.emotion_provider_configured", lambda *args: env.provider
     )
 
     @asynccontextmanager

@@ -13,14 +13,13 @@ from test_deferred_ingestion import ingestion, run_current  # noqa: F401
 from test_processing_postgres import anyio_backend, store  # noqa: F401
 
 from src.adapters.storage.postgres.invitation_models import Invitation, InvitationResponse
-from src.api.routes import processing as routes
+from src.adapters.storage.postgres.models import ProcessingReceipt
+from src.bootstrap.acceptance import SubmitAudioNote, recover_submissions
 from src.bootstrap.auth import require_authenticated
+from src.bootstrap.public_api import app
 from src.bootstrap.workspaces import get_workspace_runtime
 from src.core.exteriorization.models import InvitationError
-from src.main import app
-from src.processing.models import ProcessingReceipt
-from src.processing.submissions import SubmissionConflict
-from src.use_cases.submit_processing import SubmitAudioNote, recover_submissions
+from src.core.processing.submissions import SubmissionConflict
 
 pytestmark = [
     pytest.mark.anyio,
@@ -192,7 +191,8 @@ async def test_http_audio_invitation_contract(ingestion, question, monkeypatch, 
         )
     app.dependency_overrides[get_workspace_runtime] = lambda: runtime
     app.dependency_overrides[require_authenticated] = lambda: "test-user"
-    monkeypatch.setattr(routes, "get_repository", lambda: env.repo)
+    from src.bootstrap.processing import get_repository
+    app.dependency_overrides[get_repository] = lambda: env.repo
     value = "invalid" if mode == "invalid" else str(uuid4() if mode == "missing" else question)
     data = {} if mode == "ordinary" else {"invitation_id": value}
     try:

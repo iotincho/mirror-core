@@ -7,9 +7,9 @@ import sentry_sdk
 from fastapi import FastAPI, HTTPException
 from sentry_sdk.transport import Transport
 
-from src import observability
-from src.api.request_logging import RequestLoggingMiddleware
-from src.main import app
+from src.adapters.access.api.public.request_logging import RequestLoggingMiddleware
+from src.adapters.providers.telemetry import sentry as observability
+from src.bootstrap.public_api import app
 
 
 @pytest.fixture
@@ -40,21 +40,20 @@ def captured(monkeypatch):
         environment="test",
         sentry_traces_sample_rate=1.0,
     )
-    monkeypatch.setattr(observability, "get_settings", lambda: settings)
     monkeypatch.setattr(
         sentry_sdk, "init", lambda **kw: actual_init(**kw, transport=MemoryTransport)
     )
-    observability.initialize_sentry("api")
+    observability.initialize_sentry("api", settings)
     yield events
     sentry_sdk.get_client().close()
     sentry_sdk.get_global_scope().set_client(previous)
 
 
 def test_disabled_sentry_does_not_initialize_or_capture(monkeypatch):
-    monkeypatch.setattr(observability, "get_settings", lambda: SimpleNamespace(sentry_dsn=""))
+    settings = SimpleNamespace(sentry_dsn="")
     monkeypatch.setattr(sentry_sdk, "init", lambda **kw: pytest.fail("Sentry initialized"))
     monkeypatch.setattr(sentry_sdk, "capture_exception", lambda *a: pytest.fail("Sentry captured"))
-    observability.initialize_sentry("api")
+    observability.initialize_sentry("api", settings)
     observability.report_issue("upload_failed", ValueError("private"))
 
 
@@ -84,7 +83,8 @@ def test_sdk_transport_receives_only_safe_exception_context(captured):
 @pytest.mark.anyio
 async def test_rejected_upload_is_correlated_without_request_payload(captured):
     test_app = FastAPI(exception_handlers=app.exception_handlers.copy())
-    test_app.add_middleware(RequestLoggingMiddleware)
+    test_app.state.report_issue = observability.report_issue
+    test_app.add_middleware(RequestLoggingMiddleware, report_issue=observability.report_issue)
 
     @test_app.post("/upload")
     async def upload():
@@ -118,7 +118,8 @@ def test_scrubber_removes_nested_sensitive_data_and_attachments():
 @pytest.mark.anyio
 async def test_unexpected_api_error_is_captured_once_with_request_id(captured):
     test_app = FastAPI(exception_handlers=app.exception_handlers.copy())
-    test_app.add_middleware(RequestLoggingMiddleware)
+    test_app.state.report_issue = observability.report_issue
+    test_app.add_middleware(RequestLoggingMiddleware, report_issue=observability.report_issue)
 
     @test_app.post("/upload")
     async def upload():
@@ -154,7 +155,8 @@ def test_transaction_and_error_keep_trace_identity_without_private_data(captured
 @pytest.mark.anyio
 async def test_api_continues_the_incoming_browser_trace(captured):
     test_app = FastAPI(exception_handlers=app.exception_handlers.copy())
-    test_app.add_middleware(RequestLoggingMiddleware)
+    test_app.state.report_issue = observability.report_issue
+    test_app.add_middleware(RequestLoggingMiddleware, report_issue=observability.report_issue)
 
     @test_app.post("/upload")
     async def upload():

@@ -2,10 +2,10 @@
 
 import json
 
-from src.extractors.contracts import ProviderMetadata
+from src.bootstrap.axis_provider import AsyncProvider
+from src.core.extractors.contracts import ProviderMetadata
 from src.extractors.personal_axes.contracts import Criterion, FindingsResponse
 from src.extractors.personal_axes.prompt_builder import GENERATOR_RULES
-from src.services.async_provider import AsyncProvider
 
 
 class AxisProviderError(RuntimeError):

@@ -17,8 +17,12 @@ from src.bootstrap.extraction import build_embedding_extractor as DocumentEmbedd
 from src.bootstrap.extraction import build_emotion_extractor as EmotionExtractor
 from src.bootstrap.extraction import build_emotions_provider as OpenAIEmotionProvider
 from src.bootstrap.extractor_registry import ExtractorRegistry
+from src.bootstrap.processing import build_document_coordinator as ProcessDocumentExtractors
+from src.bootstrap.processing import build_extractor_processor as ProcessExtractor
+from src.bootstrap.processing import build_legacy_layers_processor as ProcessDocumentLayers
+from src.bootstrap.processing import build_source_processor as ProcessDocument
+from src.bootstrap.settings import get_settings
 from src.bootstrap.workspaces import build_workspace_runtime, workspace_access, workspace_binding
-from src.config import get_settings
 from src.core.extractors.contracts import ExtractorProfile
 from src.core.extractors.document_embeddings import EmbeddingConfiguration
 from src.core.processing.errors import WorkflowFailure
@@ -29,10 +33,6 @@ from src.extractors.personal_axes.dependencies import (
     close_axis_providers,
     get_axis_provider,
 )
-from src.use_cases.process_document import ProcessDocument
-from src.use_cases.process_document_extractors import ProcessDocumentExtractors
-from src.use_cases.process_document_layers import ProcessDocumentLayers
-from src.use_cases.process_extractor import ProcessExtractor
 
 
 @asynccontextmanager

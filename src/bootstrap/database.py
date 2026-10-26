@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from src.adapters.storage.postgres.accounts import AccessToken, OAuthAccount, User
-from src.config import get_settings
+from src.bootstrap.settings import get_settings
 
 
 @lru_cache

@@ -10,7 +10,7 @@ from starlette.requests import Request
 
 from src.adapters.providers.email.resend import ResendMailTransport
 from src.bootstrap.recovery import RecoverySecrets, recovery_client_ip
-from src.config import Settings
+from src.bootstrap.settings import Settings
 
 
 @pytest.fixture

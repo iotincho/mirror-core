@@ -12,7 +12,7 @@ from pydantic import ValidationError
 from src.adapters.access.api.public.invitations.schemas import PreferenceUpdate
 from src.adapters.providers.web_push.configuration import validate_subscription
 from src.bootstrap.invitations import WebPushTransport
-from src.config import Settings
+from src.bootstrap.settings import Settings
 from src.core.exteriorization.catalog import CATALOG
 from src.core.exteriorization.contracts import EngineContext
 from src.core.exteriorization.engine import select_trigger

@@ -16,8 +16,8 @@ from src.adapters.storage.postgres.workspace_models import UserWorkspace
 from src.bootstrap import workspaces as provisioning
 from src.bootstrap.auth import build_router, get_database_strategy, session
 from src.bootstrap.database import get_access_token_db, get_async_session
+from src.bootstrap.settings import Settings
 from src.bootstrap.workspaces import router as workspace_router
-from src.config import Settings
 
 PASSWORD = "a-long-private-passphrase"
 

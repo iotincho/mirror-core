@@ -1,6 +1,6 @@
 """Generate observation criteria, retaining backend-owned extraction rules."""
 
-from src.extractors.contracts import ExtractorProfile
+from src.core.extractors.contracts import ExtractorProfile
 from src.extractors.personal_axes.contracts import AxisSpecification
 
 VOICE_RULES = """Address the writer directly in the second person, warmly and plainly.

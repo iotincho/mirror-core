@@ -1,8 +1,8 @@
 """Bind transactional acceptance to a workspace and explicit configuration snapshots."""
 
 from src.bootstrap import processing_configuration
-from src.config import get_settings
-from src.observability import report_issue
+from src.bootstrap.observability import report_issue
+from src.bootstrap.settings import get_settings
 from src.use_cases.processing.submit_processing import audio_manifest as audio_manifest
 from src.use_cases.processing.submit_processing import audio_metadata as audio_metadata
 from src.use_cases.processing.submit_processing import document_identity as document_identity

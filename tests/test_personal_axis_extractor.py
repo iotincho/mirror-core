@@ -3,9 +3,10 @@ from uuid import uuid4
 
 import pytest
 
-from src.domain.documents import NewDocument, build_document
-from src.extractors.artifacts import LayerArtifacts
-from src.extractors.contracts import ExtractorProfile, ProviderMetadata
+from src.adapters.storage.filesystem.documents import FileDocumentStore
+from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
+from src.core.domain.documents import NewDocument, build_document
+from src.core.extractors.contracts import ExtractorProfile, ProviderMetadata
 from src.extractors.personal_axes.contracts import (
     AxisSpecification,
     Criterion,
@@ -15,7 +16,6 @@ from src.extractors.personal_axes.contracts import (
 from src.extractors.personal_axes.extractor import PersonalAxisExtractor
 from src.extractors.personal_axes.prompt_builder import VOICE_RULES, build_specification
 from src.extractors.personal_axes.provider import AxisProviderError, OpenAIAxisProvider
-from src.services.document_store import FileDocumentStore
 
 pytestmark = pytest.mark.anyio
 

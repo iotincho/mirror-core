@@ -1,10 +1,8 @@
-"""Compatibility entrypoint; state and implementation live in bootstrap."""
+"""External mirror-deploy entrypoint; remove after its commands migrate to bootstrap."""
 
-import sys
+import asyncio
 
-from src.bootstrap import dispatcher as canonical
-
-sys.modules[__name__] = canonical
+from src.bootstrap.dispatcher import main as main
 
 if __name__ == "__main__":
-    canonical.asyncio.run(canonical.main())
+    asyncio.run(main())

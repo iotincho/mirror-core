@@ -2,8 +2,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from src.services.graph_store import GraphStore
-from src.use_cases.delete_document import DeleteDocument
+from src.bootstrap.archives import build_delete_document as DeleteDocument
+from src.core.graph.ports import GraphStore
 
 
 class RecordingDocumentStore:

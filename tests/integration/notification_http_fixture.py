@@ -13,13 +13,13 @@ from uuid import uuid4
 
 from fastapi import FastAPI
 from sqlalchemy import delete, select
+from src.adapters.access.api.public.router import api_router
 
 from src.adapters.storage.postgres.accounts import AccessToken, User
 from src.adapters.storage.postgres.invitation_models import Invitation, InvitationPreference
 from src.adapters.storage.postgres.invitations import InvitationRepository
 from src.adapters.storage.postgres.notification_models import Announcement
 from src.adapters.storage.postgres.workspace_models import UserWorkspace
-from src.api.router import api_router
 from src.bootstrap.database import close_database, get_session_maker
 from src.bootstrap.notifications import get_notifications
 from src.core.notifications.models import AnnouncementContent

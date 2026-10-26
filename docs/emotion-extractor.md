@@ -203,14 +203,14 @@ antes de persistir emociones.
 
 ```sh
 # Extrae y guarda un artefacto; no escribe emociones en el grafo.
-python -m src.extractors.cli extract --workspace UUID_USUARIO --document UUID_DOCUMENTO
+python -m src.bootstrap.extraction_cli extract --workspace UUID_USUARIO --document UUID_DOCUMENTO
 
 # Persistencia diferida: usa el UUID devuelto, sin volver a llamar al proveedor.
-python -m src.extractors.cli persist --workspace UUID_USUARIO \
+python -m src.bootstrap.extraction_cli persist --workspace UUID_USUARIO \
   --document UUID_DOCUMENTO --run UUID_EJECUCION
 
 # Extraer y persistir inmediatamente; conservar este UUID permite reintentar.
-python -m src.extractors.cli extract --workspace UUID_USUARIO \
+python -m src.bootstrap.extraction_cli extract --workspace UUID_USUARIO \
   --document UUID_DOCUMENTO --run UUID_EJECUCION --persist
 ```
 

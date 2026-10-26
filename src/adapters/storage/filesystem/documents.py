@@ -1,5 +1,7 @@
 """Durable JSON originals in a bound workspace directory."""
 
+from __future__ import annotations
+
 import asyncio
 import json
 from pathlib import Path

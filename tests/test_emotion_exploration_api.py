@@ -7,12 +7,12 @@ import httpx
 import pytest
 
 from src.bootstrap.auth import get_database_strategy, get_user_manager, require_authenticated
-from src.dependencies import get_document_store, get_graph_store
-from src.domain.documents import NewDocument, build_document
-from src.graph.contracts import EmotionCatalog, EmotionExploration
-from src.main import app
-from src.services.document_store import DocumentNotFoundError
-from src.services.graph_store import EmotionNotFoundError, GraphPersistenceError
+from src.bootstrap.public_api import app
+from src.bootstrap.public_dependencies import get_document_store, get_graph_store
+from src.core.documents.ports import DocumentNotFoundError
+from src.core.domain.documents import NewDocument, build_document
+from src.core.graph.contracts import EmotionCatalog, EmotionExploration
+from src.core.graph.ports import EmotionNotFoundError, GraphPersistenceError
 
 
 @pytest.fixture

@@ -19,20 +19,23 @@ from test_emotion_processing import pipeline, run  # noqa: F401
 from test_personal_axis_processing import active  # noqa: F401
 from test_processing_postgres import store  # noqa: F401
 
+from src.adapters.access.api.public.routes import processing
 from src.adapters.storage.postgres.accounts import AccessToken, User
-from src.bootstrap import activity, processing
+from src.adapters.storage.postgres.models import ProcessingRecord
 from src.bootstrap.auth import get_authenticated_user
 from src.bootstrap.auth import router as auth_router
 from src.bootstrap.database import get_async_session
+from src.bootstrap.processing import get_repository
+from src.bootstrap.public_channels import activity_router
+from src.bootstrap.public_dependencies import get_public_processing, get_upload_limits
+from src.bootstrap.settings import get_settings
 from src.bootstrap.workspaces import get_workspace_runtime
-from src.config import get_settings
-from src.domain.documents import NewDocument, build_document
+from src.core.domain.documents import NewDocument, build_document
+from src.core.processing.errors import ResourceBusy
 from src.extractors.personal_axes.contracts import AxisError
 from src.extractors.personal_axes.dependencies import get_axis_previews
 from src.extractors.personal_axes.history_models import AxisHistoryBatch
 from src.extractors.personal_axes.routes import router as axes_router
-from src.processing.execution import ResourceBusy
-from src.processing.models import ProcessingRecord
 from src.use_cases.process_axis_history import ProcessAxisHistory
 from src.use_cases.process_axis_preview import ProcessAxisPreview
 
@@ -64,7 +67,6 @@ async def test_browser_real_laboratory_cycle(active, monkeypatch):
     monkeypatch.setattr(settings, "auth_session_secret", "laboratory-http-integration-secret")
     monkeypatch.setattr(settings, "openai_model", "test-model")
     monkeypatch.setattr(settings, "platform_activity_enabled", False)
-    monkeypatch.setattr(processing, "get_repository", lambda: env.repo)
     provider = Provider()
     legacy = env.registry.definitions[("document", 3)].run.__self__
     env.registry.register(
@@ -95,10 +97,11 @@ async def test_browser_real_laboratory_cycle(active, monkeypatch):
         yield env.runtime
 
     app = FastAPI()
+    app.dependency_overrides[get_repository] = lambda: env.repo
     protected = APIRouter(prefix="/api", dependencies=[Depends(get_authenticated_user)])
     protected.include_router(axes_router)
-    protected.include_router(processing.router)
-    protected.include_router(activity.router)
+    protected.include_router(processing.build_router(get_public_processing, get_upload_limits))
+    protected.include_router(activity_router)
 
     # Shell dependencies do not participate in the Laboratory domain under test.
     @protected.get("/workspace/status")

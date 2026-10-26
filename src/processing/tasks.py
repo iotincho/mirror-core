@@ -1,7 +1,3 @@
-"""Compatibility task module; registration and dependencies live in bootstrap."""
+"""External mirror-deploy entrypoint; remove after its commands migrate to bootstrap."""
 
-import sys
-
-from src.bootstrap import worker as canonical
-
-sys.modules[__name__] = canonical
+from src.bootstrap.worker import execute_processing as execute_processing

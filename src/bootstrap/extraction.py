@@ -4,16 +4,26 @@ from src.adapters.providers.openai.document_embeddings import OpenAIDocumentEmbe
 from src.adapters.providers.openai.emotions import OpenAIEmotionProvider
 from src.adapters.providers.openai.tokenization import token_count
 from src.adapters.storage.arcadedb.emotions import ArcadeDBEmotionStore
-from src.config import get_settings
+from src.bootstrap.settings import get_settings
+from src.core.extractors.document_embeddings import EMBEDDINGS_PROFILE
+from src.core.extractors.emotions import EMOTIONS_PROFILE
 from src.use_cases.extraction.document_embeddings import DocumentEmbeddingExtractor
 from src.use_cases.extraction.emotions import EmotionExtractor
 
 
-def build_emotion_extractor(documents, artifacts, graph, provider, profile):
+def build_emotion_extractor(documents, artifacts, graph, provider=None, profile=EMOTIONS_PROFILE):
     return EmotionExtractor(documents, artifacts, ArcadeDBEmotionStore(graph), provider, profile)
 
 
-def build_embedding_extractor(documents, artifacts, store, configuration, provider, profile, force):
+def build_embedding_extractor(
+    documents,
+    artifacts,
+    store,
+    configuration,
+    provider=None,
+    profile=EMBEDDINGS_PROFILE,
+    force=False,
+):
     return DocumentEmbeddingExtractor(
         documents,
         artifacts,

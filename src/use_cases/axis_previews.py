@@ -6,6 +6,8 @@ from uuid import UUID, uuid4, uuid5
 
 from sqlalchemy import func, select
 
+from src.adapters.storage.postgres.models import ProcessingReceipt, ProcessingRecord
+from src.core.documents.ports import DocumentNotFoundError
 from src.extractors.personal_axes.contracts import (
     AxisError,
     AxisSpecification,
@@ -15,8 +17,6 @@ from src.extractors.personal_axes.extractor import PersonalAxisExtractor
 from src.extractors.personal_axes.preview_projection import project_preview
 from src.extractors.personal_axes.preview_store import PreviewStore
 from src.extractors.personal_axes.repository import AxisRepository
-from src.processing.models import ProcessingReceipt, ProcessingRecord
-from src.services.document_store import DocumentNotFoundError
 
 
 class AxisPreviews:
@@ -52,7 +52,7 @@ class AxisPreviews:
                 document = await self.runtime.document_store.get(UUID(identifier))
             except DocumentNotFoundError:
                 raise AxisError("axis_source_unavailable") from None
-            from src.extractors.contracts import content_hash
+            from src.core.extractors.contracts import content_hash
 
             if content_hash(document.content) != expected:
                 raise AxisError("axis_source_changed")
@@ -155,7 +155,7 @@ class AxisPreviews:
             async with self.processing.lock_resources(self.owner, request.document_ids) as locked:
                 if not locked:
                     raise AxisError("axis_source_busy")
-                from src.extractors.contracts import content_hash
+                from src.core.extractors.contracts import content_hash
 
                 sources = {}
                 for identifier in request.document_ids:

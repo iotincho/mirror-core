@@ -19,8 +19,8 @@ from src.bootstrap.administration import router as admin_router
 from src.bootstrap.administration_settings import get_admin_settings
 from src.bootstrap.auth import get_authenticated_user
 from src.bootstrap.database import get_async_session
+from src.bootstrap.settings import get_settings
 from src.bootstrap.workspaces import get_workspace_runtime
-from src.config import get_settings
 from src.core.auth.identity import AuthenticatedUser
 from src.extractors.personal_axes.routes import router
 
@@ -163,7 +163,7 @@ async def test_admin_patch_is_narrow_idempotent_and_rejects_cross_origin(access)
 
 def test_public_application_has_no_administrative_write_route():
     from src.adapters.access.api.public.auth.schemas import UserCreate, UserUpdate
-    from src.main import app
+    from src.bootstrap.public_api import app
 
     assert not any(path.startswith("/api/admin") for path in app.openapi()["paths"])
     assert "laboratory_enabled" not in UserUpdate.model_fields

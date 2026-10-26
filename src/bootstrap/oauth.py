@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 from httpx_oauth.clients.google import GoogleOAuth2
 
-from src.config import Settings
+from src.bootstrap.settings import Settings
 
 
 @dataclass(frozen=True)

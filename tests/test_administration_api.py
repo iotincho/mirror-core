@@ -2,8 +2,8 @@ import httpx
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
-from src.admin_main import app
 from src.bootstrap.admin_database import admin_session
+from src.bootstrap.administration import app
 
 
 @pytest.fixture

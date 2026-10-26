@@ -13,13 +13,13 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from src.adapters.storage.postgres.accounts import User
 from src.adapters.storage.postgres.workspaces import PostgresWorkspaces
+from src.bootstrap.settings import Settings
 from src.bootstrap.workspaces import (
     ConfiguredCipher,
     build_provisioner,
     build_workspace_runtime,
     workspace_binding,
 )
-from src.config import Settings
 from src.core.domain.documents import NewDocument, build_document
 from src.core.workspaces.models import WorkspaceStatus
 from src.use_cases.workspaces.access import WorkspaceAccess

@@ -5,10 +5,10 @@ from typing import Annotated
 
 from fastapi import Depends
 
+from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
+from src.bootstrap.settings import get_settings
 from src.bootstrap.workspaces import get_workspace_runtime
-from src.config import get_settings
 from src.core.workspaces.context import WorkspaceRuntime
-from src.extractors.artifacts import LayerArtifacts
 from src.extractors.personal_axes.access import require_laboratory_access
 from src.extractors.personal_axes.contracts import AxisSpecification
 from src.extractors.personal_axes.extractor import PersonalAxisExtractor
@@ -63,7 +63,7 @@ def get_axis_previews(
     access: Annotated[None, Depends(require_laboratory_access)],
     runtime: Annotated[WorkspaceRuntime, Depends(get_workspace_runtime)],
 ):
-    from src.processing.runtime import get_repository
+    from src.bootstrap.processing import get_repository
     from src.use_cases.axis_previews import AxisPreviews
 
     settings = get_settings()

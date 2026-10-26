@@ -11,22 +11,18 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from src.adapters.storage.postgres.accounts import User
-from src.adapters.storage.postgres.workspace_models import UserWorkspace
-from src.processing.dispatcher import dispatch_once
-from src.processing.execution import (
-    ExecuteProcessing,
-    ResourceBusy,
-    WorkflowDefinition,
-    WorkflowFailure,
-    WorkflowRegistry,
-)
-from src.processing.models import (
+from src.adapters.storage.postgres.models import (
     ProcessingEvent,
     ProcessingOutbox,
     ProcessingReceipt,
     ProcessingRecord,
 )
-from src.processing.repository import LeaseLost, ProcessingRepository
+from src.adapters.storage.postgres.repository import ProcessingRepository
+from src.adapters.storage.postgres.workspace_models import UserWorkspace
+from src.bootstrap.dispatcher import dispatch_once
+from src.bootstrap.processing import build_executor as ExecuteProcessing
+from src.core.processing.errors import LeaseLost, ResourceBusy, WorkflowFailure
+from src.core.processing.workflows import WorkflowDefinition, WorkflowRegistry
 
 pytestmark = [
     pytest.mark.anyio,
@@ -381,8 +377,8 @@ async def test_real_taskiq_workers_scale_and_ack_after_durable_completion(store,
                         "-m",
                         "taskiq",
                         "worker",
-                        "src.processing.broker:broker",
-                        "src.processing.tasks",
+                        "src.bootstrap.messaging:broker",
+                        "src.bootstrap.worker",
                         "processing_worker_fixture",
                         "--workers",
                         "1",

@@ -17,12 +17,14 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from src.adapters.providers.email.resend import ResendMailTransport
 from src.adapters.storage.postgres.accounts import AccessToken, OAuthAccount, User
 from src.adapters.storage.postgres.invitation_models import InvitationPreference, PushSubscription
+from src.adapters.storage.postgres.models import ProcessingEvent, ProcessingOutbox, ProcessingRecord
 from src.adapters.storage.postgres.recovery_models import (
     RecoveryAddress,
     RecoveryDelivery,
     RecoveryIP,
 )
 from src.adapters.storage.postgres.recovery_repository import RecoveryError, RecoveryRepository
+from src.adapters.storage.postgres.repository import ProcessingRepository
 from src.bootstrap.auth import (
     InvitationDatabaseStrategy,
     UserManager,
@@ -31,16 +33,15 @@ from src.bootstrap.auth import (
     session,
 )
 from src.bootstrap.database import get_access_token_db, get_async_session
+from src.bootstrap.processing import build_executor as ExecuteProcessing
 from src.bootstrap.recovery import (
     RecoverPassword,
     RecoverySecrets,
     SendRecoveryEmail,
     get_password_recovery,
 )
-from src.config import Settings
-from src.processing.execution import ExecuteProcessing, WorkflowRegistry
-from src.processing.models import ProcessingEvent, ProcessingOutbox, ProcessingRecord
-from src.processing.repository import ProcessingRepository
+from src.bootstrap.settings import Settings
+from src.core.processing.workflows import WorkflowRegistry
 
 pytestmark = [
     pytest.mark.anyio,
@@ -459,7 +460,7 @@ async def test_concurrent_wrong_codes_never_exceed_five_attempts(env):
 
 
 async def test_outbox_dispatch_and_late_worker_expiry(env):
-    from src.processing.dispatcher import dispatch_once
+    from src.bootstrap.dispatcher import dispatch_once
 
     await request(env)
     assert (
@@ -529,8 +530,8 @@ async def test_inflight_password_hash_upgrade_cannot_restore_old_password(env):
 
 
 async def test_internal_email_jobs_cannot_be_listed_or_retried_as_documents(env):
-    from src.services.document_store import DocumentNotFoundError
-    from src.use_cases.request_processing import RequestProcessing
+    from src.bootstrap.processing import build_processing_requests as RequestProcessing
+    from src.core.documents.ports import DocumentNotFoundError
 
     await request(env)
     record = (await jobs(env))[0]

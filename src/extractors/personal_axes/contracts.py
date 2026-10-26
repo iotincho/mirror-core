@@ -6,7 +6,7 @@ from uuid import UUID
 
 from pydantic import Field, model_validator
 
-from src.extractors.contracts import ExtractorProfile, FrozenModel, digest
+from src.core.extractors.contracts import ExtractorProfile, FrozenModel, digest
 
 
 def label_key(value: str) -> str:

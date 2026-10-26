@@ -20,9 +20,9 @@ from src.adapters.storage.postgres.workspace_models import UserWorkspace
 from src.bootstrap.auth import get_authenticated_user
 from src.bootstrap.notifications import build_notification_center as NotificationRepository
 from src.bootstrap.notifications import get_notifications
+from src.bootstrap.public_api import app
 from src.core.notifications.models import AnnouncementContent
 from src.core.notifications.rules import NotificationError
-from src.main import app
 from src.use_cases.exteriorization.configure_invitations import ConfigureInvitations
 from src.use_cases.exteriorization.schedule_invitations import ScheduleInvitations
 

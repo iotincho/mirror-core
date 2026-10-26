@@ -1,6 +1,6 @@
 # Administración local/LAN — API y métricas
 
-La API administrativa se ejecuta desde `src.admin_main:app`. No está montada en `src.main:app`, no comparte su ciclo de arranque y no inicia reconciliación de workspaces, workers, proveedores ni conexiones a ArcadeDB. Esta entrega conserva la decisión de uso LAN sin autenticación administrativa.
+La API administrativa se ejecuta desde `src.bootstrap.administration:app`. No está montada en `src.bootstrap.public_api:app`, no comparte su ciclo de arranque y no inicia reconciliación de workspaces, workers, proveedores ni conexiones a ArcadeDB. Esta entrega conserva la decisión de uso LAN sin autenticación administrativa.
 
 El entrypoint expone la aplicación compuesta en `src/bootstrap/administration.py`.
 Reglas y hechos tipados viven en `src/core/administration`; consultas, permisos,
@@ -47,7 +47,7 @@ Desde mirror-core, configurar `DATABASE_URL` y `WORKSPACES_PATH` en el entorno o
 ```sh
 .venv/bin/python -m alembic upgrade head
 .venv/bin/python -m src.bootstrap.inventory_sync
-.venv/bin/python -m uvicorn src.admin_main:app --host 127.0.0.1 --port 8001
+.venv/bin/python -m uvicorn src.bootstrap.administration:app --host 127.0.0.1 --port 8001
 ```
 
 En otro proceso, para mantener actualizado el inventario:

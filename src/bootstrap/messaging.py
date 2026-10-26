@@ -1,7 +1,7 @@
 """Explicit broker configuration shared by worker and dispatcher entrypoints."""
 
 from src.adapters.messaging.rabbitmq.broker import create_broker
-from src.config import get_settings
+from src.bootstrap.settings import get_settings
 
 settings = get_settings()
 broker = create_broker(

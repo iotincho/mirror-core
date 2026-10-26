@@ -3,7 +3,7 @@
 import json
 from uuid import uuid5
 
-from src.extractors.contracts import content_hash, digest
+from src.core.extractors.contracts import content_hash, digest
 from src.extractors.personal_axes.contracts import label_key
 
 

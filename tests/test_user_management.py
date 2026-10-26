@@ -4,7 +4,7 @@ import pytest
 from fastapi_users.exceptions import InvalidPasswordException
 
 from src.bootstrap.auth import COOKIE_NAME, UserManager, cookie_transport
-from src.main import app
+from src.bootstrap.public_api import app
 
 
 def test_user_management_routes_and_cookie_contract_are_exposed() -> None:

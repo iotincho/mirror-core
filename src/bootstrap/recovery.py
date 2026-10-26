@@ -9,7 +9,7 @@ from src.adapters.providers.email.resend import ResendMailTransport
 from src.adapters.providers.security.recovery import RecoverySecrets
 from src.adapters.storage.postgres.recovery_repository import RecoveryRepository
 from src.bootstrap.database import get_session_maker
-from src.config import get_settings
+from src.bootstrap.settings import get_settings
 from src.use_cases.auth.recover_password import RecoverPassword as RecoveryCase
 from src.use_cases.auth.send_recovery_email import SendRecoveryEmail
 

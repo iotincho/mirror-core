@@ -1,12 +1,12 @@
 import httpx
 import pytest
 
+from src.adapters.storage.filesystem.documents import FileDocumentStore
 from src.bootstrap.auth import require_authenticated
-from src.dependencies import get_list_documents
-from src.domain.documents import NewDocument, build_document
-from src.main import app
-from src.services.document_store import FileDocumentStore
-from src.use_cases.list_documents import ListDocuments
+from src.bootstrap.public_api import app
+from src.bootstrap.public_dependencies import get_list_documents
+from src.core.domain.documents import NewDocument, build_document
+from src.use_cases.documents.list_documents import ListDocuments
 
 
 @pytest.fixture

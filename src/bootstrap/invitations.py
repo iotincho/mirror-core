@@ -4,7 +4,7 @@ from src.adapters.providers.web_push.configuration import PushConfiguration
 from src.adapters.providers.web_push.transport import WebPushTransport as Transport
 from src.adapters.storage.postgres.invitations import InvitationRepository
 from src.bootstrap.database import get_session_maker
-from src.config import get_settings
+from src.bootstrap.settings import get_settings
 from src.use_cases.exteriorization.configure_invitations import ConfigureInvitations
 from src.use_cases.exteriorization.send_invitation import SendInvitation
 

@@ -4,7 +4,7 @@ import json
 from datetime import UTC
 from pathlib import Path
 
-from src.domain.documents import NewDocument
+from src.core.domain.documents import NewDocument
 
 FIXTURES_DIRECTORY = Path("data/fixtures/alex-diary")
 

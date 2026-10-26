@@ -6,9 +6,9 @@ from functools import lru_cache
 from src.adapters.storage.postgres.repository import ProcessingRepository
 from src.adapters.storage.postgres.state import PostgresExecutionStore, database_errors
 from src.bootstrap.database import get_session_maker
-from src.config import get_settings
-from src.core.processing.workflows import WorkflowDefinition, WorkflowRegistry
-from src.observability import report_issue
+from src.bootstrap.observability import report_issue
+from src.bootstrap.settings import get_settings
+from src.core.processing.workflows import WorkflowDefinition
 from src.use_cases.processing.context import ExecutionContext
 from src.use_cases.processing.execute import ExecuteProcessing
 
@@ -45,6 +45,8 @@ def get_repository() -> ProcessingRepository:
 
 
 def get_executor():
+    from src.bootstrap.workflow_registry import registry
+
     return build_executor(get_repository(), registry)
 
 
@@ -140,7 +142,7 @@ def build_processing_requests(repository, runtime):
     return RequestProcessing(requests_store(repository), runtime, workflow_config=workflow_config)
 
 
-class LegacyRequestFacade:
+class AxisHistoryRequests:
     """Adapt the history module's existing reset(session, row, now) call only."""
 
     def __init__(self, repository, runtime):
@@ -173,10 +175,3 @@ def build_title_backfill(repository, runtime):
         requests=build_processing_requests(repository, runtime),
         title_specification=document_title_specification,
     )
-
-
-registry = WorkflowRegistry()
-
-from src.bootstrap.workflows import register_workflows  # noqa: E402
-
-register_workflows(registry)

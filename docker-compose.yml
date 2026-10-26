@@ -59,7 +59,7 @@ services:
       context: .
     env_file:
       - .env.local
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --workers 4
+    command: uvicorn src.bootstrap.public_api:app --host 0.0.0.0 --port 8000 --workers 4
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-el_espejo}:${POSTGRES_PASSWORD:-el-espejo-local-password}@postgres:5432/${POSTGRES_DB:-el_espejo}
       ARCADEDB_HTTP_URL: http://arcadedb:2480
@@ -100,7 +100,7 @@ services:
   data-migrations:
     <<: *processing
     restart: "no"
-    command: python -m src.maintenance.data_migrations --apply --services-stopped
+    command: python -m src.bootstrap.data_migrations --apply --services-stopped
     depends_on:
       database-migrations:
         condition: service_completed_successfully
@@ -114,7 +114,7 @@ services:
       context: .
     env_file:
       - .env.local
-    command: python -m src.graph.arcadedb.schema
+    command: python -m src.bootstrap.graph_schema
     environment:
       ARCADEDB_HTTP_URL: http://arcadedb:2480
       ARCADEDB_DATABASE: ${ARCADEDB_DATABASE:-el_espejo}
@@ -149,7 +149,7 @@ services:
 
   admin-api:
     <<: *admin-runtime
-    command: uvicorn src.admin_main:app --host 0.0.0.0 --port 8000
+    command: uvicorn src.bootstrap.administration:app --host 0.0.0.0 --port 8000
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
       ADMIN_INVENTORY_MAX_AGE_SECONDS: ${ADMIN_INVENTORY_MAX_AGE_SECONDS:?}
@@ -259,13 +259,13 @@ services:
   processing-worker:
     <<: *processing
     command: >-
-      taskiq worker src.processing.broker:broker src.processing.tasks
+      taskiq worker src.bootstrap.messaging:broker src.bootstrap.worker
       --workers 10 --max-async-tasks ${PROCESSING_CONCURRENCY:-4}
       --max-prefetch 0 --ack-type manual
 
   processing-dispatcher:
     <<: *processing
-    command: python -m src.processing.dispatcher
+    command: python -m src.bootstrap.dispatcher
 
 networks:
   admin-ingress:

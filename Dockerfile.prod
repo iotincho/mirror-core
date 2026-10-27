@@ -21,6 +21,21 @@ RUN pip install --upgrade pip \
     && mkdir -p /data/documents /data/audio-notes /data/extractions /data/reflections /data/users \
     && chown -R el-espejo:el-espejo /app /data
 
+# Fail the build before publishing if any deployed entrypoint is missing.
+RUN python -c "from alembic.config import Config; \
+    from alembic.script import ScriptDirectory; \
+    from src.bootstrap.public_api import app as public_app; \
+    from src.bootstrap.administration import app as admin_app; \
+    from src.bootstrap.inventory_sync import main as inventory_sync; \
+    from src.bootstrap.graph_schema import main as graph_schema; \
+    from src.bootstrap.data_migrations import DataMigrations; \
+    from src.bootstrap.messaging import broker; \
+    from src.bootstrap.worker import execute_processing; \
+    from src.bootstrap.dispatcher import main as dispatcher; \
+    scripts = ScriptDirectory.from_config(Config('alembic.ini')); \
+    scripts.get_revision('20261006_06'); scripts.get_revision('20261016_11'); \
+    assert execute_processing.task_name == 'processing.execute'"
+
 USER el-espejo
 
 EXPOSE 8000

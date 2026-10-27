@@ -4,7 +4,7 @@ Estado contrastado con código al 2026-10-26. La migración general
 está completada y validada con PostgreSQL, ArcadeDB, RabbitMQ e imagen de producción.
 La [arquitectura](../../ARCHITECTURE.md) define responsabilidades y criterios de crecimiento.
 Ejes también está organizado en las capas canónicas y validado localmente.
-Sólo quedan los entrypoints externos necesarios, identificados abajo.
+Todos los entrypoints de ejecución están en `src/bootstrap/`, también en mirror-deploy.
 Leer la fila del área afectada y sus pruebas, no todos los módulos.
 
 | Tarea | Entrada y responsables | Pruebas / contrato |
@@ -39,11 +39,11 @@ Las implementaciones migradas viven sólo en core, casos agrupados y adaptadores
 retiraron. Los casos reciben puertos; el adaptador traduce errores y devuelve datos
 independientes del ORM. Bootstrap construye y cierra clientes por proceso.
 
-Se conservan exclusivamente los entrypoints externos que todavía consume
-`mirror-deploy`: `src.main`, `src.admin_main`, `src.processing.{broker,tasks,dispatcher}`,
-`src.maintenance.data_migrations`, `src.graph.arcadedb.schema` y `src.administration.sync`.
-Sus archivos sólo delegan a bootstrap. Retirarlos exige actualizar y validar esos
-comandos externos. La política registra cada import exacto y su condición de retiro.
+Los comandos de mirror-deploy apuntan a `src.bootstrap.{public_api,administration,
+inventory_sync,messaging,worker,dispatcher,data_migrations,graph_schema}`.
+No quedan aliases ni paquetes anteriores de arranque; el preflight de deploy
+verifica esos imports antes de detener servicios. Las reglas arquitectónicas
+se aplican sin excepciones.
 
 Todos los recorridos de ejes usan casos y adaptadores canónicos. Las reservas
 capturan las versiones en la misma transacción SQL; el orden de escritura se
@@ -51,7 +51,7 @@ resuelve mediante `AxisWriteContexts`, sin mutar atributos del extractor. El wor
 histórico usa el contexto común. Las fixtures reciben los casos canónicos y las
 definiciones tipadas de sus adaptadores; la serialización HTTP permanece en acceso.
 No se conservan paquetes anteriores de extractores ni fachadas para pruebas.
-Las únicas excepciones de dependencia restantes son entrypoints externos.
+La política de dependencias no tiene excepciones ni archivos heredados.
 
 Generar el inventario bajo demanda con
 `python3 scripts/check_architecture.py --inventory /tmp/mirror-architecture-inventory.json`;

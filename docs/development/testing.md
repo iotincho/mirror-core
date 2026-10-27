@@ -65,6 +65,14 @@ Las integraciones determinísticas no prueban calidad de un LLM real, entrega de
 correo/push, dispositivos ni disponibilidad de producción. Evitar llamadas pagas
 en la suite habitual; usar proveedores simulados y fixtures sintéticas.
 
+## Chequeo de imagen de desarrollo
+
+`entrypoint-check` es un servicio del perfil `tools`, construido con el `Dockerfile`
+de desarrollo. Valida imports y revisiones empaquetadas sin red, volúmenes ni acceso
+a datos. Para ejecutar sólo esa comprobación, usar los comandos del
+[README](../../README.md). Un error detiene `deploy.sh` antes de parar servicios.
+La comprobación no reemplaza las pruebas de arranque ni las migraciones de un entorno.
+
 ## Procesos fuera de Compose
 
 `Settings` lee `.env` o variables exportadas. Configurar paths escribibles y URLs

@@ -19,7 +19,7 @@ Cobertura actual:
 - `src/core/`: sólo dependencias internas
   admitidas, biblioteca estándar y Pydantic; sin infraestructura ni aplicación.
 - `src/use_cases/`: core, colaboradores de aplicación, biblioteca estándar y
-  Pydantic. Los imports existentes que aún incumplen requieren excepciones exactas.
+  Pydantic. Los imports de infraestructura o compatibilidad se rechazan.
 - `src/adapters/access/`: aplicación/core, su propio código de acceso y frameworks
   de entrada; no imports de storage, proveedores ni SDKs de salida.
 - Adaptadores de salida: core, su tecnología y su propia implementación; no
@@ -27,9 +27,9 @@ Cobertura actual:
 - Ningún módulo exterior a `src/bootstrap/` importa bootstrap sin una excepción
   puntual de transición. Las ubicaciones nuevas deben pertenecer al árbol objetivo.
 
-Las ubicaciones heredadas que permanecen son entrypoints externos usados
-por mirror-deploy. `legacy_files` los identifica individualmente; no desactiva el
-veto a importar bootstrap ni permite crear otros módulos fuera del árbol objetivo.
+No quedan ubicaciones heredadas ni excepciones. Los procesos externos también
+usan bootstrap. `legacy_files` y `exceptions` están vacíos; cualquier ubicación
+o import fuera de las reglas falla en el chequeo.
 
 ## Excepciones y alcance del análisis
 
@@ -78,13 +78,13 @@ Puntos de composición y consumo que revisar al mover rutas:
 | Procesamiento | `src/bootstrap/{processing,workflows,worker,dispatcher,messaging}.py`; puertos core, casos agrupados y adaptadores por tecnología |
 | Settings/diagnóstico | `src/bootstrap/{settings,logging,observability}.py`; proveedor Sentry en `src/adapters/providers/telemetry/` |
 | Mantenimiento | `src/bootstrap/{data_migrations,cleanup_extractions,graph_schema}.py`; aplicación sin SQL/paths, adaptadores separados |
-| Procesos externos | `mirror-deploy` consume los entrypoints mínimos registrados en la política; preservar hasta actualizar sus comandos |
+| Procesos externos | `mirror-deploy` consume directamente `src/bootstrap/`; su preflight verifica la imagen antes de detener servicios |
 | Alembic | `migrations/env.py` importa modelos canónicos, incluido `migration_models`; no reescribir revisiones aplicadas |
 | Empaquetado | `pyproject.toml` descubre `src*` y empaqueta `src.adapters.access.cli/announcements.json`; comprobar wheel desde fuentes limpias |
 
 El inventario se genera bajo demanda y sus contadores no representan porcentaje
-de deuda resuelta. Las únicas nueve excepciones de import corresponden a comandos
-externos documentados; no hay excepciones en core, aplicación ni adaptadores.
+de deuda resuelta. La política no admite actualmente excepciones ni archivos
+heredados en ninguna capa.
 
 ## Regresión de ejes y procesamiento
 
@@ -216,7 +216,7 @@ aislamiento permitido; no presentar un bloqueo del entorno como regresión del p
 ## Regresión de procesamiento durable
 
 Las implementaciones durables están separadas según el [mapa](repository-map.md),
-con entrypoints externos mínimos cuando siguen en uso. Primero validar aplicación
+con composición explícita de todos sus entrypoints. Primero validar aplicación
 sin motores; la prueba de imports bloquea infraestructura explícitamente:
 
 ```bash
@@ -267,7 +267,7 @@ servidor de prueba. Agregar a la regresión durable:
 La fixture de exploración inserta ejecuciones históricas duplicadas explícitamente;
 las extracciones actuales reemplazan su capa. Así se prueba deduplicación de lectura
 sin cambiar el reemplazo atómico para satisfacer una expectativa antigua.
-Conservar sólo los puentes de ejes y entrypoints externos registrados en la política.
+No reintroducir puentes de ejes ni wrappers de entrypoints retirados.
 ## Regresión de identidad y workspaces
 
 Política de contraseña, credenciales, sesión y recuperación en core;
@@ -299,4 +299,4 @@ revisiones ya aplicadas. Alembic debe seguir informando que no hay cambios nuevo
 Las carpetas antiguas de identidad/workspace y sus entradas de excepciones se
 retiraron; no restaurarlas para corregir un importador sin migrar.
 Invitaciones, notificaciones y administración tienen capas separadas; los
-consumidores externos y puentes vigentes se describen en el mapa.
+consumidores externos y sus puntos de composición se describen en el mapa.

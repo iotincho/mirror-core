@@ -17,10 +17,10 @@ sus proveedores y dependencias.
 Los coordinadores canónicos están en `src/use_cases/processing/`, con puertos y
 estados sin ORM en `src/core/processing/`. `src/bootstrap/workflows.py` registra
 versiones y extractores; `src/bootstrap/processing.py` inyecta artefactos, traducción
-de errores y hooks de compatibilidad de ejes. El procesador genérico no tiene una
+de errores y estrategias de persistencia por puertos. El procesador genérico no tiene una
 rama por nombre para ejes ni conoce sesiones SQL; la composición conserva su
-orden de escritura y la supresión de causas privadas. Los imports anteriores
-de `src.processing` y `src.use_cases` son puentes temporales.
+orden de escritura y la supresión de causas privadas. Todos los consumidores
+usan los paquetes canónicos; no quedan puentes de import o ejecución.
 
 El hijo guarda `extractor_name`, `parent_processing_id`, `extraction_run_id` y
 la especificación aceptada. Los IDs de hijo y ejecución se derivan del coordinador

@@ -6,7 +6,9 @@ cd "$(dirname "$0")"
 docker-compose "$@" config --quiet
 # Local Compose uses build contexts. Rebuild every service so Alembic includes
 # the same release as the source mounted into API/workers/data-migrations.
-docker-compose "$@" build --pull
+docker-compose "$@" --profile tools build --pull
+# Check the development image before stopping any current service. No DB writes.
+docker-compose "$@" run --rm --no-deps entrypoint-check
 # Old processes must not write while derived graph/files are being retired.
 docker-compose "$@" --profile admin-lan stop admin-web admin-api admin-sync api processing-worker processing-dispatcher pwa
 docker-compose "$@" up -d --wait postgres arcadedb rabbitmq

@@ -14,7 +14,7 @@ runner, aceptación, retry/reprocess y coordinadores en `src/use_cases/processin
 persistencia y feed en `src/adapters/storage/postgres/`. Taskiq recibe/valida/ACK en
 `src/adapters/access/workers/`; RabbitMQ se configura en `src/adapters/messaging/`.
 `src/bootstrap/` compone procesos, versiones, extractores y opciones aceptadas.
-Los comandos/imports anteriores de `src.processing` se conservan como puentes.
+Todos los comandos de ejecución usan `src.bootstrap`; no se conservan aliases anteriores.
 
 - `ProcessingRepository`: PostgreSQL guarda registros, historial de eventos y
   outbox. La creación del trabajo, su evento inicial y la intención de envío se
@@ -154,5 +154,4 @@ Los comandos canónicos son `src.bootstrap.messaging:broker` con
 versiones se compone en `src/bootstrap/workflow_registry.py`, separado de las
 factories para evitar ciclos de imports. La tarea de transporte conserva su nombre
 `processing.execute`; este movimiento no cambia mensajes, versiones ni configuración
-ya aceptada. Los entrypoints `src.processing.*` aún usados por mirror-deploy sólo
-delegan a estos componentes y se retiran al actualizar ese consumidor externo.
+ya aceptada. mirror-deploy usa directamente estos entrypoints, sin wrappers.

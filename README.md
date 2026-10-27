@@ -83,6 +83,19 @@ docker compose --env-file .env.local config --quiet
 docker compose --env-file .env.local up -d --build
 ```
 
+Para comprobar los entrypoints de la imagen de desarrollo sin iniciar servicios
+ni acceder a datos, usar el perfil `tools`:
+
+```bash
+docker compose --env-file .env.local --profile tools build entrypoint-check
+docker compose --env-file .env.local --profile tools run --rm --no-deps entrypoint-check
+```
+
+El chequeo importa API pública/admin, worker, dispatcher, inventario y migraciones;
+verifica revisiones Alembic y el nombre `processing.execute`. No monta originales,
+no carga `.env.local` dentro del contenedor y se ejecuta sin red. `deploy.sh` lo
+incluye automáticamente después del build y antes de detener procesos.
+
 El stack incluye API, PWA, proxy, PostgreSQL, ArcadeDB, RabbitMQ, migraciones,
 worker y dispatcher. Por defecto el proxy publica `http://localhost:8080` y
 Swagger `http://localhost:8080/api/docs`. La API usa `root_path=/api`;

@@ -3,7 +3,7 @@
 Organización vigente al 2026-10-26 para el alcance migrado: núcleo, aplicación,
 adaptadores y composición separados y validados con motores aislados e imagen de
 producción. Ejes también usa estas capas, incluidos previews, histórico y reservas.
-Los comandos externos que siguen en uso mantienen puentes mínimos documentados. El
+Todos los procesos, incluidos los comandos de mirror-deploy, apuntan a bootstrap. El
 [mapa](docs/development/repository-map.md) ubica las implementaciones actuales.
 
 Este documento es la referencia de responsabilidades, dependencias y crecimiento
@@ -292,7 +292,7 @@ persistencia por llamada. El extractor no se modifica desde un binder SQL.
 La clasificación de errores de ejes conserva su privacidad como política del núcleo.
 No hay otra implementación de ejes ni paquetes de compatibilidad para sus fixtures.
 
-Los entrypoints antiguos aún usados por `mirror-deploy` sólo delegan a bootstrap.
-Su consumidor, motivo y condición de retiro constan en el [mapa](docs/development/repository-map.md)
-y la [política](config/architecture-exceptions.json). Mantenerlos permite actualizar
-los comandos externos en otra entrega autorizada, sin duplicar implementaciones.
+Los entrypoints de procesos viven sólo en `src/bootstrap/`. `mirror-deploy` usa
+estos módulos y verifica sus imports antes de detener servicios. No hay wrappers
+de arranque ni excepciones a las reglas de dependencia. La política vacía sigue
+versionada para que el chequeo rechace imports o ubicaciones fuera de la arquitectura.

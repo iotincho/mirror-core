@@ -4,6 +4,11 @@ El workflow `Publish production image` se ejecuta únicamente cuando un pull req
 queda mergeado en `main`. Construye `Dockerfile.prod`, publica la imagen en Docker
 Hub y crea un tag Git apuntando al commit de merge.
 
+Antes de publicar, el build importa los entrypoints de API, administración,
+worker, dispatcher y mantenimiento, comprueba revisiones Alembic y el nombre de
+la tarea `processing.execute`. Si falta un módulo, falla el build y no se publica
+la imagen. El chequeo no se conecta a servicios ni valida el entorno desplegado.
+
 ## Configuración requerida
 
 En GitHub, abrir **Settings → Secrets and variables → Actions** y definir:

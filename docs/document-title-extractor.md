@@ -1,17 +1,31 @@
 # Títulos de documentos
 
-Plan aprobado el 2026-10-15:
+Contrato del extractor, actualización de títulos en la PWA y generación para
+documentos anteriores sin título, sin repetir otras capas.
 
-- [x] Etapa 1: backend, extractor independiente, persistencia recuperable y compatibilidad de respaldos.
-- [x] Etapa 2: actualización inmediata de títulos en material, lector, búsqueda, caché local y constelaciones.
-- [x] Etapa 3: generación específica para documentos anteriores sin título, sin repetir otros extractores.
+## Ubicación del código
+
+Las responsabilidades están separadas según la arquitectura vigente:
+modelos/profile/puertos en `src/core/extractors/document_title.py`; ciclo y escritura
+coordinada en `src/use_cases/extraction/`; programación acotada al leer en
+`src/use_cases/documents/ensure_document_titles.py`; implementaciones filesystem,
+ArcadeDB y OpenAI en `src/adapters/`. `src/bootstrap/documents.py` inyecta
+configuración y dependencias del workspace. Los módulos anteriores de títulos
+se retiraron al actualizar sus consumidores.
+
+`TitleReadPolicy` contiene límite/habilitación, sin claves. `TitleScheduling`
+expone programación durable sin sesiones SQL al caso de lectura; bootstrap lo
+conecta al backfill en `src/use_cases/documents/backfill_document_titles.py`, que
+usa transacciones de procesamiento sin sesiones SQL. El registro de workflows y
+su configuración se componen en bootstrap; ver [arquitectura](../ARCHITECTURE.md).
 
 ## Contrato y ejecución
 
 `Document.title` sigue siendo un atributo opcional del documento, con máximo de
 80 caracteres. El alta guarda el original sin esperar al LLM. La configuración de
 las nuevas solicitudes agrega `document_title` a emociones y embeddings en el
-workflow de documento v4. Cada hijo tiene su propio estado, ejecución y artefacto.
+workflow de documento v4 o v5 si hay ejes habilitados. Cada hijo tiene su propio
+estado, ejecución y artefacto.
 Los trabajos ya aceptados conservan sus extractores y configuración originales.
 El audio genera el título después de transcribir y crear su documento; importación,
 texto pegado y carga de archivos usan el mismo procesamiento de documentos.
@@ -82,7 +96,7 @@ extractores independientes, emociones y embeddings). Ruff y `git diff --check`
 sin errores. Los contenedores temporales se eliminaron al finalizar. Sin despliegue,
 llamadas a proveedores reales ni evaluación editorial de títulos generados por un LLM.
 
-## Etapa 2 — PWA
+## Títulos en la PWA
 
 Implementada localmente el 2026-10-15 en `mirror-pwa`, misma rama
 `feat/app-refresh-stage1`, commit `15e200d`. Los eventos de `document_title`
@@ -107,7 +121,7 @@ pruebas usan JSDOM, IndexedDB simulado, Cytoscape headless y HTTP/SSE simulados;
 quedan pendientes aceptación en navegador/dispositivo real y flujo con LLM real.
 Documentación detallada en `mirror-pwa/docs/document-titles.md`. Sin despliegue.
 
-## Etapa 3 — material anterior
+## Material anterior y backfill
 
 Implementada localmente el 2026-10-15, sobre `feat/app-refresh-plan`.
 `BackfillDocumentTitles` inspecciona originales de un workspace y encola un
@@ -139,13 +153,13 @@ a PostgreSQL y al workspace activo, pero no credenciales del LLM ni consultas al
 grafo. Por defecto sólo inspecciona:
 
 ```bash
-python -m src.extractors.backfill_titles --workspace "$WORKSPACE_ID" --limit 100
+python -m src.bootstrap.title_backfill --workspace "$WORKSPACE_ID" --limit 100
 ```
 
 Para encolar el lote revisado:
 
 ```bash
-python -m src.extractors.backfill_titles --workspace "$WORKSPACE_ID" --limit 100 --apply
+python -m src.bootstrap.title_backfill --workspace "$WORKSPACE_ID" --limit 100 --apply
 ```
 
 `--apply` verifica la configuración del proveedor antes de escribir. Dispatcher
@@ -157,7 +171,7 @@ Repetirlo permite avanzar con los siguientes documentos sin duplicar los anterio
 Para seleccionar documentos concretos se puede repetir `--document`:
 
 ```bash
-python -m src.extractors.backfill_titles --workspace "$WORKSPACE_ID" --document "$DOCUMENT_ID"
+python -m src.bootstrap.title_backfill --workspace "$WORKSPACE_ID" --document "$DOCUMENT_ID"
 ```
 
 El JSON informa `mode`, `workspace`, `limit`, `total_documents`, `counts` y los IDs
@@ -186,13 +200,11 @@ protección ante un procesamiento que se encoló después de la vista previa.
 Ruff, ayuda de la CLI y `git diff --check` sin errores. Los contenedores temporales
 se eliminaron al terminar.
 
-Las tres etapas de implementación están completas. No se ejecutó el backfill
-sobre notas reales, no se consultó un proveedor real ni se desplegó. La CLI queda
-como mantenimiento opcional; la generación bajo demanda descrita abajo pasa a ser
-el mecanismo habitual. Se mantienen los pendientes de aceptación visual/dispositivos
-y evaluación editorial con un LLM real.
+En esa validación no se ejecutó el backfill sobre notas reales, no se consultó un
+proveedor real ni se desplegó. La CLI sirve para mantenimiento opcional; la
+generación bajo demanda descrita abajo es el mecanismo habitual.
 
-## Generación bajo demanda al leer — 2026-10-15
+## Generación bajo demanda al leer
 
 Los GET autenticados de `/v2/documents/{document_id}`, `/v2/documents` y la lista
 legacy `/documents` intentan encolar la extracción si falta el título canónico.
@@ -241,11 +253,3 @@ una subida, fallo de encolado sin perder la lectura, aislamiento de workspace,
 reintentos agotados que no se reinician al consultar y nueva comprobación bajo
 guard tras una vista previa desactualizada. Ruff y diff sin errores. Sin despliegue
 ni generación sobre notas reales; se usaron proveedores determinísticos de prueba.
-
-## Publicación para revisión — 2026-10-15
-
-Ramas publicadas y PR abiertos hacia `develop`:
-[backend #33](https://github.com/iotincho/mirror-core/pull/33) y
-[PWA #28](https://github.com/iotincho/mirror-pwa/pull/28). Los PR contienen la
-validación local y los límites pendientes. Sin merge, despliegue ni generación
-sobre notas reales; los resultados locales no acreditan el estado de CI remoto.

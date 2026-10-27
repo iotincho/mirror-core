@@ -1,13 +1,44 @@
 # Administración local/LAN — API y métricas
 
-La API administrativa se ejecuta desde `src.admin_main:app`. No está montada en `src.main:app`, no comparte su ciclo de arranque y no inicia reconciliación de workspaces, workers, proveedores ni conexiones a ArcadeDB. Esta entrega conserva la decisión de uso LAN sin autenticación administrativa.
+La API administrativa se ejecuta desde `src.bootstrap.administration:app`. No está montada en `src.bootstrap.public_api:app`, no comparte su ciclo de arranque y no inicia reconciliación de workspaces, workers, proveedores ni conexiones a ArcadeDB. Esta entrega conserva la decisión de uso LAN sin autenticación administrativa.
 
-El panel ya está iniciado en esta máquina usando imágenes locales y los volúmenes
-existentes. Ver [acceso y operación del workspace](admin-workspace.md).
+El entrypoint expone la aplicación compuesta en `src/bootstrap/administration.py`.
+Reglas y hechos tipados viven en `src/core/administration`; consultas, permisos,
+actividad e inventario se coordinan en `src/use_cases/administration`.
+HTTP, PostgreSQL y lectura de metadatos filesystem son adaptadores separados.
+El sincronizador recibe sólo metadatos de originales y conserva `null` cuando
+no puede acreditar cobertura; una lectura incompleta invalida el inventario.
 
 Para ejecutar imágenes compiladas y los tres servicios con Docker, seguir el
-[runbook LAN de mirror-deploy](../../mirror-deploy/ADMIN-LAN.md). El Compose principal, con el perfil `admin-lan`, incluye redes, proxy, sincronización y migración previa; los pasos de
+runbook `mirror-deploy/ADMIN-LAN.md`. El Compose principal, con el perfil `admin-lan`, incluye redes, proxy, sincronización y migración previa; los pasos de
 abajo corresponden a desarrollo sin contenedores.
+
+## Operación con el Compose local
+
+El helper `admin-local.sh` selecciona el proyecto `mirror-core`, el perfil
+`admin-lan` y `.env` para interpolación. Configurar hosts, puertos, base e
+intervalos del destino usando `.env.example`; no asumir IPs o inventarios de
+sesiones anteriores. Los datos residen en los volúmenes del proyecto compartido.
+
+```sh
+./admin-local.sh status
+./admin-local.sh logs
+./admin-local.sh check
+./admin-local.sh stop
+./admin-local.sh build
+./admin-local.sh start
+```
+
+`stop` detiene sólo los tres servicios administrativos. `start` espera PostgreSQL,
+migraciones y healthchecks; no inicia PWA, API pública, workers o Cloudflare.
+`check` requiere el script del checkout hermano `mirror-deploy` y usa el puerto
+loopback efectivo. No ejecutar `down -v` sobre el proyecto con datos existentes.
+Para migraciones del core completo, detener también los escritores públicos.
+
+Laboratorio requiere el mismo `PERSONAL_AXES_ENABLED` en API pública, workers,
+dispatcher y admin-api, además del permiso por cuenta. Si no aparece un control
+recién implementado, verificar las versiones de las imágenes y recrear los
+servicios afectados; recargar el panel no actualiza un contenedor viejo.
 
 ## Iniciar con la base de la plataforma
 
@@ -15,14 +46,14 @@ Desde mirror-core, configurar `DATABASE_URL` y `WORKSPACES_PATH` en el entorno o
 
 ```sh
 .venv/bin/python -m alembic upgrade head
-.venv/bin/python -m src.administration.sync
-.venv/bin/python -m uvicorn src.admin_main:app --host 127.0.0.1 --port 8001
+.venv/bin/python -m src.bootstrap.inventory_sync
+.venv/bin/python -m uvicorn src.bootstrap.administration:app --host 127.0.0.1 --port 8001
 ```
 
 En otro proceso, para mantener actualizado el inventario:
 
 ```sh
-.venv/bin/python -m src.administration.sync --interval 30
+.venv/bin/python -m src.bootstrap.inventory_sync --interval 30
 ```
 
 El sincronizador necesita acceso a los archivos originales. La API solo necesita PostgreSQL; el Compose principal monta el volumen de contenido únicamente en el sincronizador, en modo de solo lectura. admin-api no recibe claves de OpenAI/ArcadeDB ni se publica mediante el gateway público.

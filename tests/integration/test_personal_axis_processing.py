@@ -14,29 +14,35 @@ from test_emotion_layer import layer_database  # noqa: F401
 from test_emotion_processing import pipeline, run, upload  # noqa: F401
 from test_processing_postgres import store  # noqa: F401
 
-from src.auth.session import require_authenticated
-from src.config import get_settings
-from src.extractors.artifacts import LayerArtifacts
-from src.extractors.contracts import ExtractorProfile
-from src.extractors.personal_axes.contracts import (
+from src.adapters.access.api.public.personal_axes.responses import axis_response
+from src.adapters.storage.arcadedb.personal_axes import ArcadeDBAxisStore
+from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
+from src.adapters.storage.postgres.accounts import User
+from src.adapters.storage.postgres.personal_axes.definitions import PostgresAxisDefinitions
+from src.bootstrap.acceptance import SubmitAudioNote
+from src.bootstrap.archives import build_delete_document as DeleteDocument
+from src.bootstrap.auth import require_authenticated
+from src.bootstrap.personal_axes_dependencies import get_preview_cases
+from src.bootstrap.personal_axes_previews import build_axis_previews
+from src.bootstrap.personal_axes_reads import (
+    build_axis_definitions,
+    build_axis_exploration,
+    get_axis_definitions,
+    get_axis_exploration,
+)
+from src.bootstrap.processing import build_document_coordinator as ProcessDocumentExtractors
+from src.bootstrap.processing import build_extractor_processor as ProcessExtractor
+from src.bootstrap.processing import build_processing_requests as RequestProcessing
+from src.bootstrap.public_api import app
+from src.bootstrap.settings import get_settings
+from src.core.extractors.contracts import ExtractorProfile
+from src.core.extractors.personal_axes.models import (
     AxisError,
     AxisSpecification,
     FindingsResponse,
     PreviewRequest,
 )
-from src.extractors.personal_axes.dependencies import get_axis_previews
-from src.extractors.personal_axes.exploration import AxisExploration
-from src.extractors.personal_axes.extractor import PersonalAxisExtractor
-from src.extractors.personal_axes.repository import AxisRepository
-from src.extractors.personal_axes.store import ArcadeDBAxisStore
-from src.main import app
-from src.use_cases.axis_previews import AxisPreviews
-from src.use_cases.delete_document import DeleteDocument
-from src.use_cases.process_document_extractors import ProcessDocumentExtractors
-from src.use_cases.process_extractor import ProcessExtractor
-from src.use_cases.request_processing import RequestProcessing
-from src.use_cases.submit_processing import SubmitAudioNote
-from src.user_management.models import User
+from src.use_cases.extraction.personal_axis import PersonalAxisExtractor
 
 pytestmark = [
     pytest.mark.anyio,
@@ -66,8 +72,10 @@ async def approve(env, title="Valores", previous=None):
         profile=ExtractorProfile(id=f"{title}/{uuid4()}", instructions="Reconocer valores e ideas"),
         model="test",
     )
-    return await env.axes.accept(
-        env.owner, uuid4(), request, spec, datetime.now(UTC) + timedelta(hours=1)
+    return axis_response(
+        await env.axes.accept(
+            env.owner, uuid4(), request, spec, datetime.now(UTC) + timedelta(hours=1)
+        )
     )
 
 
@@ -79,7 +87,7 @@ async def active(pipeline, monkeypatch):
             update(User).where(User.id == env.owner).values(laboratory_enabled=True)
         )
     monkeypatch.setattr(get_settings(), "personal_axes_enabled", True)
-    env.axes = AxisRepository(env.repo.sessions)
+    env.axes = PostgresAxisDefinitions(env.repo.sessions)
     env.calls, env.fail, env.empty = Counter(), set(), set()
     legacy = env.registry.definitions[("document", 3)].run.__self__
 
@@ -125,10 +133,12 @@ async def active(pipeline, monkeypatch):
         "document", 5, ProcessDocumentExtractors(legacy.runtime_factory, keyed=True).definition
     )
     env.registry.register(
-        "extractor", 1, ProcessExtractor(legacy.runtime_factory, factory).definition
+        "extractor",
+        1,
+        ProcessExtractor(legacy.runtime_factory, factory, repository=env.repo).definition,
     )
-    env.previews = AxisPreviews(env.repo, env.runtime, get_settings())
-    env.explore = AxisExploration(env.previews)
+    env.previews = build_axis_previews(env.repo, env.runtime, get_settings())
+    env.explore = build_axis_exploration(env.repo.sessions, env.runtime, owner=env.previews.owner)
     return env
 
 
@@ -303,7 +313,9 @@ async def test_active_branch_pagination_quotes_tags_ownership_and_delete(active)
     assert (await env.explore.tags(axis))["items"][0]["document_count"] == 2
     env.previews.owner = uuid4()
     with pytest.raises(AxisError, match="axis_not_found"):
-        await AxisExploration(env.previews).tags(axis)
+        await build_axis_exploration(env.repo.sessions, env.runtime, owner=env.previews.owner).tags(
+            axis
+        )
     env.previews.owner = env.owner
     await DeleteDocument(
         env.runtime.document_store,
@@ -339,7 +351,13 @@ async def test_version_trace_zero_findings_and_http_contract(active):
     record = await RequestProcessing(env.repo, env.runtime).reprocess_document(first.id, uuid4())
     await finish(env, record)
     assert (await env.explore.tags(axis, old))["items"] == []
-    app.dependency_overrides[get_axis_previews] = lambda: env.previews
+    app.dependency_overrides[get_preview_cases] = lambda: env.previews
+    app.dependency_overrides[get_axis_definitions] = lambda: build_axis_definitions(
+        env.repo.sessions, env.owner
+    )
+    app.dependency_overrides[get_axis_exploration] = lambda: build_axis_exploration(
+        env.repo.sessions, env.runtime
+    )
     app.dependency_overrides[require_authenticated] = lambda: "owner"
     try:
         async with httpx.AsyncClient(
@@ -445,12 +463,8 @@ async def test_persistence_retry_uses_artifact_without_provider_and_sanitizes_er
 async def test_failed_upload_reservation_keeps_snapshot_and_archive_does_not_add_axes(
     active, monkeypatch
 ):
-    from src.domain.documents import NewDocument, build_document
-    from src.use_cases.document_archive import (
-        ArchivedDocument,
-        DocumentArchive,
-        DocumentArchiveTransfer,
-    )
+    from src.bootstrap.archives import ArchivedDocument, DocumentArchive, DocumentArchiveTransfer
+    from src.core.domain.documents import NewDocument, build_document
 
     env = active
     a = await approve(env)
@@ -474,7 +488,7 @@ async def test_failed_upload_reservation_keeps_snapshot_and_archive_does_not_add
     await env.axes.set_enabled(env.owner, UUID(a["id"]), True)
     # Archive import uses its established baseline, even with active accepted axes.
     monkeypatch.setattr(
-        "src.use_cases.document_archive.workflow_config",
+        "src.bootstrap.archives.workflow_config",
         lambda: {"extractors": [], "document_workflow_version": 4},
     )
     document = build_document(NewDocument(content="Original importado"))
@@ -495,7 +509,7 @@ async def test_failed_upload_reservation_keeps_snapshot_and_archive_does_not_add
 async def test_batch_reprocess_pins_once_and_recovers_v5_parent(active):
     from sqlalchemy import update
 
-    from src.processing.models import ProcessingRecord
+    from src.adapters.storage.postgres.models import ProcessingRecord
 
     env = active
     a = await approve(env)
@@ -557,7 +571,7 @@ async def test_truncated_or_partial_graph_is_an_error(active, monkeypatch):
 async def test_database_branch_keys_preserve_legacy_writers_and_reject_duplicates(store):
     from sqlalchemy.exc import IntegrityError
 
-    from src.processing.models import ProcessingRecord
+    from src.adapters.storage.postgres.models import ProcessingRecord
 
     repo, owner = store
     async with repo.sessions.begin() as session:
@@ -629,3 +643,29 @@ async def test_account_access_stops_new_reservations_and_preserves_accepted_work
     monkeypatch.setattr(get_settings(), "personal_axes_enabled", False)
     _, globally_disabled = await upload(env, uuid4())
     assert all(item["name"] != "personal_axis" for item in globally_disabled.config["extractors"])
+
+
+async def test_write_context_retains_parent_reservation_and_all_accepted_versions(active):
+    from src.adapters.storage.postgres.personal_axes.write_contexts import PostgresAxisWriteContexts
+
+    env = active
+    first = await approve(env)
+    _, parent = await upload(env)
+    _, children = await finish(env, parent)
+    child = next(job for job in children if job.extractor_name == "personal_axis")
+    second = await approve(env, previous=first)
+    await env.axes.set_enabled(env.owner, UUID(first["id"]), False)
+    contexts = PostgresAxisWriteContexts(env.repo.sessions)
+    result = await contexts.for_reservation(
+        env.owner, child.id, UUID(first["id"]), UUID(first["current_version_id"])
+    )
+    assert result.order.startswith("000000000001:")
+    assert result.order.endswith(f":{parent.id}")
+    assert dict(result.version_numbers) == {
+        first["current_version_id"]: 1,
+        second["current_version_id"]: 2,
+    }
+    with pytest.raises(ValueError, match="axis_version_not_found"):
+        await contexts.for_reservation(
+            uuid4(), child.id, UUID(first["id"]), UUID(first["current_version_id"])
+        )

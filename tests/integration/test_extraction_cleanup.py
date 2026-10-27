@@ -8,11 +8,11 @@ import pytest
 from legacy_graph_fixture import EmbeddingSpec, legacy_schema_statements
 from test_processing_postgres import store  # noqa: F401
 
-from src.domain.documents import NewDocument, build_document
-from src.graph.arcadedb.client import AsyncArcadeDBHTTPClient
-from src.graph.arcadedb.schema import schema_statements
-from src.graph.arcadedb.store import ArcadeDBGraphStore
-from src.maintenance.extraction_cleanup import LegacyExtractionCleanup
+from src.bootstrap.data_migrations import LegacyExtractionCleanup
+from src.bootstrap.graph import build_graph_client as AsyncArcadeDBHTTPClient
+from src.bootstrap.graph import build_graph_store as ArcadeDBGraphStore
+from src.bootstrap.graph_schema import schema_statements
+from src.core.domain.documents import NewDocument, build_document
 
 pytestmark = [
     pytest.mark.anyio,
@@ -123,9 +123,15 @@ async def test_cutover_cli_retires_jobs_and_backfills_originals(
 ):
     from contextlib import asynccontextmanager
     from types import SimpleNamespace
+    from unittest.mock import AsyncMock
 
-    from src.maintenance import cleanup_extractions as cli
-    from src.services.document_store import FileDocumentStore
+    from src.adapters.access.cli import cleanup_extractions as cli
+    from src.adapters.storage.filesystem.documents import FileDocumentStore
+    from src.adapters.storage.filesystem.migrations import MigrationFiles
+    from src.adapters.storage.postgres.migrations import PostgresMigrations
+    from src.bootstrap.cleanup_extractions import WorkspaceCleanupResources
+    from src.core.maintenance.models import MigrationWorkspace
+    from src.use_cases.maintenance.cleanup_extractions import CleanupExtractions
 
     client, connection = cleanup_database
     repo, owner = store
@@ -155,9 +161,16 @@ async def test_cutover_cli_retires_jobs_and_backfills_originals(
             document_store=documents,
         )
 
-    monkeypatch.setattr(cli, "get_settings", lambda: SimpleNamespace(arcadedb_instance_key="test"))
-    monkeypatch.setattr(cli, "get_repository", lambda: repo)
-    monkeypatch.setattr(cli, "worker_runtime", runtime)
+    settings = SimpleNamespace(arcadedb_instance_key="test", workspaces_path=tmp_path,
+        arcadedb_http_url=connection[0], arcadedb_username="root", arcadedb_password=connection[2])
+    resources = WorkspaceCleanupResources(settings)
+    monkeypatch.setattr("src.bootstrap.cleanup_extractions.worker_runtime", runtime)
+    monkeypatch.setattr(resources, "files", lambda workspace: MigrationFiles(root))
+    store = PostgresMigrations(repo.sessions, "test", 90)
+    async def discover():
+        return [MigrationWorkspace(owner, connection[1], "active")]
+    monkeypatch.setattr(store, "discover", discover)
+    case = CleanupExtractions(store, resources, "test")
     args = SimpleNamespace(
         instance="test",
         workspace=owner,
@@ -165,11 +178,11 @@ async def test_cutover_cli_retires_jobs_and_backfills_originals(
         services_stopped=False,
         backup=tmp_path / "backup",
     )
-    await cli.run(args)
+    await cli.run(args, lambda: case, AsyncMock())
     assert (await repo.get(legacy.id, owner)).status == "queued"
     assert not args.backup.exists()
     args.apply, args.services_stopped = True, True
-    await cli.run(args)
+    await cli.run(args, lambda: case, AsyncMock())
     retired = await repo.get(legacy.id, owner)
     assert retired.status == "failed" and retired.error_code == "extraction_retired"
     assert not retired.retryable and retired.generation > legacy.generation

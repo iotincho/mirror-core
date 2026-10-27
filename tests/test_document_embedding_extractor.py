@@ -6,17 +6,16 @@ from uuid import uuid4
 
 import pytest
 
-from src.domain.documents import NewDocument, build_document
-from src.extractors.artifacts import LayerArtifacts
-from src.extractors.document_embeddings import (
-    DocumentEmbeddingExtractor,
-    EmbeddingConfiguration,
-    Segmentation,
-    bounded_spans,
-    token_count,
+from src.adapters.providers.openai.tokenization import token_count
+from src.adapters.storage.filesystem.documents import FileDocumentStore
+from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
+from src.bootstrap.extraction import (
+    build_document_embeddings_provider as OpenAIDocumentEmbeddingProvider,
 )
-from src.extractors.openai_document_embeddings import OpenAIDocumentEmbeddingProvider
-from src.services.document_store import FileDocumentStore
+from src.bootstrap.extraction import build_embedding_extractor as DocumentEmbeddingExtractor
+from src.core.domain.documents import NewDocument, build_document
+from src.core.extractors.document_embeddings import EmbeddingConfiguration, Segmentation
+from src.use_cases.extraction.document_embeddings import bounded_spans
 
 pytestmark = pytest.mark.anyio
 
@@ -126,7 +125,7 @@ async def test_invalid_vectors_never_become_artifacts(tmp_path, vector):
 
 async def test_local_spans_preserve_unicode_and_token_limit():
     text = "🌳Árbol\n" * 100
-    spans = list(bounded_spans(text, 32))
+    spans = list(bounded_spans(text, 32, token_count))
     assert "".join(text[start:end] for start, end in spans) == text
     assert all(token_count(text[start:end]) <= 32 for start, end in spans)
 

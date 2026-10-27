@@ -7,13 +7,13 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from src.auth.session import require_authenticated
-from src.dependencies import get_document_store, get_graph_store
-from src.domain.documents import NewDocument, build_document
-from src.graph.contracts import ExtractionGraph, GraphEdge, GraphNode
-from src.main import app
-from src.services.document_store import DocumentNotFoundError
-from src.services.graph_store import GraphPersistenceError
+from src.bootstrap.auth import require_authenticated
+from src.bootstrap.public_api import app
+from src.bootstrap.public_dependencies import get_document_store, get_graph_store
+from src.core.documents.ports import DocumentNotFoundError
+from src.core.domain.documents import NewDocument, build_document
+from src.core.graph.contracts import ExtractionGraph, GraphEdge, GraphNode
+from src.core.graph.ports import GraphPersistenceError
 
 
 @pytest.fixture

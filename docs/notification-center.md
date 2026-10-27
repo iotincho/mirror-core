@@ -7,6 +7,12 @@ y contador; esto no borra físicamente la fila ni la invitación o las notas vin
 
 ## Persistencia y estados
 
+Modelos, acciones y reglas viven en `src/core/notifications`; `NotificationCenter`
+en `src/use_cases/notifications` coordina mediante su puerto transaccional.
+`src/adapters/storage/postgres/notifications.py` implementa consultas y locks;
+el adaptador HTTP público y el CLI sólo traducen entradas y resultados.
+Bootstrap conecta el servicio con API, dispatcher y publicación explícita.
+
 - `notifications`: contenido estable, acción tipada, propietario, deduplicación,
   publicación, ingreso efectivo a la bandeja, vencimiento, lectura y descarte.
 - `notification_enrollments`: crea los pasos de onboarding una sola vez por usuario.
@@ -67,15 +73,15 @@ el procesamiento de notas para abrir desde la bandeja.
 
 ## Publicar una novedad
 
-Agregar una entrada a `src/notifications/announcements.json`, con clave nueva y estable,
+Agregar una entrada a `src/adapters/access/cli/announcements.json`, con clave nueva y estable,
 título, resumen y cuerpo. `action` es opcional. Si se omite `lifetime_days`, usa 15;
 el campo admite 1–365.
 El archivo está incluido en el paquete Python; también se puede indicar otro catálogo
 con `--catalog /ruta/catalogo.json`.
 
 ```sh
-.venv/bin/python -m src.notifications.cli preview notification-center-v1
-.venv/bin/python -m src.notifications.cli publish notification-center-v1
+.venv/bin/python -m src.bootstrap.announcements preview notification-center-v1
+.venv/bin/python -m src.bootstrap.announcements publish notification-center-v1
 ```
 
 `preview` no escribe y muestra contenido y cantidad elegible. `publish` persiste la

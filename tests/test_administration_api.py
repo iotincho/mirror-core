@@ -2,8 +2,8 @@ import httpx
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
-from src.admin_main import app
-from src.administration.database import admin_session
+from src.bootstrap.admin_database import admin_session
+from src.bootstrap.administration import app
 
 
 @pytest.fixture
@@ -35,8 +35,8 @@ async def test_laboratory_commit_failure_never_acknowledges_saved_access(monkeyp
     from types import SimpleNamespace
     from uuid import uuid4
 
-    from src.administration.database import admin_write_session
-    from src.administration.repository import AdministrationRepository
+    from src.adapters.storage.postgres.administration import AdministrationRepository
+    from src.bootstrap.admin_database import admin_write_session
 
     async def failed_commit():
         raise SQLAlchemyError("PRIVATE_COMMIT_DETAILS")

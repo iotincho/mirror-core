@@ -1,9 +1,50 @@
-# Backend experimental de ejes personales: entregas 1 a 4
+# Backend experimental de ejes personales
 
 Implementa creación, prueba, aceptación versionada, ejecución automática en
 notas nuevas y exploración de resultados activos por API. La PWA integra estos
 contratos en una sección independiente de Laboratorio. La familia reutiliza `Extractor` y sus artefactos; las citas se
 guardan en relaciones, siguiendo el modelo de emociones.
+
+## Organización interna
+
+Reglas/modelos/puertos en `src/core/extractors/personal_axes/`; ciclo del extractor
+canónico en `src/use_cases/extraction/personal_axis.py`; generación de criterio en
+`src/use_cases/personal_axes/build_specification.py`. OpenAI y la proyección ArcadeDB
+se implementan en sus adaptadores `personal_axes.py`, compuestos por
+`src/bootstrap/personal_axes.py`. Los perfiles, hashes y formatos conservan sus bytes.
+
+Definiciones, acceso/contexto/preferencias y exploración viven en
+`use_cases/personal_axes/`, con puertos semánticos. PostgreSQL mantiene su ORM y
+consultas en `adapters/storage/postgres/personal_axes/`; ArcadeDB implementa las
+lecturas en `adapters/storage/arcadedb/personal_axis_reads.py`. Rutas, schemas y
+estados HTTP están en `adapters/access/api/public/personal_axes/`; bootstrap los
+conecta sin usar `AxisPreviews` como contenedor. La coordinación de previews,
+su worker, aceptación y limpieza también viven en `use_cases/personal_axes/`.
+`preview_ports.py` define temporales y reservas; los adaptadores PostgreSQL y
+filesystem implementan las transacciones y archivos. La composición está en
+`bootstrap/personal_axes_previews.py`; su dependencia HTTP en
+`bootstrap/personal_axes_dependencies.py`. Histórico y ejecución por nota están en
+`use_cases/personal_axes/{history,process_history}.py`, con composición propia en
+`bootstrap/personal_axes_history.py`. Sus estados tipados no exponen ORM, sesiones
+ni un contenedor de previews; el lector de cobertura es el caso canónico de exploración.
+Las fixtures usan estos mismos casos y adaptadores, sin una implementación alternativa.
+
+Las reservas automáticas leen versiones habilitadas dentro de la transacción de
+aceptación; PostgreSQL aplica el permiso por cuenta y devuelve hechos a la política
+pura `core/extractors/personal_axes/configuration.py`. El histórico comparte la
+unidad de trabajo de procesamiento para crear/parar/reintentar jobs, ítems,
+recibos y outbox. El reset usa la política común `core/processing/retry.py`, sin
+otro commit. `AxisWriteContexts` resuelve prioridad de versión y reserva original,
+incluido el padre; aplicación entrega ese contexto a `persist()` por llamada,
+sin modificar `write_order` ni `legacy_versions` en el extractor.
+
+La reserva mantiene el input inmutable antes de confirmar juntos job, recibo y
+outbox. La unidad de trabajo SQL conserva cuota concurrente y reloj autoritativo;
+un fallo intermedio deja un input huérfano recuperable con la misma identidad y
+configuración. Limpieza coordina candidatos y locks por puertos: SQL selecciona y
+elimina estado, filesystem rota el escaneo de temporales y aplicación decide
+vigencia. El worker usa checkpoints y errores semánticos, sin sesiones ni paths.
+La clasificación técnica de fallos se inyecta desde bootstrap.
 
 ## Configuración y preparación
 
@@ -332,9 +373,9 @@ lectura valida evidencia contra el original del workspace y su hash. El detalle
 y la lista agregan esas relaciones en `evidence` para facilitar la lectura.
 
 Cada respuesta de vecindad incluye `root_id`, ámbito y cursor; la de prueba añade
-`revision_hash`. El futuro cliente puede unir ramas sin duplicar IDs y descartar
-respuestas de otra revisión. Preservar posiciones/cámara y ocultar tipos de nodo
-corresponde a la etapa de UI.
+`revision_hash`. El cliente puede unir ramas sin duplicar IDs y descartar
+respuestas de otra revisión. Posiciones, cámara y visibilidad de nodos son
+responsabilidad de la interfaz.
 
 Las consultas de vecindad y lista están limitadas a la página solicitada. El
 catálogo cuenta metadatos de hasta 10000 hallazgos por eje/filtro; superar ese

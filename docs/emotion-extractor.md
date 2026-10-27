@@ -110,9 +110,12 @@ válido. El error público de workflow sigue siendo `extraction_invalid_response
 
 ## Contrato y encapsulamiento
 
-`src/extractors/base.py` define `Extractor` como clase abstracta. La implementación
-define `produce`, `validate_payload` y `write_layer`: algoritmo, modelo y lógica
-de guardado pertenecen a la capa. `EmotionProvider` es su puerto de generación;
+`src/use_cases/extraction/base.py` define `Extractor` como clase abstracta.
+`src/use_cases/extraction/emotions.py` coordina producción, validación y persistencia
+por puertos. Modelos, evidencia y reglas viven en `src/core/extractors/`;
+`src/adapters/storage/arcadedb/emotions.py` posee esquema, consultas y reemplazo
+atómico. `src/bootstrap/extraction.py` conecta esas piezas; los imports anteriores
+son compatibles. `EmotionProvider` es su puerto de generación;
 `OpenAIEmotionProvider` usa el schema de respuesta propio `EmotionResponse`. Otro extractor puede
 usar un proceso distinto sin heredar esa dependencia de LLM.
 
@@ -190,7 +193,7 @@ reprocesamiento automático al iniciar.
 
 ## Ejecutar la prueba
 
-La limpieza de la etapa 1 debe haberse completado antes de habilitar esta prueba.
+Si se actualiza una instalación con emociones v1, completar primero el corte anterior.
 Usar la imagen nueva y la misma configuración/volumen del worker. El workspace
 se resuelve por PostgreSQL y credenciales propias; debe estar activo.
 Para extraer, se requieren `LLM_PROVIDER=openai`, `OPENAI_API_KEY` y `OPENAI_MODEL`.
@@ -200,14 +203,14 @@ antes de persistir emociones.
 
 ```sh
 # Extrae y guarda un artefacto; no escribe emociones en el grafo.
-python -m src.extractors.cli extract --workspace UUID_USUARIO --document UUID_DOCUMENTO
+python -m src.bootstrap.extraction_cli extract --workspace UUID_USUARIO --document UUID_DOCUMENTO
 
 # Persistencia diferida: usa el UUID devuelto, sin volver a llamar al proveedor.
-python -m src.extractors.cli persist --workspace UUID_USUARIO \
+python -m src.bootstrap.extraction_cli persist --workspace UUID_USUARIO \
   --document UUID_DOCUMENTO --run UUID_EJECUCION
 
 # Extraer y persistir inmediatamente; conservar este UUID permite reintentar.
-python -m src.extractors.cli extract --workspace UUID_USUARIO \
+python -m src.bootstrap.extraction_cli extract --workspace UUID_USUARIO \
   --document UUID_DOCUMENTO --run UUID_EJECUCION --persist
 ```
 

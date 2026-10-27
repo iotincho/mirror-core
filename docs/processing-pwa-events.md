@@ -1,4 +1,4 @@
-# Etapa 5: PWA y eventos de procesamiento
+# PWA y eventos de procesamiento
 
 La PWA utiliza uploads diferidos v2, conserva las claves de idempotencia en
 IndexedDB y recibe estados por un único SSE mientras existe una sesión.
@@ -34,7 +34,7 @@ La respuesta incluye `Cache-Control: no-cache, no-transform` y
 `X-Accel-Buffering: no`. El proxy Nginx existente respeta esa cabecera y los
 heartbeats mantienen actividad dentro de su timeout. No se cambiaron ni se
 validaron instancias de proxy desplegadas. Un proxy que ignore esa cabecera
-necesita desactivar buffering para `/api/events` en la etapa de despliegue.
+necesita desactivar buffering para `/api/events` en el entorno desplegado.
 
 ## Orden durable
 
@@ -56,7 +56,7 @@ no requiere polling del frontend ni comunicación directa con RabbitMQ. La
 publicación funciona incluso si la PWA se abre luego de terminar el procesamiento.
 Los eventos anteriores a la migración no tenían payload: se recuperan por
 snapshots. El replay filtra la ventana temporal; la purga física/optimización y
-la medición con muchas conexiones quedan para operación en la etapa 6.
+la medición con muchas conexiones requieren definición operativa.
 
 ## PWA y recuperación
 
@@ -81,9 +81,8 @@ Reintentar un fallo recuperable retoma el mismo workflow; reprocesar uno termina
 solicita una extracción nueva. Reupload es una acción deliberada independiente
 y sólo reemplaza la identidad remota después de aceptar el nuevo envío.
 
-Los endpoints legacy siguen disponibles para clientes anteriores. La PWA nueva
-requiere el core con esta migración; publicar sólo la PWA antes que el backend
-no permite utilizar este contrato.
+Los uploads y endpoints de extracción retirados responden `410`; los clientes
+deben usar los contratos vigentes de [ingestión](deferred-ingestion.md).
 
 ## Diagnóstico de sincronización
 

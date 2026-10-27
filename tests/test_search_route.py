@@ -1,4 +1,4 @@
-from src.main import app
+from src.bootstrap.public_api import app
 
 
 def test_openapi_no_longer_advertises_exploratory_operations():

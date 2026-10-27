@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "description": "Arquitectura hexagonal sin excepciones ni paquetes heredados; todos los procesos se componen en src/bootstrap.",
+  "legacy_files": [],
+  "exceptions": []
+}

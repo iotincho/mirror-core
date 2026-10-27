@@ -6,7 +6,7 @@ import pytest
 from fastapi import FastAPI, HTTPException
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from src.main import app
+from src.bootstrap.public_api import app
 
 
 @pytest.fixture

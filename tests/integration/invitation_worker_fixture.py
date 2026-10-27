@@ -1,10 +1,10 @@
 """Simulated push boundary loaded only by the real Taskiq integration test."""
 
-from src.exteriorization.dependencies import get_invitation_repository
-from src.exteriorization.web_push import PushResult
-from src.processing.execution import WorkflowDefinition
-from src.processing.runtime import registry
-from src.use_cases.send_invitation import SendInvitation
+from src.bootstrap.invitations import get_invitation_repository
+from src.bootstrap.workflow_registry import registry
+from src.core.exteriorization.models import PushResult
+from src.core.processing.workflows import WorkflowDefinition
+from src.use_cases.exteriorization.send_invitation import SendInvitation
 
 
 class AcceptPush:

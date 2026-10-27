@@ -12,13 +12,13 @@ import uvicorn
 from fastapi import FastAPI
 from sqlalchemy import delete, func, update
 
-from src.api.routes import events
-from src.api.schemas.processing import ProcessingResponse
-from src.config import get_settings
-from src.processing.events import EventFeed
-from src.processing.models import ProcessingEvent
-from src.user_management.models import AccessToken
-from src.workspaces.models import UserWorkspace
+from src.adapters.access.api.public.routes import events
+from src.adapters.access.api.public.schemas.processing import ProcessingResponse
+from src.adapters.storage.postgres.accounts import AccessToken
+from src.adapters.storage.postgres.events import EventFeed
+from src.adapters.storage.postgres.models import ProcessingEvent
+from src.adapters.storage.postgres.workspace_models import UserWorkspace
+from src.bootstrap.settings import get_settings
 from tests.integration.test_processing_postgres import anyio_backend, job, store  # noqa: F401
 
 pytestmark = [
@@ -82,11 +82,17 @@ async def sse_server(store, monkeypatch):  # noqa: F811
             .values(arcadedb_instance_key=get_settings().arcadedb_instance_key)
         )
         session.add(AccessToken(token=token, user_id=owner))
-    monkeypatch.setattr(events, "get_session_maker", lambda: repo.sessions)
+    from src.adapters.storage.postgres.stream_sessions import PostgresStreamSessions
+    from src.use_cases.auth.authorize_stream import AuthorizeStream
+    settings = get_settings()
+    authorization = AuthorizeStream(
+        PostgresStreamSessions(repo.sessions, settings.auth_session_ttl_seconds),
+        settings.arcadedb_instance_key,
+    )
     monkeypatch.setattr(events, "POLL_SECONDS", 0.02)
     monkeypatch.setattr(events, "HEARTBEAT_SECONDS", 0.05)
     app = FastAPI()
-    app.include_router(events.router)
+    app.include_router(events.build_router(lambda: authorization, lambda: EventFeed(repo.sessions)))
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))
     port = sock.getsockname()[1]

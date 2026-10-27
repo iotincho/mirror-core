@@ -2,8 +2,8 @@ from uuid import uuid4
 
 import pytest
 
-from src.extractors.personal_axes.preview_projection import project_preview
-from src.extractors.personal_axes.schemas import PreviewGraph
+from src.adapters.access.api.public.personal_axes.schemas import PreviewGraph
+from src.use_cases.personal_axes.preview_projection import project_preview
 
 
 @pytest.fixture
@@ -61,9 +61,11 @@ def test_preview_has_one_relation_per_quote_and_no_evidence_on_finding_nodes():
 async def test_neighbor_page_preserves_full_finding_context_and_cursor_scope():
     from types import SimpleNamespace
 
-    from src.extractors.personal_axes.contracts import AxisError
-    from src.extractors.personal_axes.exploration import preview_neighbors
-    from src.extractors.personal_axes.schemas import PreviewNeighbors
+    from src.adapters.access.api.public.personal_axes.schemas import PreviewNeighbors
+    from src.core.extractors.personal_axes.models import AxisError
+    from src.use_cases.personal_axes.previews import AxisPreviews
+
+    preview_neighbors = AxisPreviews.preview_neighbors
 
     preview_id, owner = uuid4(), uuid4()
     documents = [

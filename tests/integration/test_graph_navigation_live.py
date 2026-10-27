@@ -7,8 +7,8 @@ import os
 import pytest
 from test_emotion_layer import layer_database  # noqa: F401, F811
 
-from src.domain.documents import NewDocument, build_document
-from src.graph.contracts import LinkType
+from src.core.domain.documents import NewDocument, build_document
+from src.core.graph.contracts import LinkType
 
 pytestmark = [
     pytest.mark.anyio,
@@ -111,7 +111,7 @@ async def test_emotions_are_projected_with_evidence_without_execution_nodes(laye
 
 async def test_empty_extraction_is_a_selectable_layer(layer_database):
     extractor, document, _, provider, graph = layer_database
-    from src.extractors.emotions import Emotions
+    from src.core.extractors.emotion_evidence import Emotions
 
     provider.payload = Emotions(emotions=[])
     await extractor.extract(document, dry_run=False)

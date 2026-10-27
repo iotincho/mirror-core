@@ -12,8 +12,11 @@ de documentos y conserva el procesamiento de extractores existente.
 
 ## Arquitectura y persistencia
 
-`src/exteriorization` contiene los contratos, banco, selector, cálculo horario,
-modelos SQL, operaciones de persistencia y adaptador Web Push. Los casos de uso
+`src/core/exteriorization` contiene contratos, banco, selector y cálculo horario.
+`src/use_cases/exteriorization` coordina mediante puertos transaccionales; SQL y
+sus locks viven en `src/adapters/storage/postgres/invitation*.py`, y Web Push en
+`src/adapters/providers/web_push`. Bootstrap inyecta configuración y compone
+servicios y rutas públicas por separado. Los casos de uso
 `ConfigureInvitations`, `GenerateInvitation`, `ScheduleInvitations` y
 `SendInvitation` poseen las decisiones y transiciones del flujo.
 
@@ -85,7 +88,7 @@ Instalar dependencias y migrar antes de iniciar el runtime:
 ```sh
 python -m pip install -e '.[dev]'
 python -m alembic upgrade head
-python -m src.exteriorization.vapid /private/path/vapid
+python -m src.bootstrap.vapid /private/path/vapid
 ```
 
 El generador crea `private.pem` con permiso 0600 y `public.txt` con la clave pública
@@ -118,7 +121,7 @@ Para Compose local, el archivo que cargan API/worker/dispatcher es `.env.local`.
 Se puede usar una carpeta ignorada como `.env.vapid` para conservar los archivos:
 
 ```sh
-.venv/bin/python -m src.exteriorization.vapid .env.vapid
+.venv/bin/python -m src.bootstrap.vapid .env.vapid
 openssl pkey -in .env.vapid/private.pem -outform DER \
   | openssl base64 -A > .env.vapid/private-der-base64.txt
 chmod 600 .env.vapid/private-der-base64.txt
@@ -165,9 +168,9 @@ nuevas. No hace falta otro contenedor ni un timer dentro del proceso web.
 Arranque fuera de Compose, con PostgreSQL migrado y RabbitMQ disponibles:
 
 ```sh
-python -m taskiq worker src.processing.broker:broker src.processing.tasks \
+python -m taskiq worker src.bootstrap.messaging:broker src.bootstrap.worker \
   --workers 1 --max-async-tasks 4 --max-prefetch 0 --ack-type manual
-python -m src.processing.dispatcher
+python -m src.bootstrap.dispatcher
 ```
 
 `DATABASE_URL`, `RABBITMQ_URL` y `PROCESSING_QUEUE_NAME` deben corresponder al
@@ -299,7 +302,7 @@ sin una cookie vigente o sin conexión HTTP, y descartar un push demorado de otr
 sesión/cuenta. No habilita acceso a APIs: consultar o responder sigue requiriendo
 autenticación y propiedad. Aplicar `20261013_09` antes de usar esta PWA.
 
-## Cierre de integración — etapa 3
+## Validaciones abiertas
 
-Ver [informe de integración y entrega](notifications-integration-report.md) para
-los comandos reproducibles, resultados y límites de la validación entre repositorios.
+Las comprobaciones manuales y con dispositivos reales se consolidan en
+[pendientes](pending.md). Las pruebas determinísticas no acreditan entrega push real.

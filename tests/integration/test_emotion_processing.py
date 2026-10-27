@@ -11,19 +11,21 @@ from sqlalchemy import update
 from test_emotion_layer import layer_database  # noqa: F401
 from test_processing_postgres import store  # noqa: F401
 
-from src.domain.documents import NewDocument
-from src.extractors.artifacts import LayerArtifacts
-from src.extractors.contracts import ExtractorProfile
-from src.extractors.emotions import EMOTIONS_PROFILE, EmotionExtractor
-from src.processing.execution import ExecuteProcessing, WorkflowRegistry
-from src.processing.models import ProcessingRecord
-from src.processing.submissions import SubmissionRepository
-from src.services.audio_note_store import FileAudioNoteStore
-from src.use_cases.process_audio_note import ProcessAudioNote
-from src.use_cases.process_document import ProcessDocument
-from src.use_cases.process_document_layers import ProcessDocumentLayers
-from src.use_cases.request_processing import RequestProcessing
-from src.use_cases.submit_processing import SubmitAudioNote, SubmitDocument, workflow_config
+from src.adapters.storage.filesystem.audio_notes import FileAudioNoteStore
+from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
+from src.adapters.storage.postgres.models import ProcessingRecord
+from src.adapters.storage.postgres.submissions import SubmissionRepository
+from src.bootstrap.acceptance import SubmitAudioNote, SubmitDocument, workflow_config
+from src.bootstrap.audio import build_audio_processor as ProcessAudioNote
+from src.bootstrap.extraction import build_emotion_extractor as EmotionExtractor
+from src.bootstrap.processing import build_executor as ExecuteProcessing
+from src.bootstrap.processing import build_legacy_layers_processor as ProcessDocumentLayers
+from src.bootstrap.processing import build_processing_requests as RequestProcessing
+from src.bootstrap.processing import build_source_processor as ProcessDocument
+from src.core.domain.documents import NewDocument
+from src.core.extractors.contracts import ExtractorProfile
+from src.core.extractors.emotions import EMOTIONS_PROFILE
+from src.core.processing.workflows import WorkflowRegistry
 
 pytestmark = [
     pytest.mark.anyio,
@@ -60,8 +62,8 @@ async def pipeline(store, layer_database, monkeypatch):
             "model": "test",
         }
     ]
-    monkeypatch.setattr("src.use_cases.submit_processing.workflow_config", lambda: config)
-    monkeypatch.setattr("src.use_cases.request_processing.workflow_config", lambda: config)
+    monkeypatch.setattr("src.bootstrap.acceptance.workflow_config", lambda: config)
+    monkeypatch.setattr("src.bootstrap.acceptance.workflow_config", lambda: config)
 
     @asynccontextmanager
     async def runtime_factory(user_id):

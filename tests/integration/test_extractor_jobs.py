@@ -13,19 +13,19 @@ from test_emotion_layer import layer_database  # noqa: F401
 from test_emotion_processing import pipeline, run, upload  # noqa: F401
 from test_processing_postgres import store  # noqa: F401
 
-from src.auth.session import require_authenticated
-from src.extractors.artifacts import LayerArtifacts
-from src.extractors.base import Extractor
-from src.extractors.contracts import ExtractorProfile, FrozenModel
-from src.main import app
-from src.processing.execution import ResourceBusy
-from src.processing.models import ProcessingRecord
-from src.processing.submissions import SubmissionConflict
-from src.use_cases.delete_document import DeleteDocument
-from src.use_cases.process_document_extractors import ProcessDocumentExtractors
-from src.use_cases.process_extractor import ProcessExtractor
-from src.use_cases.request_processing import RequestProcessing
-from src.workspaces.dependencies import get_workspace_runtime
+from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
+from src.adapters.storage.postgres.models import ProcessingRecord
+from src.bootstrap.archives import build_delete_document as DeleteDocument
+from src.bootstrap.auth import require_authenticated
+from src.bootstrap.processing import build_document_coordinator as ProcessDocumentExtractors
+from src.bootstrap.processing import build_extractor_processor as ProcessExtractor
+from src.bootstrap.processing import build_processing_requests as RequestProcessing
+from src.bootstrap.public_api import app
+from src.bootstrap.workspaces import get_workspace_runtime
+from src.core.extractors.contracts import ExtractorProfile, FrozenModel
+from src.core.processing.errors import ResourceBusy, StorageUnavailable
+from src.core.processing.submissions import SubmissionConflict
+from src.use_cases.extraction.base import Extractor
 
 pytestmark = [
     pytest.mark.anyio,
@@ -49,7 +49,7 @@ class Metric(FrozenModel):
 async def branches(pipeline):
     env = pipeline
     # The original fixture deliberately pins legacy v3 for its regression tests.
-    from src.use_cases.submit_processing import workflow_config
+    from src.bootstrap.acceptance import workflow_config
 
     config = workflow_config()
     config["document_workflow_version"] = 4
@@ -258,10 +258,9 @@ async def test_retry_one_branch_while_other_is_running_and_api_is_owner_scoped(b
         app.dependency_overrides.update(
             {require_authenticated: lambda: "owner", get_workspace_runtime: lambda: env.runtime}
         )
-        from src.api.routes import processing as routes
+        from src.bootstrap.processing import get_repository
 
-        original = routes.get_repository
-        routes.get_repository = lambda: env.repo
+        app.dependency_overrides[get_repository] = lambda: env.repo
         try:
             async with httpx.AsyncClient(
                 transport=httpx.ASGITransport(app), base_url="http://test"
@@ -278,7 +277,6 @@ async def test_retry_one_branch_while_other_is_running_and_api_is_owner_scoped(b
                 assert (await client.get(f"/processing/{parent.id}/extractors")).status_code == 404
                 env.runtime.context.user_id = env.owner
         finally:
-            routes.get_repository = original
             app.dependency_overrides.clear()
     finally:
         env.release.set()
@@ -328,7 +326,7 @@ async def test_expired_worker_does_not_block_other_layer_or_duplicate_artifact(b
 
 
 async def test_audio_retry_resumes_failed_layer_without_transcribing_or_repeating_success(branches):
-    from src.use_cases.submit_processing import SubmitAudioNote
+    from src.bootstrap.acceptance import SubmitAudioNote
 
     env = branches
     env.execute.max_attempts = 1
@@ -375,8 +373,9 @@ async def test_failed_fork_rolls_back_children_and_resumes_from_document_checkpo
         original(session, record)
 
     monkeypatch.setattr(env.repo, "schedule", fail_schedule)
-    with pytest.raises(SQLAlchemyError):
+    with pytest.raises(StorageUnavailable) as failure:
         await run(env, parent)
+    assert isinstance(failure.value.__cause__, SQLAlchemyError)
     assert not await env.repo.extractor_children(parent.id, env.owner)
     current = await env.repo.get(parent.id, env.owner)
     assert current.stage == "extractor_processing"  # The verified original is already durable.

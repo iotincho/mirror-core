@@ -1,0 +1,82 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1160" viewBox="0 0 1800 1160" role="img" aria-labelledby="title description">
+  <title id="title">Arquitectura hexagonal de El Espejo</title>
+  <desc id="description">Acceso invoca casos de uso dentro del hexágono. Core contiene reglas y puertos. Los adaptadores de salida implementan esos puertos. Bootstrap conecta los componentes. La franja inferior distingue las dependencias de código.</desc>
+  <rect x="0" y="0" width="1800" height="1160" rx="0" fill="#f7f9fc" stroke="none" stroke-width="2" />
+  <text x="64" y="66" fill="#52647a" font-size="18" font-weight="700" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">EL ESPEJO  /  BACKEND</text>
+  <text x="64" y="121" fill="#172b44" font-size="42" font-weight="700" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">Arquitectura hexagonal</text>
+  <text x="1390" y="116" fill="#52647a" font-size="18" font-weight="400" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">ORGANIZACIÓN OBJETIVO</text>
+  <polygon points="550,180 1320,180 1440,500 1320,820 550,820 410,500" fill="#eef2fc" stroke="#bbc8e2" stroke-width="3" />
+  <text x="900" y="228" fill="#2563a6" font-size="21" font-weight="700" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="middle">INTERIOR DEL HEXÁGONO</text>
+  <text x="900" y="264" fill="#52647a" font-size="20" font-weight="400" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="middle">Aplicación independiente de sus tecnologías</text>
+  <rect x="64" y="300" width="310" height="390" rx="18" fill="#eaf3ff" stroke="#bdd3ef" stroke-width="2" />
+  <text x="92" y="344" fill="#2563a6" font-size="28" font-weight="700" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">Adaptadores</text>
+  <text x="92" y="380" fill="#2563a6" font-size="28" font-weight="700" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">de acceso</text>
+  <text x="92" y="428" fill="#52647a" font-size="19" font-weight="400" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">adapters/access/</text>
+  <text x="92" y="482" fill="#172b44" font-size="22" font-weight="700" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">API</text>
+  <text x="92" y="511" fill="#52647a" font-size="17" font-weight="400" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">Pública y administrativa</text>
+  <text x="92" y="558" fill="#172b44" font-size="22" font-weight="700" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">CLI</text>
+  <text x="92" y="587" fill="#52647a" font-size="17" font-weight="400" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">Comandos operativos</text>
+  <text x="92" y="634" fill="#172b44" font-size="22" font-weight="700" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">Workers</text>
+  <text x="92" y="663" fill="#52647a" font-size="17" font-weight="400" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">Recepción de entregas Taskiq</text>
+  <text x="900" y="307" fill="#2563a6" font-size="19" font-weight="400" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="middle">Puerto de entrada: acción pública del caso de uso</text>
+  <rect x="650" y="332" width="500" height="130" rx="18" fill="#ffffff" stroke="#b8ccec" stroke-width="2" />
+  <text x="900" y="377" fill="#2563a6" font-size="30" font-weight="700" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="middle">use_cases/</text>
+  <text x="900" y="413" fill="#172b44" font-size="22" font-weight="400" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="middle">Autoriza y coordina acciones</text>
+  <text x="900" y="442" fill="#52647a" font-size="18" font-weight="400" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="middle">Recibe contratos, no clientes concretos</text>
+  <rect x="600" y="535" width="740" height="190" rx="18" fill="#ffffff" stroke="#c9b9e5" stroke-width="2" />
+  <text x="630" y="578" fill="#7045b0" font-size="30" font-weight="700" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">core/</text>
+  <text x="630" y="623" fill="#172b44" font-size="23" font-weight="400" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">Modelos · reglas · políticas</text>
+  <text x="630" y="661" fill="#52647a" font-size="20" font-weight="400" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">Entidades, evidencia y transiciones</text>
+  <text x="630" y="693" fill="#52647a" font-size="18" font-weight="400" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">Sin HTTP, ORM, SDKs ni I/O concreto</text>
+  <rect x="1160" y="574" width="150" height="112" rx="12" fill="#f2ebfc" stroke="#c9b9e5" stroke-width="2" />
+  <text x="1235" y="611" fill="#7045b0" font-size="23" font-weight="700" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="middle">Puertos</text>
+  <text x="1235" y="641" fill="#7045b0" font-size="21" font-weight="400" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="middle">de salida</text>
+  <text x="1235" y="668" fill="#52647a" font-size="17" font-weight="400" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="middle">Contratos</text>
+  <polyline points="374,490 520,490 520,397 650,397" fill="none" stroke="#2563a6" stroke-width="3" stroke-linejoin="round" stroke-dasharray="none" />
+  <polygon points="650,397 636.4932934647098,403.52448301166845 636.4932934647098,390.47551698833155" fill="#2563a6" stroke="#2563a6" stroke-width="3" />
+  <text x="522" y="373" fill="#2563a6" font-size="18" font-weight="400" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">invoca</text>
+  <polyline points="900,462 900,535" fill="none" stroke="#7045b0" stroke-width="3" stroke-linejoin="round" stroke-dasharray="none" />
+  <polygon points="900,535 893.4755169883315,521.4932934647098 906.5244830116685,521.4932934647098" fill="#7045b0" stroke="#7045b0" stroke-width="3" />
+  <text x="922" y="507" fill="#7045b0" font-size="17" font-weight="400" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">aplica reglas</text>
+  <polyline points="1150,397 1235,397 1235,574" fill="none" stroke="#7045b0" stroke-width="3" stroke-linejoin="round" stroke-dasharray="none" />
+  <polygon points="1235,574 1228.4755169883315,560.4932934647098 1241.5244830116685,560.4932934647098" fill="#7045b0" stroke="#7045b0" stroke-width="3" />
+  <text x="1252" y="464" fill="#7045b0" font-size="18" font-weight="400" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">usa</text>
+  <polyline points="1310,630 1420,630 1420,490 1450,490" fill="none" stroke="#087e82" stroke-width="3" stroke-linejoin="round" stroke-dasharray="none" />
+  <polygon points="1450,490 1436.49329346471,496.52448301166845 1436.49329346471,483.47551698833155" fill="#087e82" stroke="#087e82" stroke-width="3" />
+  <rect x="1450" y="300" width="310" height="426" rx="18" fill="#e9f6f3" stroke="#acd8ce" stroke-width="2" />
+  <text x="1478" y="344" fill="#087e82" font-size="28" font-weight="700" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">Adaptadores</text>
+  <text x="1478" y="380" fill="#087e82" font-size="28" font-weight="700" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">de salida</text>
+  <text x="1478" y="434" fill="#172b44" font-size="22" font-weight="700" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">Storage</text>
+  <text x="1478" y="465" fill="#52647a" font-size="18" font-weight="400" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">PostgreSQL · ArcadeDB</text>
+  <text x="1478" y="492" fill="#52647a" font-size="18" font-weight="400" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">Filesystem</text>
+  <text x="1478" y="548" fill="#172b44" font-size="22" font-weight="700" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">Providers</text>
+  <text x="1478" y="579" fill="#52647a" font-size="18" font-weight="400" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">OpenAI · email · Web Push</text>
+  <text x="1478" y="636" fill="#172b44" font-size="22" font-weight="700" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">Messaging</text>
+  <text x="1478" y="667" fill="#52647a" font-size="18" font-weight="400" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">RabbitMQ</text>
+  <text x="1605" y="754" fill="#087e82" font-size="17" font-weight="400" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="middle">Implementan los puertos de core</text>
+  <rect x="500" y="865" width="820" height="106" rx="18" fill="#f0edf7" stroke="#d3c6e5" stroke-width="2" />
+  <text x="910" y="906" fill="#7045b0" font-size="29" font-weight="700" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="middle">bootstrap/</text>
+  <text x="910" y="943" fill="#172b44" font-size="20" font-weight="400" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="middle">Construye, inyecta y gestiona recursos de cada proceso</text>
+  <polyline points="500,918 218,918 218,690" fill="none" stroke="#7045b0" stroke-width="3" stroke-linejoin="round" stroke-dasharray="9 7" />
+  <polyline points="1320,918 1605,918 1605,775" fill="none" stroke="#7045b0" stroke-width="3" stroke-linejoin="round" stroke-dasharray="9 7" />
+  <polyline points="910,865 910,820" fill="none" stroke="#7045b0" stroke-width="3" stroke-linejoin="round" stroke-dasharray="9 7" />
+  <rect x="64" y="1010" width="1696" height="106" rx="16" fill="#172b44" stroke="none" stroke-width="2" />
+  <text x="92" y="1047" fill="#b8d0e8" font-size="18" font-weight="700" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">DEPENDENCIAS DE CÓDIGO  /  DIRECCIÓN DE LOS IMPORTS</text>
+  <text x="92" y="1089" fill="#ffffff" font-size="24" font-weight="700" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">acceso</text>
+  <text x="275" y="1089" fill="#ffffff" font-size="24" font-weight="700" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">use_cases</text>
+  <text x="505" y="1089" fill="#ffffff" font-size="24" font-weight="700" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">core</text>
+  <text x="740" y="1089" fill="#ffffff" font-size="24" font-weight="700" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">salida</text>
+  <text x="930" y="1089" fill="#ffffff" font-size="24" font-weight="700" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">core</text>
+  <text x="1160" y="1089" fill="#ffffff" font-size="24" font-weight="700" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">bootstrap</text>
+  <text x="1410" y="1089" fill="#ffffff" font-size="24" font-weight="700" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">componentes</text>
+  <polyline points="195,1082 250,1082" fill="none" stroke="#b8d0e8" stroke-width="3" stroke-linejoin="round" stroke-dasharray="none" />
+  <polygon points="250,1082 236.49329346470984,1088.5244830116685 236.49329346470984,1075.4755169883315" fill="#b8d0e8" stroke="#b8d0e8" stroke-width="3" />
+  <polyline points="433,1082 482,1082" fill="none" stroke="#b8d0e8" stroke-width="3" stroke-linejoin="round" stroke-dasharray="none" />
+  <polygon points="482,1082 468.49329346470984,1088.5244830116685 468.49329346470984,1075.4755169883315" fill="#b8d0e8" stroke="#b8d0e8" stroke-width="3" />
+  <polyline points="845,1082 905,1082" fill="none" stroke="#b8d0e8" stroke-width="3" stroke-linejoin="round" stroke-dasharray="none" />
+  <polygon points="905,1082 891.4932934647098,1088.5244830116685 891.4932934647098,1075.4755169883315" fill="#b8d0e8" stroke="#b8d0e8" stroke-width="3" />
+  <polyline points="1330,1082 1385,1082" fill="none" stroke="#b8d0e8" stroke-width="3" stroke-linejoin="round" stroke-dasharray="none" />
+  <polygon points="1385,1082 1371.49329346471,1088.5244830116685 1371.49329346471,1075.4755169883315" fill="#b8d0e8" stroke="#b8d0e8" stroke-width="3" />
+  <text x="64" y="1145" fill="#52647a" font-size="17" font-weight="400" font-family="Noto Sans, DejaVu Sans, sans-serif" text-anchor="start">Flechas sólidas: llamadas en ejecución. Líneas discontinuas: composición. La aplicación no importa adaptadores.</text>
+</svg>

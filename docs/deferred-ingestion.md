@@ -1,4 +1,7 @@
-# Etapa 4: uploads y workflows diferidos
+# Ingestión y workflows diferidos
+
+> Contrato de aceptación durable. Para las capas y versiones de workflow actuales
+> consultar [trabajos por extractor](extractor-jobs.md).
 
 La API acepta una nota de texto/archivo después de guardar su original, confirmar
 su vértice `Document` en ArcadeDB y confirmar el procesamiento y su outbox en
@@ -9,10 +12,11 @@ aunque el cliente cierre la app y nunca consulte el estado.
 ## Transición de clientes
 
 Los uploads nuevos usan `/v2/documents`, `/v2/documents/files` y `/v2/audio-notes`.
-Las rutas legacy mantienen sus contratos para clientes anteriores; la adaptación
-a `/v2` y SSE está documentada en la [etapa 5](processing-pwa-events.md). Los endpoints nuevos no usan `BackgroundTasks`.
-Las operaciones síncronas antiguas de extracción y el borrado participan en la
-exclusión por recurso y rechazan conflictos con trabajos diferidos activos.
+Las rutas legacy de upload y extracción retiradas responden `410`; no mantienen
+un camino síncrono alternativo. La integración `/v2` y SSE está documentada en
+[eventos PWA](processing-pwa-events.md). Los endpoints no usan `BackgroundTasks`.
+El borrado participa en la exclusión por recurso y rechaza conflictos con
+trabajos diferidos activos.
 
 | Operación | Contrato |
 | --- | --- |
@@ -22,7 +26,8 @@ exclusión por recurso y rechazan conflictos con trabajos diferidos activos.
 | `GET /processing/{id}` | Estado completo del workflow; sólo del propietario |
 | `GET /processing?active=true&limit=50&cursor=…` | Página con `items` y `next_cursor`; orden por fecha/UUID |
 | `POST /processing/{id}/retry` | Clave nueva para otro retry manual; `202` al reprogramar, `200` si ya activo/completo o misma solicitud |
-| `POST /v2/documents/{id}/extractions` | Perfil + clave; nueva extracción deliberada, `409` si el recurso está activo |
+| `POST /v2/documents/{id}/processing` | Nueva ejecución deliberada; `409` si el recurso está activo |
+| `POST /v2/documents/reprocess` | Reprocesamiento por lote; ver [contrato](reprocess-notes.md) |
 | `POST /v2/audio-notes/{id}/documents` | Recuperar su workflow o un audio legado ya transcrito, sin retranscribir |
 | `GET /v2/documents` y `GET /v2/documents/{id}` | Original con su último procesamiento, incluso failed/completed |
 | `GET /v2/audio-notes/{id}` | Audio con su último procesamiento completo |
@@ -47,7 +52,7 @@ curl -X POST http://localhost:8080/api/v2/documents \
 ```json
 {
   "document": {"id": "…", "title": null, "content": "Quiero más autonomía.", "source": "manual"},
-  "processing": {"id": "…", "workflow": "document", "status": "queued", "stage": "extraction"}
+  "processing": {"id": "…", "workflow": "document", "status": "queued", "stage": "document_persistence"}
 }
 ```
 
@@ -105,18 +110,16 @@ antes de crear un recibo.
 
 ## Casos de uso y checkpoints
 
-`ProcessDocument` posee estas transiciones:
+El coordinador de documento actual usa estas transiciones:
 
 ```text
-extraction → graph_persistence → claim_embeddings → document_embedding → done
+document_persistence → extractor_processing → done
 ```
 
-La extracción valida evidencia contra el original y registra fallos auditables.
-Un resultado completo tiene ID determinista por procesamiento y queda en un
-artefacto inmutable, con identidad del original/configuración y hash. El título
-se actualiza después de conservar ese resultado. Las etapas de embeddings
-guardan vectores antes de escribir en ArcadeDB: un retry de persistencia reutiliza
-esos vectores y no llama nuevamente al proveedor.
+Cada hijo ejecuta extracción y persistencia con checkpoints propios. La capa valida
+su resultado y, cuando contiene citas, la evidencia contra el original. Conserva
+el resultado en un artefacto con identidad del original y configuración. Un retry
+reutiliza el artefacto y no llama nuevamente al proveedor; ver [jobs](extractor-jobs.md).
 
 Las escrituras en el grafo usan IDs deterministas y MERGE. La extracción verifica
 documento/run, items y relaciones dentro de su transacción; los embeddings
@@ -173,11 +176,11 @@ antes de arrancar API/workers. Worker y dispatcher esperan RabbitMQ, PostgreSQL
 migrado y ArcadeDB con su esquema:
 
 ```bash
-docker compose up -d --build
+docker compose --env-file .env.local up -d --build
 ```
 
-En esta etapa las migraciones se probaron únicamente en containers aislados.
-No se aplicaron a la base de desarrollo ni se desplegó producción.
+La validación histórica de esta funcionalidad se hizo con servicios aislados;
+no acredita el estado de un entorno desplegado.
 
 Pruebas de integración opt-in, siempre con servicios aislados:
 
@@ -195,7 +198,5 @@ evidencia inválida, padre/hijo y recuperación de audio legado, retry y borrado
 HTTP 202/200/409/413/503, snapshots, owner y límites de upload.
 También corre el dispatcher real con dos workers Taskiq y RabbitMQ/PostgreSQL/
 ArcadeDB reales, usando proveedores de IA simulados para no generar costo.
-La operación de producción queda para la etapa 6.
-
-La integración PWA y el stream SSE están implementados en la
-[etapa 5](processing-pwa-events.md). Los endpoints legacy continúan disponibles.
+La integración PWA y el stream SSE se describen en [eventos](processing-pwa-events.md).
+Los uploads y endpoints de extracción retirados responden `410`.

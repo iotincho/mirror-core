@@ -1,4 +1,4 @@
-from src.graph.arcadedb.schema import (
+from src.bootstrap.graph_schema import (
     apply_schema,
     bootstrap_statements,
     migration_version,

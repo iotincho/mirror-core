@@ -7,12 +7,12 @@ from types import SimpleNamespace
 
 from test_deferred_ingestion import FakeProviders
 
-from src.graph.arcadedb.store import ArcadeDBGraphStore
-from src.processing.runtime import registry
-from src.services.audio_note_store import FileAudioNoteStore
-from src.services.document_store import FileDocumentStore
-from src.use_cases.process_audio_note import ProcessAudioNote
-from src.use_cases.process_document import ProcessDocument
+from src.adapters.storage.filesystem.audio_notes import FileAudioNoteStore
+from src.adapters.storage.filesystem.documents import FileDocumentStore
+from src.bootstrap.audio import build_audio_processor as ProcessAudioNote
+from src.bootstrap.graph import build_graph_store as ArcadeDBGraphStore
+from src.bootstrap.processing import build_source_processor as ProcessDocument
+from src.bootstrap.workflow_registry import registry
 
 providers = FakeProviders()
 

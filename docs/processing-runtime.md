@@ -1,13 +1,18 @@
-# Etapa 3: ejecución durable
+# Ejecución durable
 
-Implementa la infraestructura compartida para los casos de uso diferidos.
-Los endpoints actuales conservan su comportamiento. La
-[etapa 4](deferred-ingestion.md) conecta documentos/audio mediante rutas `/v2`,
-registra ambos workflows de producción y agrega recibos idempotentes y
-relaciones padre/hijo. Un workflow desconocido termina con
+Infraestructura compartida para los casos de uso diferidos. La
+[ingestión](deferred-ingestion.md) conecta documentos/audio mediante rutas `/v2`,
+recibos idempotentes y relaciones padre/hijo. Un workflow desconocido termina con
 `workflow_not_registered`.
 
 ## Componentes y límites
+
+Implementación hexagonal: contratos/estados sin ORM en `src/core/processing/`;
+runner, aceptación, retry/reprocess y coordinadores en `src/use_cases/processing/`;
+persistencia y feed en `src/adapters/storage/postgres/`. Taskiq recibe/valida/ACK en
+`src/adapters/access/workers/`; RabbitMQ se configura en `src/adapters/messaging/`.
+`src/bootstrap/` compone procesos, versiones, extractores y opciones aceptadas.
+Todos los comandos de ejecución usan `src.bootstrap`; no se conservan aliases anteriores.
 
 - `ProcessingRepository`: PostgreSQL guarda registros, historial de eventos y
   outbox. La creación del trabajo, su evento inicial y la intención de envío se
@@ -19,8 +24,11 @@ relaciones padre/hijo. Un workflow desconocido termina con
   checkpoint, versión y evento antes de iniciar la siguiente etapa.
 - `WorkflowFailure`: el caso de uso devuelve un código seguro y decide si el
   error admite reintento y su demora. El runner limita a cuatro intentos por
-  etapa; la etapa 4 incorpora clasificación de proveedores y backoff 10/30/120 con jitter. Los errores internos inesperados terminan como
-  `workflow_internal_error`; los errores SQL dejan el lease para recuperación.
+  etapa, con clasificación de proveedores y backoff 10/30/120 con jitter. Los
+  errores internos inesperados terminan como
+  `workflow_internal_error`; el adaptador traduce errores SQL a
+  `StorageUnavailable`, que deja el lease para recuperación. HTTP conserva el 503
+  seguro y el pedido de reutilizar la misma clave idempotente.
 - `processing.execute`: adaptador Taskiq. El mensaje contiene únicamente ID y
   generación. Confirma manualmente la entrega después de resolver el estado en
   SQL. Mientras PostgreSQL no responde conserva la entrega y espera; cancelar
@@ -52,7 +60,7 @@ Esta exclusión coordina ejecutores que usan el runner. Si la conexión del lock
 se pierde mientras un servicio remoto sigue procesando una petición, el lock
 puede liberarse antes de finalizar ese efecto remoto. Los adaptadores concretos
 necesitan IDs deterministas, artefactos exclusivos y reconciliación de commits
-ambiguos. La etapa 4 integra y prueba esos adaptadores;
+ambiguos. La ingestión integra esos adaptadores;
 el token SQL no se presenta como garantía de ejecución única de efectos remotos.
 
 La exclusión por recurso usa la clave `user_id:resource_id`.
@@ -73,10 +81,10 @@ El Compose habitual incluye RabbitMQ, el worker y el dispatcher. RabbitMQ no
 publica puertos hacia el host:
 
 ```bash
-docker compose up -d --build
+docker compose --env-file .env.local up -d --build
 
 # Tres containers independientes; sin container_name ni puertos fijos.
-docker compose up -d --scale processing-worker=3 processing-worker
+docker compose --env-file .env.local up -d --scale processing-worker=3 processing-worker
 ```
 
 Cada container ejecuta un proceso Taskiq con cuatro tareas async por defecto.
@@ -88,9 +96,9 @@ los reintentos. El comando worker debe usar `--ack-type manual`.
 Para ejecutar sin Compose, con PostgreSQL migrado y RabbitMQ disponibles:
 
 ```bash
-python -m taskiq worker src.processing.broker:broker src.processing.tasks \
+python -m taskiq worker src.bootstrap.messaging:broker src.bootstrap.worker \
   --workers 1 --max-async-tasks 4 --max-prefetch 0 --ack-type manual
-python -m src.processing.dispatcher
+python -m src.bootstrap.dispatcher
 ```
 
 `DATABASE_URL`, `RABBITMQ_URL` y los paths de datos deben apuntar a los mismos
@@ -101,8 +109,10 @@ Distintos entornos deben usar bases, volúmenes y vhosts Rabbit separados.
 RabbitMQ usa una imagen fija `4.3.6-management-alpine`, un hostname estable y
 volumen persistente. Este Compose es de desarrollo y usa una instancia con colas
 clásicas durables; no ofrece alta disponibilidad del broker. El despliegue de
-producción, métricas, retención de eventos/outbox y estrategia HA corresponden
-a etapa 6. La API no requiere iniciar RabbitMQ hasta conectar los uploads.
+producción, métricas, retención de eventos/outbox y estrategia HA requieren
+definiciones operativas por entorno. La aceptación HTTP usa PostgreSQL/outbox sin
+depender de RabbitMQ disponible; el dispatcher necesita el broker para entregar
+los trabajos al worker.
 
 ## Validación
 
@@ -135,3 +145,13 @@ Referencias: [Taskiq CLI y ACK manual](https://taskiq-python.github.io/guide/cli
 [releases RabbitMQ](https://www.rabbitmq.com/release-information).
 La implementación usa la API publicada de `taskiq-aio-pika 0.5`, cuya firma
 difiere de la documentación de la rama `master`.
+
+## Ubicación y compatibilidad de procesos
+
+Los comandos canónicos son `src.bootstrap.messaging:broker` con
+`src.bootstrap.worker`, y `python -m src.bootstrap.dispatcher`. El registro de
+versiones se compone en `src/bootstrap/workflow_registry.py`, separado de las
+factories para evitar ciclos de imports. La tarea de transporte conserva su nombre
+`processing.execute`; este movimiento no cambia mensajes, versiones ni configuración
+ya aceptada. El Compose de desarrollo usa estos entrypoints; `mirror-deploy` y
+la imagen deben actualizarse coordinadamente en cada entorno.

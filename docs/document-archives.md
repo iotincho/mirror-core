@@ -1,5 +1,11 @@
 # Respaldo e importación de documentos
 
+Modelos/validación en `src/core/documents/archive.py`; coordinación en
+`src/use_cases/documents/archive.py` y `delete_document.py`. La composición en
+`src/bootstrap/archives.py` conecta puertos de originales, grafo y procesamiento.
+Los casos no reciben sesiones SQL ni construyen repositorios. Se mantiene el
+import anterior para CLI/HTTP y el formato de respaldo continúa en versión 1.
+
 El respaldo JSON contiene todos los documentos originales guardados para el
 usuario autenticado. Conserva `id`, `title`, `content`, `source`, `metadata`,
 `created_at` y `authored_at`. Incluye textos transcritos que ya tienen documento.

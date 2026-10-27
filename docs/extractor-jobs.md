@@ -1,10 +1,12 @@
 # Trabajos independientes por extractor
 
-Las notas nuevas usan el workflow de documento v4. El coordinador guarda el
-original en ArcadeDB y crea un hijo `extractor` v1 por cada especificación aceptada.
+Las notas nuevas usan el workflow de documento v4; si hay ejes personales
+habilitados al aceptar la solicitud, usan v5 con una clave por instancia de eje.
+El coordinador confirma el documento en ArcadeDB y crea un hijo `extractor` v1
+por cada especificación aceptada.
 El audio sigue transcribiendo y creando el documento antes de entregar su
-configuración al coordinador. Los trabajos v2 y v3 anteriores siguen registrados
-con su comportamiento original; no se transforman al retomar.
+configuración al coordinador. Los trabajos v2, v3 y v4 ya aceptados conservan
+su versión y comportamiento al retomar.
 
 ## Responsabilidades y recuperación
 
@@ -14,10 +16,19 @@ extractor mantiene sus modelos, validación y escritura. Sus constructores se
 registran por nombre en la composición de workflows; cada constructor decide
 sus proveedores y dependencias.
 
+Los coordinadores canónicos están en `src/use_cases/processing/`, con puertos y
+estados sin ORM en `src/core/processing/`. `src/bootstrap/workflows.py` registra
+versiones y extractores; `src/bootstrap/processing.py` inyecta artefactos, traducción
+de errores y estrategias de persistencia por puertos. El procesador genérico no tiene una
+rama por nombre para ejes ni conoce sesiones SQL; la composición conserva su
+orden de escritura y la supresión de causas privadas. Todos los consumidores
+usan los paquetes canónicos; no quedan puentes de import o ejecución.
+
 El hijo guarda `extractor_name`, `parent_processing_id`, `extraction_run_id` y
 la especificación aceptada. Los IDs de hijo y ejecución se derivan del coordinador
-y nombre de capa. Un retry conserva ambos IDs, el profile y los artefactos. Una
-solicitud nueva de reprocesamiento crea otro coordinador y nuevas ejecuciones.
+y nombre de capa en v4 o clave de extractor en v5. Un retry conserva ambos IDs,
+el profile y los artefactos. Una solicitud nueva de reprocesamiento crea otro
+coordinador y nuevas ejecuciones.
 No hay un gestor de versiones de resultados.
 
 La revisión Alembic `20261007_07` agrega identidad, índice de padres y unicidad
@@ -60,7 +71,7 @@ más reciente. La PWA sigue mostrando el conjunto como “Procesando extraccione
 y no interpreta un hijo completado como una nota completada. El estado de cada
 capa está disponible por API. La PWA permite reprocesar notas desde Ajustes,
 sin selección de extractores; ver [reprocesamiento de notas](reprocess-notes.md).
-Dry run y persistencia diferida por API quedan para una etapa posterior.
+La API no expone dry run ni persistencia diferida para los extractores generales.
 La CLI conserva sus operaciones existentes; las notas nuevas seleccionan emociones,
 embeddings y `document_title`. El último actualiza `Document.title` sin crear una
 capa visualizable adicional; ver [títulos de documentos](document-title-extractor.md).

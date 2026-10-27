@@ -9,14 +9,15 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ec import SECP256R1, generate_private_key
 from pydantic import ValidationError
 
-from src.api.schemas.exteriorization import PreferenceUpdate
-from src.config import Settings
-from src.exteriorization.catalog import CATALOG
-from src.exteriorization.contracts import EngineContext
-from src.exteriorization.engine import select_trigger
-from src.exteriorization.repository import InvitationError
-from src.exteriorization.scheduling import expires_at, next_occurrence, scheduled_at
-from src.exteriorization.web_push import WebPushTransport, validate_subscription
+from src.adapters.access.api.public.invitations.schemas import PreferenceUpdate
+from src.adapters.providers.web_push.configuration import validate_subscription
+from src.bootstrap.invitations import WebPushTransport
+from src.bootstrap.settings import Settings
+from src.core.exteriorization.catalog import CATALOG
+from src.core.exteriorization.contracts import EngineContext
+from src.core.exteriorization.engine import select_trigger
+from src.core.exteriorization.models import InvitationError
+from src.core.exteriorization.scheduling import expires_at, next_occurrence, scheduled_at
 
 
 @pytest.fixture
@@ -172,7 +173,7 @@ async def test_real_webpush_encryption_and_vapid_with_http_boundary_simulated(
     pytest.importorskip("pywebpush")
     from requests import Response, Session
 
-    from src.exteriorization.vapid import generate_keys
+    from src.bootstrap.vapid import generate_keys
 
     private, public = generate_keys(tmp_path / "vapid")
     assert private.stat().st_mode & 0o777 == 0o600

@@ -3,10 +3,11 @@ from uuid import uuid4
 
 import pytest
 
-from src.domain.documents import NewDocument
-from src.services.document_store import DocumentAlreadyExistsError, FileDocumentStore
-from src.use_cases.ingest_document import IngestDocument
-from src.use_cases.ingest_document_file import (
+from src.adapters.storage.filesystem.documents import FileDocumentStore
+from src.core.documents.ports import DocumentAlreadyExistsError
+from src.core.domain.documents import NewDocument
+from src.use_cases.documents.ingest_document import IngestDocument
+from src.use_cases.documents.ingest_document_file import (
     IngestDocumentFile,
     InvalidDocumentEncodingError,
     UnsupportedDocumentFileError,

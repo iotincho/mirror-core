@@ -5,13 +5,14 @@ from uuid import uuid4
 
 import pytest
 
-from src.domain.documents import NewDocument, build_document
-from src.extractors.artifacts import LayerArtifacts
-from src.extractors.contracts import ProviderMetadata
-from src.extractors.emotion_evidence import EmotionEvidenceError, EmotionResponse
-from src.extractors.emotions import EMOTIONS_PROFILE, EmotionExtractor
-from src.extractors.openai_emotions import OpenAIEmotionProvider
-from src.services.document_store import FileDocumentStore
+from src.adapters.storage.filesystem.documents import FileDocumentStore
+from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
+from src.bootstrap.extraction import build_emotion_extractor as EmotionExtractor
+from src.bootstrap.extraction import build_emotions_provider as OpenAIEmotionProvider
+from src.core.domain.documents import NewDocument, build_document
+from src.core.extractors.contracts import ProviderMetadata
+from src.core.extractors.emotion_evidence import EmotionEvidenceError, EmotionResponse
+from src.core.extractors.emotions import EMOTIONS_PROFILE
 
 pytestmark = pytest.mark.anyio
 
@@ -211,7 +212,7 @@ async def test_saved_diagnostic_cannot_be_reused_with_changed_model(setup):
 async def test_openai_correction_receives_full_note_original_and_precise_errors(setup):
     import json
 
-    from src.extractors.emotion_evidence import evidence_issues
+    from src.core.extractors.emotion_evidence import evidence_issues
 
     _, _, document = setup(result(["Tengo miedo."]))
     previous = EmotionResponse.model_validate(result(["Tengo miedo."]))

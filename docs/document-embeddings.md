@@ -3,8 +3,9 @@
 La capa `document_embeddings` encuentra notas por similitud de contenido. Se
 procesa como trabajo independiente junto con emociones, tanto al subir texto como
 al crear la nota desde una transcripción. No crea relaciones entre notas ni genera
-respuestas reflexivas. El buscador HTTP, la evaluación con OpenAI real y el
-reprocesamiento masivo quedan para después de validar esta primera implementación.
+respuestas reflexivas. La búsqueda HTTP anterior está retirada; el
+[reprocesamiento por lote](reprocess-notes.md) incluye esta capa. Las pruebas
+determinísticas no reemplazan una evaluación con OpenAI real.
 
 Cada resultado conserva configuración, perfil, hash del original y secciones con
 texto original, posiciones en caracteres Unicode, tokens y vector. Los reintentos
@@ -38,6 +39,13 @@ superan el máximo. Las secciones solo de espacios no generan vectores.
 
 ## Persistencia y reemplazo
 
+Contratos/configuración: `src/core/extractors/document_embeddings.py`.
+Segmentación y ejecución: `src/use_cases/extraction/document_embeddings.py`.
+El conteo de tokens se inyecta desde composición; tiktoken y el SDK quedan en
+`src/adapters/providers/openai/`. El store canónico está en
+`src/adapters/storage/arcadedb/document_embeddings.py`; `src/bootstrap/extraction.py`
+compone el recorrido; no se conservan los imports anteriores.
+
 `ArcadeDBDocumentEmbeddingStore` implementa el puerto propio de la capa. Usa
 `DocumentSemanticIndex`, secciones `DocumentEmbeddingSection_<config hash>` y
 un índice nativo `LSM_VECTOR` con métrica `COSINE`. La persistencia comprueba
@@ -53,9 +61,7 @@ de reprocesamiento de documento de la API también activa `force`; un reintento
 del trabajo conserva su configuración original.
 
 El resultado se marca `visualizable=false` en nodos/conexiones, de modo que el
-visor de grafo no exponga los vectores como elementos visuales. En la base inicial
-`origin/develop` aún falta integrar el commit previo `d8439f7` de metadatos y filtros
-múltiples; esta marca no depende de que ese PR ya esté incorporado.
+visor de grafo no exponga los vectores como elementos visuales.
 
 ## CLI por documento
 
@@ -65,15 +71,15 @@ No imprime texto ni vectores.
 
 ```sh
 # Generar y conservar el artefacto sin escribir derivados en ArcadeDB.
-python -m src.extractors.cli extract --extractor document_embeddings \
+python -m src.bootstrap.extraction_cli extract --extractor document_embeddings \
   --workspace UUID --document UUID
 
 # Persistir un artefacto generado anteriormente, sin proveedor.
-python -m src.extractors.cli persist --extractor document_embeddings \
+python -m src.bootstrap.extraction_cli persist --extractor document_embeddings \
   --workspace UUID --document UUID --run UUID
 
 # Regenerar y reemplazar el índice existente.
-python -m src.extractors.cli extract --extractor document_embeddings \
+python -m src.bootstrap.extraction_cli extract --extractor document_embeddings \
   --workspace UUID --document UUID --force --persist
 ```
 

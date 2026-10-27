@@ -7,15 +7,15 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from src.domain.documents import NewDocument, build_document
-from src.extractors.artifacts import LayerArtifacts
-from src.extractors.contracts import ExtractorProfile, ProviderMetadata
-from src.extractors.emotion_evidence import EmotionResponse
-from src.extractors.emotions import EmotionExtractor, Emotions
-from src.graph.arcadedb.client import AsyncArcadeDBHTTPClient
-from src.graph.arcadedb.schema import schema_statements
-from src.graph.arcadedb.store import ArcadeDBGraphStore
-from src.services.document_store import FileDocumentStore
+from src.adapters.storage.filesystem.documents import FileDocumentStore
+from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
+from src.bootstrap.extraction import build_emotion_extractor as EmotionExtractor
+from src.bootstrap.graph import build_graph_client as AsyncArcadeDBHTTPClient
+from src.bootstrap.graph import build_graph_store as ArcadeDBGraphStore
+from src.bootstrap.graph_schema import schema_statements
+from src.core.domain.documents import NewDocument, build_document
+from src.core.extractors.contracts import ExtractorProfile, ProviderMetadata
+from src.core.extractors.emotion_evidence import EmotionResponse, Emotions
 
 pytestmark = [
     pytest.mark.anyio,
@@ -186,7 +186,7 @@ async def test_partial_layer_write_rolls_back_and_retry_reuses_artifact(layer_da
 
                 yield Transaction()
 
-    extractor.graph = PartialWrite()
+    extractor.store.graph = PartialWrite()
     verification = "nodes" if failure == "node" else "edges"
     with pytest.raises(ValueError, match=f"{verification}_verification_failed"):
         await extractor.persist(output)
@@ -194,7 +194,7 @@ async def test_partial_layer_write_rolls_back_and_retry_reuses_artifact(layer_da
     assert (await client.query("SELECT id FROM EmotionExtraction"))["result"] == [
         {"id": str(previous.run_id)}
     ]
-    extractor.graph = client
+    extractor.store.graph = client
     await extractor.persist(output)
     assert provider.calls == 2
     assert len((await client.query("SELECT FROM Emotion"))["result"]) == 2

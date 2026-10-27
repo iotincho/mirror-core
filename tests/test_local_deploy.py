@@ -38,9 +38,10 @@ def test_local_deploy_rebuilds_all_images_before_stopping_writers(tmp_path):
     assert code == 0
     assert all(call[:2] == ["--env-file", "test.env"] for call in calls)
     commands = [call[2:] for call in calls]
-    assert commands[:4] == [
+    assert commands[:5] == [
         ["config", "--quiet"],
-        ["build", "--pull"],
+        ["--profile", "tools", "build", "--pull"],
+        ["run", "--rm", "--no-deps", "entrypoint-check"],
         [
             "--profile",
             "admin-lan",
@@ -56,7 +57,7 @@ def test_local_deploy_rebuilds_all_images_before_stopping_writers(tmp_path):
         ["up", "-d", "--wait", "postgres", "arcadedb", "rabbitmq"],
     ]
     for command, task in zip(
-        commands[4:7], ["database-migrations", "arcadedb-schema", "data-migrations"], strict=True
+        commands[5:8], ["database-migrations", "arcadedb-schema", "data-migrations"], strict=True
     ):
         assert command == [
             "up",
@@ -66,13 +67,13 @@ def test_local_deploy_rebuilds_all_images_before_stopping_writers(tmp_path):
             task,
             task,
         ]
-    assert commands[7:] == [["up", "-d"]]
+    assert commands[8:] == [["up", "-d"]]
 
 
 def test_failed_build_does_not_stop_application(tmp_path):
     code, calls = simulate(tmp_path, "build")
     assert code == 17
-    assert calls[-1][2:] == ["build", "--pull"]
+    assert calls[-1][2:] == ["--profile", "tools", "build", "--pull"]
     assert len(calls) == 2
 
 
@@ -121,3 +122,62 @@ def test_local_compose_uses_same_arcadedb_credentials_for_all_core_services():
         assert environment["ARCADEDB_HTTP_URL"] == expected["ARCADEDB_HTTP_URL"]
         assert environment["ARCADEDB_USERNAME"] == expected["ARCADEDB_USERNAME"]
         assert environment["ARCADEDB_ROOT_PASSWORD"] == expected["ARCADEDB_ROOT_PASSWORD"]
+
+
+def test_failed_entrypoint_check_keeps_existing_services_running(tmp_path):
+    code, calls = simulate(tmp_path, "entrypoint-check")
+    assert code == 17
+    assert len(calls) == 3
+    assert calls[-1][2:] == ["run", "--rm", "--no-deps", "entrypoint-check"]
+    assert not any("stop" in call or "up" in call for call in calls)
+
+
+def test_development_entrypoint_check_is_isolated_and_covers_compose_commands():
+    result = subprocess.run(
+        [
+            "docker",
+            "compose",
+            "--env-file",
+            str(SCRIPT.parent / ".env.example"),
+            "-f",
+            str(SCRIPT.parent / "docker-compose.yml"),
+            "--profile",
+            "tools",
+            "--profile",
+            "admin-lan",
+            "config",
+            "--no-env-resolution",
+            "--format",
+            "json",
+        ],
+        env={**os.environ, "CLOUDFLARE_TUNNEL_TOKEN": "compose-model-check-only"},
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    services = json.loads(result.stdout)["services"]
+    check = services["entrypoint-check"]
+    assert check["profiles"] == ["tools"]
+    assert check["network_mode"] == "none" and check["read_only"]
+    assert "env_file" not in check and "volumes" not in check and "depends_on" not in check
+    assert Path(check["build"]["context"]) == SCRIPT.parent
+    assert check["build"].get("dockerfile", "Dockerfile") == "Dockerfile"
+    assert check["command"][:2] == ["python", "-c"]
+    preflight = check["command"][2]
+    targets = {
+        "api": (1, "src.bootstrap.public_api"),
+        "admin-api": (1, "src.bootstrap.administration"),
+        "admin-sync": (2, "src.bootstrap.inventory_sync"),
+        "processing-worker": (2, "src.bootstrap.messaging"),
+        "processing-dispatcher": (2, "src.bootstrap.dispatcher"),
+        "data-migrations": (2, "src.bootstrap.data_migrations"),
+        "arcadedb-schema": (2, "src.bootstrap.graph_schema"),
+    }
+    for service, (position, module) in targets.items():
+        assert services[service]["command"][position].split(":")[0] == module
+        assert "from " + module + " import " in preflight
+    assert services["processing-worker"]["command"][3] == "src.bootstrap.worker"
+    assert "from src.bootstrap.worker import execute_processing" in preflight
+    assert 'execute_processing.task_name == "processing.execute"' in preflight
+    assert 'get_revision("20261006_06")' in preflight
+    assert 'get_revision("20261016_11")' in preflight

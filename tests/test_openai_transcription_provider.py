@@ -10,10 +10,11 @@ import httpx
 import pytest
 from openai import InternalServerError
 
-from src.processing.failures import failure_for
-from src.services import audio_transcoding
-from src.services.openai_transcription_provider import OpenAITranscriptionProvider
-from src.services.transcription_provider import TranscriptionProviderError
+from src.adapters.storage.filesystem import audio_transcoding
+from src.adapters.storage.filesystem.audio_transcoding import FileTranscriptionSource
+from src.bootstrap.audio import build_transcriber as OpenAITranscriptionProvider
+from src.bootstrap.failures import failure_for
+from src.core.audio.ports import TranscriptionProviderError
 
 
 @pytest.fixture
@@ -96,7 +97,7 @@ async def test_openai_transcriber_sends_audio_to_the_configured_model(tmp_path, 
         client=SimpleNamespace(audio=SimpleNamespace(transcriptions=FakeTranscriptions())),
     )
 
-    assert await provider.transcribe(audio_path) == "Texto transcripto"
+    assert await provider.transcribe(FileTranscriptionSource(audio_path)) == "Texto transcripto"
     assert captured["model"] == "gpt-transcribe"
     assert captured["file"] == (audio_path.name, b"audio")
 
@@ -126,12 +127,12 @@ async def test_webm_is_sent_as_valid_mp3_and_original_is_preserved(
     provider = provider_for(create)
     if api_fails:
         with pytest.raises(TranscriptionProviderError) as raised:
-            await provider.transcribe(webm_path)
+            await provider.transcribe(FileTranscriptionSource(webm_path))
         failure = failure_for(raised.value, 1, "transcription")
         assert failure.code == "transcription_unavailable"
         assert failure.retry_delay is not None
     else:
-        assert await provider.transcribe(webm_path) == "Texto transcripto"
+        assert await provider.transcribe(FileTranscriptionSource(webm_path)) == "Texto transcripto"
 
     assert captured["model"] == "gpt-transcribe"
     name, content = captured["file"]
@@ -196,7 +197,7 @@ async def test_conversion_failure_does_not_call_api_or_leave_temporary_files(
 
     monkeypatch.setattr(audio_transcoding.asyncio, "create_subprocess_exec", spawn)
     with pytest.raises(TranscriptionProviderError) as raised:
-        await provider_for(create).transcribe(path)
+        await provider_for(create).transcribe(FileTranscriptionSource(path))
     assert isinstance(raised.value.__cause__, audio_transcoding.AudioPreparationError)
     failure = failure_for(raised.value, 1, "transcription")
     if reason == "missing_ffmpeg":

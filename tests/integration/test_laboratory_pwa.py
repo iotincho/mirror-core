@@ -19,22 +19,35 @@ from test_emotion_processing import pipeline, run  # noqa: F401
 from test_personal_axis_processing import active  # noqa: F401
 from test_processing_postgres import store  # noqa: F401
 
-from src.api.routes import activity, processing
-from src.config import get_settings
-from src.domain.documents import NewDocument, build_document
-from src.extractors.personal_axes.contracts import AxisError
-from src.extractors.personal_axes.dependencies import get_axis_previews
-from src.extractors.personal_axes.history_models import AxisHistoryBatch
-from src.extractors.personal_axes.routes import router as axes_router
-from src.processing.execution import ResourceBusy
-from src.processing.models import ProcessingRecord
-from src.use_cases.process_axis_history import ProcessAxisHistory
-from src.use_cases.process_axis_preview import ProcessAxisPreview
-from src.user_management.database import get_async_session
-from src.user_management.dependencies import get_authenticated_user
-from src.user_management.models import AccessToken, User
-from src.user_management.routes import router as auth_router
-from src.workspaces.dependencies import get_workspace_runtime
+from src.adapters.access.api.public.personal_axes.errors import axis_status
+from src.adapters.access.api.public.routes import processing
+from src.adapters.storage.postgres.accounts import AccessToken, User
+from src.adapters.storage.postgres.models import ProcessingRecord
+from src.adapters.storage.postgres.personal_axes.history_models import AxisHistoryBatch
+from src.bootstrap.auth import get_authenticated_user
+from src.bootstrap.auth import router as auth_router
+from src.bootstrap.database import get_async_session
+from src.bootstrap.personal_axes_api import router as axes_router
+from src.bootstrap.personal_axes_dependencies import (
+    get_axis_history,
+    get_preview_cases,
+)
+from src.bootstrap.personal_axes_history import build_axis_history, build_history_workflow
+from src.bootstrap.personal_axes_previews import build_preview_workflow
+from src.bootstrap.personal_axes_reads import (
+    build_axis_definitions,
+    build_axis_exploration,
+    get_axis_definitions,
+    get_axis_exploration,
+)
+from src.bootstrap.processing import get_repository
+from src.bootstrap.public_channels import activity_router
+from src.bootstrap.public_dependencies import get_public_processing, get_upload_limits
+from src.bootstrap.settings import get_settings
+from src.bootstrap.workspaces import get_workspace_runtime
+from src.core.domain.documents import NewDocument, build_document
+from src.core.extractors.personal_axes.models import AxisError
+from src.core.processing.errors import ResourceBusy
 
 pytestmark = [
     pytest.mark.anyio,
@@ -64,20 +77,22 @@ async def test_browser_real_laboratory_cycle(active, monkeypatch):
     monkeypatch.setattr(settings, "auth_session_secret", "laboratory-http-integration-secret")
     monkeypatch.setattr(settings, "openai_model", "test-model")
     monkeypatch.setattr(settings, "platform_activity_enabled", False)
-    monkeypatch.setattr(processing, "get_repository", lambda: env.repo)
     provider = Provider()
     legacy = env.registry.definitions[("document", 3)].run.__self__
     env.registry.register(
         "axis_preview",
         1,
-        ProcessAxisPreview(legacy.runtime_factory, lambda _: provider, settings).definition,
+        build_preview_workflow(
+            legacy.runtime_factory, lambda _: provider, settings, repository=env.repo
+        ).definition,
     )
     env.registry.register(
         "axis_history_note",
         1,
-        ProcessAxisHistory(
+        build_history_workflow(
             legacy.runtime_factory,
             env.registry.definitions[("extractor", 1)].run.__self__.extractor_factory,
+            repository=env.repo,
         ).definition,
     )
     for index in range(6):
@@ -95,10 +110,11 @@ async def test_browser_real_laboratory_cycle(active, monkeypatch):
         yield env.runtime
 
     app = FastAPI()
+    app.dependency_overrides[get_repository] = lambda: env.repo
     protected = APIRouter(prefix="/api", dependencies=[Depends(get_authenticated_user)])
     protected.include_router(axes_router)
-    protected.include_router(processing.router)
-    protected.include_router(activity.router)
+    protected.include_router(processing.build_router(get_public_processing, get_upload_limits))
+    protected.include_router(activity_router)
 
     # Shell dependencies do not participate in the Laboratory domain under test.
     @protected.get("/workspace/status")
@@ -117,11 +133,18 @@ async def test_browser_real_laboratory_cycle(active, monkeypatch):
     app.include_router(protected)
     app.dependency_overrides[get_async_session] = session
     app.dependency_overrides[get_workspace_runtime] = runtime
-    app.dependency_overrides[get_axis_previews] = lambda: env.previews
+    app.dependency_overrides[get_axis_history] = lambda: build_axis_history(env.repo, env.runtime)
+    app.dependency_overrides[get_preview_cases] = lambda: env.previews
+    app.dependency_overrides[get_axis_definitions] = lambda: build_axis_definitions(
+        env.repo.sessions, env.owner
+    )
+    app.dependency_overrides[get_axis_exploration] = lambda: build_axis_exploration(
+        env.repo.sessions, env.runtime
+    )
 
     @app.exception_handler(AxisError)
     async def axis_error(_, error):
-        return JSONResponse({"detail": error.code}, status_code=error.status)
+        return JSONResponse({"detail": error.code}, status_code=axis_status(error))
 
     app.mount("/", StaticFiles(directory=os.environ["LABORATORY_PWA_DIST"], html=True))
     async with env.repo.sessions.begin() as sql:

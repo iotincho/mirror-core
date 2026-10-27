@@ -3,8 +3,9 @@ import json
 import httpx
 import pytest
 
-from src.processing.artifacts import ArtifactCorrupted, ProcessingArtifacts
-from src.processing.failures import failure_for
+from src.adapters.storage.filesystem.processing_artifacts import ProcessingArtifacts
+from src.bootstrap.failures import failure_for
+from src.core.extractors.artifacts import ArtifactCorrupted
 
 
 @pytest.fixture

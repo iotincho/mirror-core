@@ -3,9 +3,9 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
-from sqlalchemy.exc import SQLAlchemyError
 
-from src.api.routes.events import stream
+from src.adapters.access.api.public.routes.events import stream
+from src.core.processing.errors import StorageUnavailable
 
 
 @pytest.fixture
@@ -19,7 +19,7 @@ def anyio_backend():
     [
         (HTTPException(401, "private session"), "event_feed_closed", "session.expired"),
         (HTTPException(503, "private workspace"), "event_feed_closed", "processing.unavailable"),
-        (SQLAlchemyError("private SQL payload"), "event_feed_storage_error", None),
+        (StorageUnavailable("private SQL payload"), "event_feed_storage_error", None),
     ],
 )
 async def test_stream_failures_after_response_start_are_logged(caplog, error, expected, frame):

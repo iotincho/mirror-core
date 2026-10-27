@@ -9,16 +9,16 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from src.domain.documents import NewDocument, build_document
-from src.extractors.artifacts import LayerArtifacts
-from src.extractors.contracts import ProviderMetadata
-from src.extractors.document_title import TITLE_PROFILE, DocumentTitle, DocumentTitleExtractor
-from src.extractors.document_title_store import ArcadeDBDocumentTitleStore
-from src.extractors.openai_document_title import (
-    DocumentTitleProviderError,
-    OpenAIDocumentTitleProvider,
-)
-from src.services.document_store import DocumentNotFoundError, FileDocumentStore
+from src.adapters.providers.openai.document_title import DocumentTitleProviderError
+from src.adapters.storage.arcadedb.document_titles import ArcadeDBDocumentTitleStore
+from src.adapters.storage.filesystem.documents import FileDocumentStore
+from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
+from src.bootstrap.documents import build_title_provider as OpenAIDocumentTitleProvider
+from src.core.documents.ports import DocumentNotFoundError
+from src.core.domain.documents import NewDocument, build_document
+from src.core.extractors.contracts import ProviderMetadata
+from src.core.extractors.document_title import TITLE_PROFILE, DocumentTitle
+from src.use_cases.extraction.document_title import DocumentTitleExtractor
 
 pytestmark = pytest.mark.anyio
 

@@ -1,4 +1,4 @@
-from src.config import Settings
+from src.bootstrap.settings import Settings
 
 
 def test_settings_read_database_url_from_environment(monkeypatch) -> None:

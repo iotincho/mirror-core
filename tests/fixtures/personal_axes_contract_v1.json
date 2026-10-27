@@ -1,0 +1,23 @@
+{
+  "request": {
+    "draft_id": "00000000-0000-0000-0000-000000000001",
+    "revision": 1,
+    "title": "Ideas",
+    "purpose": "Recuperar ideas",
+    "document_ids": [
+      "00000000-0000-0000-0000-000000000002"
+    ],
+    "mode": "generate",
+    "previous_preview_id": null,
+    "change_sample": false,
+    "adjustments": [],
+    "axis_id": null,
+    "base_version_id": null
+  },
+  "request_hash": "5b0ee6787cfe76b0cfd9f42b6d3f093775d91c3cb6c37aa42c5b7e16361489bb",
+  "specification_hash": "c3710e796977a64919d7c0584c71cf931d5b6272d9d5f5310cce56c216687f0b",
+  "profile_hash": "36f04491111c6565c013d1ec1e6bce6ac48c22298e62221fb45f9b32cecb30cd",
+  "voice_hash": "788dd3281e2c7b3fcf897e0c682a6b990c430cfbee8603654e3cac7940447f92",
+  "extraction_rules_hash": "68df28f1d6400816cb7c133a0dbb5c626ce9c7aebab22118f391932a85f558b3",
+  "generator_rules_hash": "7662d6e63d1e46dca711a8fa44056638795fa695087256701a312870801fd73d"
+}

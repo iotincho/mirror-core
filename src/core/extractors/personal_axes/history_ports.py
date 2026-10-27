@@ -1,0 +1,53 @@
+"""Historical batch transactions extend the common detached processing contract."""
+
+from __future__ import annotations
+
+from contextlib import AbstractAsyncContextManager
+from datetime import datetime
+from typing import Protocol
+from uuid import UUID
+
+from src.core.extractors.personal_axes.definitions import AxisDefinition
+from src.core.extractors.personal_axes.history import (
+    HistoryBatch,
+    HistoryItem,
+    HistoryStart,
+    HistoryView,
+)
+from src.core.processing.models import ProcessingJob, SubmissionReceipt
+from src.core.processing.transactions import ProcessingTransaction
+
+
+class HistoryTransaction(ProcessingTransaction, Protocol):
+    definition: AxisDefinition | None
+
+    async def timestamp(self) -> datetime: ...
+    async def batch(self, axis_id: UUID, batch_id: UUID) -> HistoryBatch: ...
+    async def active_documents(self, axis_id: UUID) -> set[UUID]: ...
+    async def create_batch(
+        self, axis_id: UUID, version_id: UUID, key: UUID, fingerprint: str
+    ) -> tuple[HistoryBatch, bool]: ...
+    async def add_item(self, item: HistoryItem) -> None: ...
+    async def stop_candidates(self, batch_id: UUID) -> list[tuple[HistoryItem, ProcessingJob]]: ...
+    async def retry_receipt(
+        self, batch_id: UUID, key: UUID, fingerprint: str
+    ) -> SubmissionReceipt: ...
+    async def retry_candidates(self, batch_id: UUID) -> list[tuple[HistoryItem, ProcessingJob]]: ...
+
+
+class HistoryStore(Protocol):
+    async def previous(self, owner: UUID, key: UUID) -> HistoryBatch | None: ...
+    async def active(self, owner: UUID, axis_id: UUID) -> set[UUID]: ...
+    async def view(self, owner: UUID, axis_id: UUID, batch_id: UUID) -> HistoryView: ...
+    async def batch_ids(
+        self, owner: UUID, axis_id: UUID, offset: int, limit: int
+    ) -> list[UUID]: ...
+    def guard(self, owner: UUID, axis_id: UUID) -> AbstractAsyncContextManager[bool]: ...
+    def transaction(
+        self, owner: UUID, axis_id: UUID, *, planning=False
+    ) -> AbstractAsyncContextManager[HistoryTransaction]: ...
+
+
+class HistoryExecution(Protocol):
+    async def begin(self, record: ProcessingJob) -> HistoryStart: ...
+    async def outcome(self, record: ProcessingJob, value: str) -> None: ...

@@ -15,16 +15,17 @@ from test_emotion_processing import pipeline, run, upload  # noqa: F401
 from test_processing_postgres import store  # noqa: F401
 from test_title_backfill import counts, fork_title
 
-from src.api.routes import processing as routes
-from src.auth.session import require_authenticated
-from src.domain.documents import NewDocument, build_document
-from src.main import app
-from src.processing.execution import ExecuteProcessing
-from src.services.document_store import FileDocumentStore
-from src.use_cases.backfill_document_titles import BackfillDocumentTitles, TitleBackfillResult
-from src.use_cases.request_processing import RequestProcessing
-from src.use_cases.submit_processing import document_identity, document_title_specification
-from src.workspaces.dependencies import get_workspace_runtime
+from src.adapters.storage.filesystem.documents import FileDocumentStore
+from src.bootstrap.acceptance import document_identity, document_title_specification
+from src.bootstrap.auth import require_authenticated
+from src.bootstrap.processing import build_executor as ExecuteProcessing
+from src.bootstrap.processing import build_processing_requests as RequestProcessing
+from src.bootstrap.processing import build_title_backfill as BackfillDocumentTitles
+from src.bootstrap.processing import get_repository
+from src.bootstrap.public_api import app
+from src.bootstrap.workspaces import get_workspace_runtime
+from src.core.documents.title_scheduling import TitleBackfillResult
+from src.core.domain.documents import NewDocument, build_document
 
 pytestmark = [
     pytest.mark.anyio,
@@ -50,10 +51,10 @@ async def reads(titled, monkeypatch):
         openai_api_key="unused-fake-key",
     )
     monkeypatch.setattr(
-        "src.use_cases.ensure_document_titles.get_settings", lambda: env.read_settings
+        "src.bootstrap.documents.get_settings", lambda: env.read_settings
     )
-    monkeypatch.setattr(routes, "get_repository", lambda: env.repo)
-    monkeypatch.setattr("src.processing.runtime.get_repository", lambda: env.repo)
+    app.dependency_overrides[get_repository] = lambda: env.repo
+    monkeypatch.setattr("src.bootstrap.processing.get_repository", lambda: env.repo)
     app.dependency_overrides[require_authenticated] = lambda: "owner"
     app.dependency_overrides[get_workspace_runtime] = lambda: env.runtime
     try:
@@ -119,7 +120,7 @@ async def test_normal_upload_owns_title_even_before_children_exist_and_after_ter
     assert (await counts(env))["ProcessingRecord"] == 1
     from sqlalchemy import update
 
-    from src.processing.models import ProcessingRecord
+    from src.adapters.storage.postgres.models import ProcessingRecord
 
     async with env.repo.sessions.begin() as session:
         await session.execute(

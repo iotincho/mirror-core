@@ -8,16 +8,23 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from src.domain.documents import NewDocument, build_document
-from src.extractors.artifacts import LayerArtifacts
-from src.extractors.base import Extractor
-from src.extractors.contracts import ExtractorProfile, FrozenModel, ProviderMetadata, content_hash
-from src.extractors.emotion_evidence import EmotionEvidenceError, EmotionResponse
-from src.extractors.emotions import EMOTIONS_PROFILE, EmotionExtractor, Emotions
-from src.extractors.openai_emotions import EmotionProviderError, OpenAIEmotionProvider
-from src.extractors.registry import ExtractorRegistry
-from src.processing.artifacts import ArtifactCorrupted
-from src.services.document_store import FileDocumentStore
+from src.adapters.providers.openai.emotions import EmotionProviderError
+from src.adapters.storage.filesystem.documents import FileDocumentStore
+from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
+from src.bootstrap.extraction import build_emotion_extractor as EmotionExtractor
+from src.bootstrap.extraction import build_emotions_provider as OpenAIEmotionProvider
+from src.bootstrap.extractor_registry import ExtractorRegistry
+from src.core.domain.documents import NewDocument, build_document
+from src.core.extractors.artifacts import ArtifactCorrupted
+from src.core.extractors.contracts import (
+    ExtractorProfile,
+    FrozenModel,
+    ProviderMetadata,
+    content_hash,
+)
+from src.core.extractors.emotion_evidence import EmotionEvidenceError, EmotionResponse, Emotions
+from src.core.extractors.emotions import EMOTIONS_PROFILE
+from src.use_cases.extraction.base import Extractor
 
 pytestmark = pytest.mark.anyio
 

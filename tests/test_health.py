@@ -1,7 +1,7 @@
 import httpx
 import pytest
 
-from src.main import app
+from src.bootstrap.public_api import app
 
 
 @pytest.mark.anyio

@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 
-from src.processing import tasks
+from src.bootstrap import worker as tasks
 
 
 @pytest.fixture

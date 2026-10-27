@@ -5,9 +5,9 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from src.exteriorization.repository import InvitationRepository
-from src.exteriorization.web_push import PushResult
-from src.user_management.database import get_session_maker
+from src.adapters.storage.postgres.invitations import InvitationRepository
+from src.bootstrap.database import get_session_maker
+from src.core.exteriorization.models import PushResult
 
 
 def clock_path() -> Path:

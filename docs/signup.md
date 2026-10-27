@@ -1,5 +1,11 @@
 # Registro con email y contraseña
 
+La política y la identidad viven en `src/core/auth/`; el login usa
+`src/use_cases/auth/authenticate.py`. FastAPI Users adapta registro, cookies y OAuth
+en `src/adapters/access/api/public/auth/`, conectado por `src/bootstrap/auth.py`.
+La contraseña se verifica bajo el mismo lock de cuenta que utiliza recuperación;
+un upgrade del hash conserva la versión de sesión y no puede restaurar la contraseña anterior.
+
 La PWA ofrece `Ingresar`, `Crear cuenta` y `Continuar con Google` en la pantalla
 de acceso. El email es el identificador; no se incorpora un nombre de usuario.
 La contraseña requiere al menos 12 caracteres y no puede contener el email.
@@ -16,7 +22,35 @@ Un email existente lleva a ingresar con contraseña o con Google, según cómo
 se creó la cuenta. No se fusionan identidades automáticamente. La asociación
 con Google conserva el flujo explícito autenticado existente.
 
+## Retorno de Google
+
+`GOOGLE_OAUTH_REDIRECT_URL` es la URL pública de la PWA, por ejemplo
+`https://app.example.com/oauth/google/callback`, y debe coincidir exactamente con
+la registrada en Google. La misma URL se utiliza para autorizar y canjear el código;
+la PWA reenvía el resultado a `/api/auth/google/callback` o al callback de asociación.
+
+La PWA comparte una única solicitud entre ejecuciones concurrentes del callback y
+espera su resultado antes de restaurar la sesión. Retira los parámetros de la URL
+antes del canje, incluso si falla. No reutiliza códigos consumidos: un fallo requiere
+iniciar nuevamente el ingreso con Google.
+
+Un rechazo `invalid_grant` devuelve HTTP 400 (`oauth_authorization_invalid`).
+Los errores de configuración/proveedor devuelven HTTP 502 (`oauth_unavailable`).
+La cancelación o la falta de código devuelve HTTP 400. El log
+`oauth_callback_failed` conserva `request_id` y sólo un código de error permitido
+del proveedor; omite descripciones, contenido de respuestas y cadenas de excepciones.
+Los errores desconocidos se registran como `unknown`.
+Las pruebas en `tests/test_google_oauth.py` simulan el proveedor; en la PWA,
+`tests/google-oauth.test.mjs` y `tests/signup.test.mjs` cubren duplicados, fallos y
+restauración de sesión bajo StrictMode. Estas pruebas no acreditan un ingreso real.
+
 ## Preparación del espacio
+
+Estados, contexto y puertos: `src/core/workspaces/`. Coordinación de acceso,
+provisión/reconciliación: `src/use_cases/workspaces/`. PostgreSQL mantiene asignación
+y locks; `src/adapters/storage/arcadedb/provisioning.py` prepara esquema y principal
+restringido. `src/bootstrap/workspaces.py` conecta cifrado, configuración y ciclo de
+vida de stores; las rutas de acceso público sólo traducen entrada/resultado.
 
 `GET /api/workspace/status` devuelve únicamente `status`: `pending`,
 `provisioning`, `active`, `failed`, `suspended` o `unavailable`. Ambos endpoints

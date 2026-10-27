@@ -1,5 +1,9 @@
 # Etapa 4: uploads y workflows diferidos
 
+> Contrato de aceptación durable. Para las capas y versiones de workflow actuales
+> consultar [trabajos por extractor](extractor-jobs.md); los ejemplos de etapas
+> internas de esta entrega no sustituyen ese contrato.
+
 La API acepta una nota de texto/archivo después de guardar su original, confirmar
 su vértice `Document` en ArcadeDB y confirmar el procesamiento y su outbox en
 PostgreSQL. No ejecuta modelos durante esos requests. El dispatcher y los workers
@@ -9,10 +13,11 @@ aunque el cliente cierre la app y nunca consulte el estado.
 ## Transición de clientes
 
 Los uploads nuevos usan `/v2/documents`, `/v2/documents/files` y `/v2/audio-notes`.
-Las rutas legacy mantienen sus contratos para clientes anteriores; la adaptación
-a `/v2` y SSE está documentada en la [etapa 5](processing-pwa-events.md). Los endpoints nuevos no usan `BackgroundTasks`.
-Las operaciones síncronas antiguas de extracción y el borrado participan en la
-exclusión por recurso y rechazan conflictos con trabajos diferidos activos.
+Las rutas legacy de upload y extracción retiradas responden `410`; no mantienen
+un camino síncrono alternativo. La integración `/v2` y SSE está documentada en
+[eventos PWA](processing-pwa-events.md). Los endpoints no usan `BackgroundTasks`.
+El borrado participa en la exclusión por recurso y rechaza conflictos con
+trabajos diferidos activos.
 
 | Operación | Contrato |
 | --- | --- |

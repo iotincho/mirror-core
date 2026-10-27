@@ -8,11 +8,12 @@ from fastapi import FastAPI
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from src.config import get_settings
-from src.extractors.personal_axes import routes
-from src.user_management.database import get_async_session
-from src.user_management.dependencies import AuthenticatedUser, get_authenticated_user
-from src.user_management.models import Base, User
+from src.adapters.storage.postgres.accounts import Base, User
+from src.bootstrap import personal_axes_api as routes
+from src.bootstrap.auth import get_authenticated_user
+from src.bootstrap.database import get_async_session
+from src.bootstrap.settings import get_settings
+from src.core.auth.identity import AuthenticatedUser
 
 
 @pytest.fixture

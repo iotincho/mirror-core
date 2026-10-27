@@ -1,5 +1,12 @@
 # Recuperar un audio que falló por falta de ffmpeg
 
+Ubicaciones vigentes: puertos en `src/core/audio/ports.py`, coordinación en
+`src/use_cases/audio/`, originales/preparación en `src/adapters/storage/filesystem/`
+y cliente de transcripción en `src/adapters/providers/openai/transcription.py`.
+`src/bootstrap/audio.py` conecta configuración, preparación y artefactos; los
+imports operativos anteriores siguen disponibles. La conversión usa temporales,
+conserva el original y no vuelve a transcribir si ya existe un checkpoint válido.
+
 La imagen publicada por CI se construye con `Dockerfile.prod`. Tanto esa imagen
 como la de desarrollo requieren ffmpeg con libmp3lame para normalizar WebM a MP3.
 
@@ -28,11 +35,11 @@ import asyncio
 import subprocess
 from uuid import UUID, uuid4
 
-from src.processing.models import ProcessingRecord
-from src.processing.runtime import get_repository
-from src.processing.workflows import worker_runtime
-from src.use_cases.request_processing import RequestProcessing
-from src.user_management.database import close_database, get_session_maker
+from src.adapters.storage.postgres.models import ProcessingRecord
+from src.bootstrap.processing import get_repository
+from src.bootstrap.workflows import worker_runtime
+from src.bootstrap.processing import RequestProcessing
+from src.bootstrap.database import close_database, get_session_maker
 
 PROCESSING_ID = UUID("00000000-0000-0000-0000-000000000001")
 AUDIO_ID = UUID("00000000-0000-0000-0000-000000000002")

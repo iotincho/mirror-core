@@ -39,8 +39,12 @@ No se incorporan presupuesto global ni alertas en esta etapa.
 
 ## Persistencia, sesión y entrega
 
-`RecoverPassword` es dueño de los estados y de la transacción de cambio.
-`RecoveryRepository` persiste historiales acotados en PostgreSQL y serializa las
+`src/use_cases/auth/recover_password.py` decide estados y abre el puerto de
+transacción de cambio, sin recibir sesiones SQL ni depender de FastAPI Users.
+Tipos y contratos viven en `src/core/auth/`; acceso traduce sus errores al HTTP
+anterior. `src/bootstrap/recovery.py` conecta hashing, protección de credenciales
+y correo. `RecoveryRepository` en `src/adapters/storage/postgres/` persiste
+historiales acotados y serializa las
 operaciones por IP y dirección con bloqueos de fila. Los identificadores de email
 /IP y el código se protegen con HMAC; el código necesario para reenvíos queda
 cifrado con una clave de dominio separado. No se escribe en claro en la base,
@@ -51,6 +55,11 @@ revocación de sesiones y desactivación de destinos push se confirman juntos.
 La validación y el hashing reutilizan la política y el helper de FastAPI Users.
 Los cambios de contraseña deben pasar por este caso de uso e incrementar la
 versión; no se expone el router JWT de recuperación del framework.
+
+`recovery_transaction.py` mantiene copias desacopladas del ORM y aplica cambios,
+revocación y outbox en el mismo commit. El enlace SQL con invitaciones/push conserva
+su orden de locks hasta migrar esa capacidad. Cifrado y Resend viven en
+`src/adapters/providers/{security,email}/`; no cambian claves, HMAC ni idempotencia.
 
 Los tokens guardan la versión de sesión con la que se autenticaron: un login que
 termina después del reset no puede emitir una sesión válida basada en credenciales

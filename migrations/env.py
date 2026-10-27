@@ -7,17 +7,23 @@ from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from src.administration import models as admin_models  # noqa: F401
-from src.config import get_settings
-from src.exteriorization import models as invitation_models  # noqa: F401
-from src.extractors.personal_axes import history_models as axis_history_models  # noqa: F401
-from src.extractors.personal_axes import models as axis_models  # noqa: F401
-from src.maintenance import models as maintenance_models  # noqa: F401
-from src.notifications import models as notification_models  # noqa: F401
-from src.processing import models as processing_models  # noqa: F401
-from src.user_management.models import Base
-from src.user_management.recovery import models as recovery_models  # noqa: F401
-from src.workspaces import models as workspace_models  # noqa: F401
+from src.adapters.storage.postgres import administration_models as admin_models  # noqa: F401
+from src.adapters.storage.postgres import (
+    invitation_models,  # noqa: F401
+    notification_models,  # noqa: F401
+    recovery_models,  # noqa: F401
+    workspace_models,  # noqa: F401
+)
+from src.adapters.storage.postgres import migration_models as maintenance_models  # noqa: F401
+from src.adapters.storage.postgres import (
+    models as processing_models,  # noqa: F401
+)
+from src.adapters.storage.postgres.accounts import Base
+from src.adapters.storage.postgres.personal_axes import (
+    history_models as axis_history_models,  # noqa: F401
+)
+from src.adapters.storage.postgres.personal_axes import models as axis_models  # noqa: F401
+from src.bootstrap.settings import get_settings
 
 config = context.config
 if config.config_file_name is not None:

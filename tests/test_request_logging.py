@@ -6,8 +6,8 @@ from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 from starlette.responses import JSONResponse
 
-from src.api.request_logging import RequestLoggingMiddleware
-from src.main import app
+from src.adapters.access.api.public.request_logging import RequestLoggingMiddleware
+from src.bootstrap.public_api import app
 
 
 @pytest.fixture
@@ -65,7 +65,8 @@ async def test_rejected_requests_have_correlated_logs(observed_app, caplog, code
     assert f"status_code={code}" in caplog.text
     # Existing 5xx tracebacks remain available; new rejection logs contain no payload/detail.
     summary = "\n".join(
-        r.getMessage() for r in caplog.records if r.name == "src.api.request_logging"
+        r.getMessage() for r in caplog.records
+        if r.name == "src.adapters.access.api.public.request_logging"
     )
     for secret in ["private-query", "private-cookie", "private-auth", "private audio bytes",
                    "private rejection detail"]:

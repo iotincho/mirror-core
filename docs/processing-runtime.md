@@ -9,6 +9,13 @@ relaciones padre/hijo. Un workflow desconocido termina con
 
 ## Componentes y límites
 
+Implementación hexagonal: contratos/estados sin ORM en `src/core/processing/`;
+runner, aceptación, retry/reprocess y coordinadores en `src/use_cases/processing/`;
+persistencia y feed en `src/adapters/storage/postgres/`. Taskiq recibe/valida/ACK en
+`src/adapters/access/workers/`; RabbitMQ se configura en `src/adapters/messaging/`.
+`src/bootstrap/` compone procesos, versiones, extractores y opciones aceptadas.
+Todos los comandos de ejecución usan `src.bootstrap`; no se conservan aliases anteriores.
+
 - `ProcessingRepository`: PostgreSQL guarda registros, historial de eventos y
   outbox. La creación del trabajo, su evento inicial y la intención de envío se
   confirman en una misma transacción. Las búsquedas de usuario exigen su `user_id`.
@@ -20,7 +27,9 @@ relaciones padre/hijo. Un workflow desconocido termina con
 - `WorkflowFailure`: el caso de uso devuelve un código seguro y decide si el
   error admite reintento y su demora. El runner limita a cuatro intentos por
   etapa; la etapa 4 incorpora clasificación de proveedores y backoff 10/30/120 con jitter. Los errores internos inesperados terminan como
-  `workflow_internal_error`; los errores SQL dejan el lease para recuperación.
+  `workflow_internal_error`; el adaptador traduce errores SQL a
+  `StorageUnavailable`, que deja el lease para recuperación. HTTP conserva el 503
+  seguro y el pedido de reutilizar la misma clave idempotente.
 - `processing.execute`: adaptador Taskiq. El mensaje contiene únicamente ID y
   generación. Confirma manualmente la entrega después de resolver el estado en
   SQL. Mientras PostgreSQL no responde conserva la entrega y espera; cancelar
@@ -88,9 +97,9 @@ los reintentos. El comando worker debe usar `--ack-type manual`.
 Para ejecutar sin Compose, con PostgreSQL migrado y RabbitMQ disponibles:
 
 ```bash
-python -m taskiq worker src.processing.broker:broker src.processing.tasks \
+python -m taskiq worker src.bootstrap.messaging:broker src.bootstrap.worker \
   --workers 1 --max-async-tasks 4 --max-prefetch 0 --ack-type manual
-python -m src.processing.dispatcher
+python -m src.bootstrap.dispatcher
 ```
 
 `DATABASE_URL`, `RABBITMQ_URL` y los paths de datos deben apuntar a los mismos
@@ -102,7 +111,9 @@ RabbitMQ usa una imagen fija `4.3.6-management-alpine`, un hostname estable y
 volumen persistente. Este Compose es de desarrollo y usa una instancia con colas
 clásicas durables; no ofrece alta disponibilidad del broker. El despliegue de
 producción, métricas, retención de eventos/outbox y estrategia HA corresponden
-a etapa 6. La API no requiere iniciar RabbitMQ hasta conectar los uploads.
+a una etapa operativa aparte. La aceptación HTTP usa PostgreSQL/outbox sin
+depender de RabbitMQ disponible; el dispatcher necesita el broker para entregar
+los trabajos al worker.
 
 ## Validación
 
@@ -135,3 +146,12 @@ Referencias: [Taskiq CLI y ACK manual](https://taskiq-python.github.io/guide/cli
 [releases RabbitMQ](https://www.rabbitmq.com/release-information).
 La implementación usa la API publicada de `taskiq-aio-pika 0.5`, cuya firma
 difiere de la documentación de la rama `master`.
+
+## Ubicación y compatibilidad de procesos
+
+Los comandos canónicos son `src.bootstrap.messaging:broker` con
+`src.bootstrap.worker`, y `python -m src.bootstrap.dispatcher`. El registro de
+versiones se compone en `src/bootstrap/workflow_registry.py`, separado de las
+factories para evitar ciclos de imports. La tarea de transporte conserva su nombre
+`processing.execute`; este movimiento no cambia mensajes, versiones ni configuración
+ya aceptada. mirror-deploy usa directamente estos entrypoints, sin wrappers.

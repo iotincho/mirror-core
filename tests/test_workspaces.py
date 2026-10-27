@@ -2,11 +2,18 @@ from uuid import UUID
 
 import pytest
 
-from src.config import Settings
-from src.workspaces import provisioning
-from src.workspaces.arcade_admin import RUNTIME_GROUP, ArcadeDBAdminClient, ArcadeDBAdminError
-from src.workspaces.repository import workspace_database_name, workspace_graph_username
-from src.workspaces.secrets import WorkspaceSecretCipher, WorkspaceSecretError
+from src.adapters.storage.arcadedb.administration import (
+    RUNTIME_GROUP,
+    ArcadeDBAdminClient,
+    ArcadeDBAdminError,
+)
+from src.adapters.storage.postgres.workspace_repository import (
+    workspace_database_name,
+    workspace_graph_username,
+)
+from src.bootstrap.settings import Settings
+from src.bootstrap.workspaces import WorkspaceSecretCipher
+from src.core.workspaces.errors import WorkspaceSecretError
 
 
 def workspace_settings(**values: object) -> Settings:
@@ -91,7 +98,9 @@ def test_admin_rejects_an_unexpected_runtime_database_scope(
         return {"result": ["es_123", "another_database"]}
 
     monkeypatch.setattr(admin, "_request_as", request_as)
-    monkeypatch.setattr("src.workspaces.arcade_admin.ArcadeDBHTTPClient", RuntimeClient)
+    monkeypatch.setattr(
+        "src.adapters.storage.arcadedb.administration.ArcadeDBHTTPClient", RuntimeClient
+    )
 
     with pytest.raises(ArcadeDBAdminError, match="unexpected database scope"):
         admin.verify_runtime_principal(
@@ -109,35 +118,15 @@ async def test_reconciliation_forces_active_workspaces_to_refresh_principals(
     second_user = UUID("181328cb-dba0-4b0d-b691-ee9f0b9a90f7")
     provisioned: list[tuple[UUID, bool]] = []
 
-    class Session:
-        async def __aenter__(self) -> "Session":
-            return self
-
-        async def __aexit__(self, *args: object) -> None:
-            return None
-
-    class SessionMaker:
-        def __call__(self) -> Session:
-            return Session()
-
-    class Repository:
-        def __init__(self, session: Session) -> None:
-            pass
-
-        async def list_active_user_ids(self) -> list[UUID]:
+    class Store:
+        async def active_user_ids(self):
             return [first_user, second_user]
 
     class Provisioner:
-        def __init__(self, *args: object) -> None:
-            pass
-
-        async def provision(self, user_id: UUID, *, force: bool = False) -> None:
+        async def provision(self, user_id, *, force=False):
             provisioned.append((user_id, force))
 
-    monkeypatch.setattr(provisioning, "get_session_maker", lambda: SessionMaker())
-    monkeypatch.setattr(provisioning, "WorkspaceRepository", Repository)
-    monkeypatch.setattr(provisioning, "WorkspaceProvisioner", Provisioner)
+    from src.use_cases.workspaces.provision import ReconcileWorkspaces
 
-    await provisioning.reconcile_active_workspaces()
-
+    await ReconcileWorkspaces(Store(), Provisioner()).execute()
     assert provisioned == [(first_user, True), (second_user, True)]

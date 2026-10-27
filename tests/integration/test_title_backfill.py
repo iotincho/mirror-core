@@ -14,16 +14,17 @@ from test_emotion_layer import layer_database  # noqa: F401
 from test_emotion_processing import pipeline, run, upload  # noqa: F401
 from test_processing_postgres import store  # noqa: F401
 
-from src.domain.documents import NewDocument, build_document
-from src.processing.execution import ExecuteProcessing
-from src.processing.models import (
+from src.adapters.storage.filesystem.documents import FileDocumentStore
+from src.adapters.storage.postgres.models import (
     ProcessingEvent,
     ProcessingOutbox,
     ProcessingReceipt,
     ProcessingRecord,
 )
-from src.services.document_store import FileDocumentStore
-from src.use_cases.backfill_document_titles import BackfillDocumentTitles, TitleBackfillResult
+from src.bootstrap.processing import build_executor as ExecuteProcessing
+from src.bootstrap.processing import build_title_backfill as BackfillDocumentTitles
+from src.core.documents.title_scheduling import TitleBackfillResult
+from src.core.domain.documents import NewDocument, build_document
 
 pytestmark = [
     pytest.mark.anyio,

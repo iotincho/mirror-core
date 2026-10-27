@@ -3,9 +3,8 @@ from types import SimpleNamespace
 import pytest
 from fastapi_users.exceptions import InvalidPasswordException
 
-from src.main import app
-from src.user_management.authentication import COOKIE_NAME, cookie_transport
-from src.user_management.manager import UserManager
+from src.bootstrap.auth import COOKIE_NAME, UserManager, cookie_transport
+from src.bootstrap.public_api import app
 
 
 def test_user_management_routes_and_cookie_contract_are_exposed() -> None:

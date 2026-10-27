@@ -3,8 +3,8 @@
 import asyncio
 import os
 
-from src.processing.execution import WorkflowDefinition
-from src.processing.runtime import registry
+from src.bootstrap.workflow_registry import registry
+from src.core.processing.workflows import WorkflowDefinition
 
 
 async def run(context):

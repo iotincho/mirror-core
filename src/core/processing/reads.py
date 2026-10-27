@@ -1,0 +1,26 @@
+"""Read detached processing state; transport and ORM remain outside application."""
+
+from typing import Protocol
+from uuid import UUID
+
+from src.core.processing.models import ProcessingJob
+
+
+class ProcessingReads(Protocol):
+    async def list_for_owner(
+        self, owner: UUID, *, active: bool, cursor: UUID | None, limit: int
+    ) -> list[ProcessingJob]: ...
+    async def get(self, processing_id: UUID, owner: UUID) -> ProcessingJob | None: ...
+    async def extractor_children(self, parent: UUID, owner: UUID) -> list[ProcessingJob]: ...
+    async def latest(self, owner: UUID, resource: UUID, workflow: str) -> ProcessingJob | None: ...
+
+
+class ProcessingNotFound(Exception):
+    pass
+
+
+class ProcessingEventFeed(Protocol):
+    async def publish(self) -> None: ...
+    async def bounds(self) -> tuple[int | None, int]: ...
+    async def cursor_retained(self, cursor: int) -> bool: ...
+    async def read(self, owner: UUID, cursor: int) -> list[tuple[int, dict]]: ...

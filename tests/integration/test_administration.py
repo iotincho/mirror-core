@@ -10,17 +10,24 @@ import pytest
 from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from src.admin_main import app
-from src.administration.activity import record_access
-from src.administration.database import admin_session
-from src.administration.models import DocumentMetric, InventoryState, MetricCoverage, UserActivity
-from src.administration.repository import AdministrationRepository, period_start
-from src.administration.sync import LOCK_ID, SyncInventory
-from src.domain.documents import NewDocument, build_document
-from src.processing.models import ProcessingReceipt, ProcessingRecord
-from src.services.document_store import FileDocumentStore
-from src.user_management.models import User
-from src.workspaces.models import UserWorkspace
+from src.adapters.storage.filesystem.documents import FileDocumentStore
+from src.adapters.storage.postgres.accounts import User
+from src.adapters.storage.postgres.administration import AdministrationRepository
+from src.adapters.storage.postgres.administration_models import (
+    DocumentMetric,
+    InventoryState,
+    MetricCoverage,
+    UserActivity,
+)
+from src.adapters.storage.postgres.inventory import LOCK_ID
+from src.adapters.storage.postgres.models import ProcessingReceipt, ProcessingRecord
+from src.adapters.storage.postgres.workspace_models import UserWorkspace
+from src.bootstrap.activity import record_access
+from src.bootstrap.admin_database import admin_session
+from src.bootstrap.administration import app
+from src.bootstrap.inventory_sync import SyncInventory
+from src.core.administration.rules import period_start
+from src.core.domain.documents import NewDocument, build_document
 
 pytestmark = [
     pytest.mark.anyio,
@@ -165,19 +172,19 @@ async def test_api_is_separate_paginated_filtered_and_private(env):
     ).status_code == 422
     assert (await client.get(f"/api/admin/users/{uuid4()}")).status_code == 404
     assert (await client.delete(f"/api/admin/users/{owners[0]}")).status_code == 405
-    from src.main import app as public_app
+    from src.bootstrap.public_api import app as public_app
 
     assert not any("admin" in route for route in public_app.openapi()["paths"])
     assert not any("documents" in route for route in app.openapi()["paths"])
 
 
 async def test_laboratory_permission_uses_writable_transaction_and_persists(env, monkeypatch):
-    from src.administration.config import get_admin_settings
-    from src.config import get_settings
-    from src.extractors.personal_axes.access import laboratory_available
+    from src.bootstrap.administration_settings import get_admin_settings
+    from src.bootstrap.laboratory import laboratory_available
+    from src.bootstrap.settings import get_settings
 
     sessions, owners, _, client = env
-    monkeypatch.setattr("src.administration.database.get_admin_sessions", lambda: sessions)
+    monkeypatch.setattr("src.bootstrap.admin_database.get_admin_sessions", lambda: sessions)
     monkeypatch.setattr(get_settings(), "personal_axes_enabled", True)
     monkeypatch.setattr(get_admin_settings(), "personal_axes_enabled", True)
     path = f"/api/admin/users/{owners[0]}/laboratory"
@@ -309,7 +316,9 @@ async def test_access_is_idempotent_monotonic_and_bucketed_in_buenos_aires(env):
         assert len(rows) == 1
         assert rows[0].day.isoformat() == "2026-10-15"
         assert rows[0].last_seen_at == later
-        result = await AdministrationRepository(session, now=later).summary(7)
+        from src.use_cases.administration.query import Administration
+
+        result = await Administration(AdministrationRepository(session, now=later)).summary(7)
         assert result.users_accessed == 1
     assert period_start(later, 7).isoformat() == "2026-10-09T03:00:00+00:00"
 

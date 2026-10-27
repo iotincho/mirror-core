@@ -14,23 +14,34 @@ from fastapi_users.password import PasswordHelper
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from src.config import Settings
-from src.exteriorization.models import InvitationPreference, PushSubscription
-from src.processing.execution import ExecuteProcessing, WorkflowRegistry
-from src.processing.models import ProcessingEvent, ProcessingOutbox, ProcessingRecord
-from src.processing.repository import ProcessingRepository
-from src.use_cases.recover_password import RecoverPassword
-from src.use_cases.send_recovery_email import SendRecoveryEmail
-from src.user_management.authentication import InvitationDatabaseStrategy, get_database_strategy
-from src.user_management.database import get_access_token_db, get_async_session
-from src.user_management.manager import UserManager
-from src.user_management.models import AccessToken, OAuthAccount, User
-from src.user_management.recovery.dependencies import get_password_recovery
-from src.user_management.recovery.models import RecoveryAddress, RecoveryDelivery, RecoveryIP
-from src.user_management.recovery.repository import RecoveryError, RecoveryRepository
-from src.user_management.recovery.resend import ResendMailTransport
-from src.user_management.recovery.security import RecoverySecrets
-from src.user_management.routes import build_router, session
+from src.adapters.providers.email.resend import ResendMailTransport
+from src.adapters.storage.postgres.accounts import AccessToken, OAuthAccount, User
+from src.adapters.storage.postgres.invitation_models import InvitationPreference, PushSubscription
+from src.adapters.storage.postgres.models import ProcessingEvent, ProcessingOutbox, ProcessingRecord
+from src.adapters.storage.postgres.recovery_models import (
+    RecoveryAddress,
+    RecoveryDelivery,
+    RecoveryIP,
+)
+from src.adapters.storage.postgres.recovery_repository import RecoveryError, RecoveryRepository
+from src.adapters.storage.postgres.repository import ProcessingRepository
+from src.bootstrap.auth import (
+    InvitationDatabaseStrategy,
+    UserManager,
+    build_router,
+    get_database_strategy,
+    session,
+)
+from src.bootstrap.database import get_access_token_db, get_async_session
+from src.bootstrap.processing import build_executor as ExecuteProcessing
+from src.bootstrap.recovery import (
+    RecoverPassword,
+    RecoverySecrets,
+    SendRecoveryEmail,
+    get_password_recovery,
+)
+from src.bootstrap.settings import Settings
+from src.core.processing.workflows import WorkflowRegistry
 
 pytestmark = [
     pytest.mark.anyio,
@@ -123,8 +134,8 @@ async def env(monkeypatch):
     )
     value.jobs = ProcessingRepository(sessions, lease_seconds=30)
     value.executor = ExecuteProcessing(value.jobs, registry)
-    monkeypatch.setattr("src.user_management.manager.get_settings", lambda: settings)
-    monkeypatch.setattr("src.user_management.recovery.routes.get_settings", lambda: settings)
+    monkeypatch.setattr("src.bootstrap.auth.get_settings", lambda: settings)
+    monkeypatch.setattr("src.bootstrap.recovery.get_settings", lambda: settings)
     app = FastAPI()
     router = build_router(settings)
     router.add_api_route("/session", session, methods=["GET"])
@@ -428,7 +439,7 @@ async def test_concurrent_ip_requests_cannot_exceed_ten(env):
     assert sum(outcome is None for outcome in outcomes) == 10
     assert (
         sum(
-            isinstance(outcome, RecoveryError) and outcome.status_code == 429
+            isinstance(outcome, RecoveryError) and outcome.code == "recovery_rate_limited"
             for outcome in outcomes
         )
         == 10
@@ -449,7 +460,7 @@ async def test_concurrent_wrong_codes_never_exceed_five_attempts(env):
 
 
 async def test_outbox_dispatch_and_late_worker_expiry(env):
-    from src.processing.dispatcher import dispatch_once
+    from src.bootstrap.dispatcher import dispatch_once
 
     await request(env)
     assert (
@@ -519,8 +530,8 @@ async def test_inflight_password_hash_upgrade_cannot_restore_old_password(env):
 
 
 async def test_internal_email_jobs_cannot_be_listed_or_retried_as_documents(env):
-    from src.services.document_store import DocumentNotFoundError
-    from src.use_cases.request_processing import RequestProcessing
+    from src.bootstrap.processing import build_processing_requests as RequestProcessing
+    from src.core.documents.ports import DocumentNotFoundError
 
     await request(env)
     record = (await jobs(env))[0]

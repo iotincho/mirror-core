@@ -1,8 +1,8 @@
 import httpx
 import pytest
 
-from src.auth.session import require_authenticated
-from src.main import app
+from src.bootstrap.auth import require_authenticated
+from src.bootstrap.public_api import app
 
 
 @pytest.fixture

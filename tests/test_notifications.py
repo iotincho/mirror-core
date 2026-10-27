@@ -5,11 +5,10 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-from fastapi import HTTPException
 from pydantic import ValidationError
 
-from src.notifications.repository import decode_cursor, encode_cursor
-from src.notifications.schemas import AnnouncementContent, NotificationAction, ReadAll
+from src.core.notifications.models import AnnouncementContent, NotificationAction, ReadAll
+from src.core.notifications.rules import NotificationError, decode_cursor, encode_cursor
 
 
 def test_publication_defaults_to_fifteen_days_and_actions_are_closed():
@@ -41,6 +40,6 @@ def test_cursor_roundtrip_and_malformed_input(read_at):
         json.dumps([True, item.published_at.isoformat(), 123]).encode()
     )
     for cursor in ["!invalid", "a" * 301, "bnVsbA==", "e30=", "W10=", bad_uuid.decode()]:
-        with pytest.raises(HTTPException) as failure:
+        with pytest.raises(NotificationError) as failure:
             decode_cursor(cursor)
-        assert failure.value.status_code == 422
+        assert failure.value.code == "invalid_notification_cursor"

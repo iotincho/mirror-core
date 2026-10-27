@@ -6,18 +6,15 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from src.domain.documents import NewDocument, build_document
-from src.extractors.artifacts import LayerArtifacts
-from src.extractors.document_embedding_store import ArcadeDBDocumentEmbeddingStore
-from src.extractors.document_embeddings import (
-    DocumentEmbeddingExtractor,
-    EmbeddingConfiguration,
-    Segmentation,
-)
-from src.graph.arcadedb.client import AsyncArcadeDBHTTPClient
-from src.graph.arcadedb.schema import schema_statements
-from src.graph.arcadedb.store import ArcadeDBGraphStore
-from src.services.document_store import FileDocumentStore
+from src.adapters.storage.arcadedb.document_embeddings import ArcadeDBDocumentEmbeddingStore
+from src.adapters.storage.filesystem.documents import FileDocumentStore
+from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
+from src.bootstrap.extraction import build_embedding_extractor as DocumentEmbeddingExtractor
+from src.bootstrap.graph import build_graph_client as AsyncArcadeDBHTTPClient
+from src.bootstrap.graph import build_graph_store as ArcadeDBGraphStore
+from src.bootstrap.graph_schema import schema_statements
+from src.core.domain.documents import NewDocument, build_document
+from src.core.extractors.document_embeddings import EmbeddingConfiguration, Segmentation
 
 pytestmark = [
     pytest.mark.anyio,

@@ -1,7 +1,7 @@
 """Isolated HTTP fixture for PWA integration; never imported by production commands.
 
 Run only against an empty disposable PostgreSQL database and RabbitMQ vhost/queue.
-The /__tests__ controls belong exclusively to this fixture app, not src.main.app.
+The /__tests__ controls belong exclusively to this fixture app, not src.bootstrap.public_api.app.
 """
 
 import json
@@ -17,32 +17,31 @@ from invitation_test_support import clock_path, controlled_now, invitation_repos
 from pydantic import BaseModel
 from sqlalchemy import delete, select, update
 
-from src.config import get_settings
-from src.exteriorization.dependencies import get_invitations
-from src.exteriorization.models import (
+from src.adapters.storage.postgres.accounts import AccessToken, User
+from src.adapters.storage.postgres.invitation_models import (
     Invitation,
     InvitationDelivery,
     InvitationPreference,
     InvitationResponse,
     PushSubscription,
 )
-from src.main import app as api
-from src.processing.broker import broker
-from src.processing.dispatcher import dispatch_once
-from src.processing.models import (
+from src.adapters.storage.postgres.models import (
     ProcessingEvent,
     ProcessingOutbox,
     ProcessingReceipt,
     ProcessingRecord,
 )
-from src.processing.runtime import get_repository
-from src.processing.tasks import execute_processing
-from src.use_cases.configure_invitations import ConfigureInvitations
-from src.use_cases.schedule_invitations import ScheduleInvitations
-from src.user_management.database import close_database, get_session_maker
-from src.user_management.models import AccessToken, User
-from src.workspaces.models import UserWorkspace
-from src.workspaces.secrets import WorkspaceSecretCipher
+from src.adapters.storage.postgres.workspace_models import UserWorkspace
+from src.bootstrap.database import close_database, get_session_maker
+from src.bootstrap.dispatcher import dispatch_once
+from src.bootstrap.invitations import build_invitations, get_invitations
+from src.bootstrap.messaging import broker
+from src.bootstrap.processing import get_repository
+from src.bootstrap.public_api import app as api
+from src.bootstrap.settings import get_settings
+from src.bootstrap.worker import execute_processing
+from src.bootstrap.workspaces import WorkspaceSecretCipher
+from src.use_cases.exteriorization.schedule_invitations import ScheduleInvitations
 
 owners = [uuid4(), uuid4()]
 password = "isolated-invitation-test-password"
@@ -75,7 +74,7 @@ async def lifespan(app):
                 )
             )
             (settings.workspaces_path / str(owner) / "documents").mkdir(parents=True)
-    api.dependency_overrides[get_invitations] = lambda: ConfigureInvitations(
+    api.dependency_overrides[get_invitations] = lambda: build_invitations(
         invitation_repository()
     )
     await broker.startup()

@@ -1,0 +1,243 @@
+"""Reserve durable request identity before writing an original to the filesystem."""
+
+from __future__ import annotations
+
+from datetime import timedelta
+from uuid import UUID, uuid4
+
+from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert
+
+from src.adapters.storage.postgres.models import ProcessingReceipt, ProcessingRecord
+from src.adapters.storage.postgres.repository import ProcessingRepository
+from src.core.processing.configuration import document_workflow_version
+from src.core.processing.submissions import SubmissionConflict
+
+
+class SubmissionRepository:
+    def __init__(self, processing: ProcessingRepository):
+        self.processing = processing
+        self.sessions = processing.sessions
+
+    async def get(self, user_id, operation, key):
+        """Read a workspace-scoped receipt, including an interrupted reservation."""
+        async with self.sessions() as session:
+            return await session.scalar(
+                select(ProcessingReceipt).where(
+                    ProcessingReceipt.user_id == user_id,
+                    ProcessingReceipt.operation == operation,
+                    ProcessingReceipt.key == key,
+                )
+            )
+
+    async def accepted(self, user_id, operation, key, request_hash):
+        """Replay an accepted request before checking for active processing."""
+        async with self.sessions() as session:
+            receipt = await session.scalar(
+                select(ProcessingReceipt).where(
+                    ProcessingReceipt.user_id == user_id,
+                    ProcessingReceipt.operation == operation,
+                    ProcessingReceipt.key == key,
+                    ProcessingReceipt.accepted_at.is_not(None),
+                )
+            )
+            if receipt is not None:
+                if receipt.request_hash != request_hash:
+                    raise SubmissionConflict("idempotency_conflict")
+                record = await session.get(ProcessingRecord, receipt.processing_id)
+                if record.resource_deleted:
+                    raise SubmissionConflict("resource_deleted")
+            return receipt
+
+    async def reserve(
+        self,
+        *,
+        user_id: UUID,
+        operation: str,
+        key: UUID,
+        request_hash: str,
+        resource_kind: str,
+        resource_id: UUID | None,
+        config: dict,
+        manifest: dict,
+        config_factory=None,
+    ) -> ProcessingReceipt:
+        async with self.sessions.begin() as session:
+            now = await session.scalar(select(func.clock_timestamp()))
+            receipt_id = uuid4()
+            inserted = await session.scalar(
+                insert(ProcessingReceipt)
+                .values(
+                    id=receipt_id,
+                    user_id=user_id,
+                    operation=operation,
+                    key=key,
+                    request_hash=request_hash,
+                    resource_kind=resource_kind,
+                    resource_id=resource_id or uuid4(),
+                    config=config,
+                    manifest=manifest,
+                    lease_token=uuid4(),
+                    lease_expires_at=now + timedelta(seconds=90),
+                    created_at=now,
+                )
+                .on_conflict_do_nothing()
+                .returning(ProcessingReceipt.id)
+            )
+            query = (
+                select(ProcessingReceipt)
+                .where(
+                    ProcessingReceipt.user_id == user_id,
+                    ProcessingReceipt.operation == operation,
+                    ProcessingReceipt.key == key,
+                )
+                .with_for_update()
+            )
+            receipt = await session.scalar(query)
+            if receipt is None and resource_id and operation.startswith("upload_"):
+                receipt = await session.scalar(
+                    select(ProcessingReceipt)
+                    .where(
+                        ProcessingReceipt.user_id == user_id,
+                        ProcessingReceipt.operation == operation,
+                        ProcessingReceipt.resource_id == resource_id,
+                        ProcessingReceipt.is_original.is_(True),
+                    )
+                    .with_for_update()
+                )
+            if receipt is None:
+                raise SubmissionConflict("resource_already_exists")
+            if inserted is not None and config_factory is not None:
+                # Resolve only for the new reservation, never for replays or aliases.
+                # The snapshot and receipt become durable in this same transaction.
+                receipt.config = await config_factory(session, user_id, config)
+            if receipt.request_hash != request_hash or (
+                resource_id is not None and receipt.resource_id != resource_id
+            ):
+                raise SubmissionConflict("idempotency_conflict")
+            if receipt.key != key:
+                if receipt.accepted_at is None:
+                    raise SubmissionConflict("upload_in_progress")
+                # Bind this successful alias request too; its key cannot later create another note.
+                alias_id = uuid4()
+                alias = await session.scalar(
+                    insert(ProcessingReceipt)
+                    .values(
+                        id=alias_id,
+                        user_id=user_id,
+                        operation=operation,
+                        key=key,
+                        request_hash=request_hash,
+                        is_original=False,
+                        resource_kind=resource_kind,
+                        resource_id=receipt.resource_id,
+                        config=receipt.config,
+                        manifest=receipt.manifest,
+                        processing_id=receipt.processing_id,
+                        lease_token=uuid4(),
+                        lease_expires_at=now,
+                        created_at=receipt.created_at,
+                        accepted_at=now,
+                    )
+                    .on_conflict_do_nothing()
+                    .returning(ProcessingReceipt.id)
+                )
+                if alias is None:
+                    receipt = await session.scalar(query)
+                    if receipt.request_hash != request_hash or receipt.resource_id != resource_id:
+                        raise SubmissionConflict("idempotency_conflict")
+                else:
+                    receipt = await session.get(ProcessingReceipt, alias_id)
+            if receipt.accepted_at is None and inserted is None:
+                if receipt.lease_expires_at > now:
+                    raise SubmissionConflict("upload_in_progress")
+                receipt.lease_token = uuid4()
+                receipt.lease_expires_at = now + timedelta(seconds=90)
+        return receipt
+
+    async def accept(self, receipt: ProcessingReceipt) -> ProcessingRecord:
+        async with self.sessions.begin() as session:
+            current = await session.get(ProcessingReceipt, receipt.id, with_for_update=True)
+            if current.accepted_at is not None:
+                return await session.get(ProcessingRecord, current.processing_id)
+            if current.lease_token != receipt.lease_token:
+                raise SubmissionConflict("upload_in_progress")
+            if not await self.processing.workspace_active(receipt.user_id):
+                raise SubmissionConflict("workspace_unavailable")
+            record = ProcessingRecord(
+                id=uuid4(),
+                user_id=receipt.user_id,
+                workflow="document" if receipt.resource_kind == "document" else "audio",
+                workflow_version=document_workflow_version(receipt.config)
+                if receipt.resource_kind == "document"
+                else 2,
+                stage="document_persistence"
+                if receipt.resource_kind == "document"
+                else "transcription",
+                resource_kind=receipt.resource_kind,
+                resource_id=receipt.resource_id,
+                document_id=receipt.resource_id if receipt.resource_kind == "document" else None,
+                config=receipt.config,
+            )
+            session.add(record)
+            await session.flush()
+            self.processing.event(session, record)
+            self.processing.schedule(session, record)
+            if receipt.operation == "upload_document" and receipt.manifest.get("invitation_id"):
+                from src.adapters.storage.postgres.invitation_models import (
+                    Invitation,
+                    InvitationResponse,
+                )
+
+                invitation_id = UUID(receipt.manifest["invitation_id"])
+                invitation = await session.scalar(
+                    select(Invitation.id).where(
+                        Invitation.id == invitation_id,
+                        Invitation.user_id == receipt.user_id,
+                    )
+                )
+                if invitation is None:
+                    raise SubmissionConflict("invitation_not_found")
+                await session.execute(
+                    insert(InvitationResponse)
+                    .values(
+                        user_id=receipt.user_id,
+                        document_id=receipt.resource_id,
+                        invitation_id=invitation_id,
+                    )
+                    .on_conflict_do_nothing()
+                )
+            current.processing_id = record.id
+            current.accepted_at = await session.scalar(select(func.clock_timestamp()))
+        return record
+
+    async def release(self, receipt: ProcessingReceipt):
+        """Allow immediate retry after a failed write, without deleting the receipt."""
+        async with self.sessions.begin() as session:
+            current = await session.get(ProcessingReceipt, receipt.id, with_for_update=True)
+            if current.lease_token == receipt.lease_token and current.accepted_at is None:
+                current.lease_expires_at = await session.scalar(select(func.clock_timestamp()))
+
+    async def claim_pending(self):
+        async with self.sessions.begin() as session:
+            now = await session.scalar(select(func.clock_timestamp()))
+            rows = list(
+                (
+                    await session.scalars(
+                        select(ProcessingReceipt)
+                        .where(
+                            ProcessingReceipt.accepted_at.is_(None),
+                            ProcessingReceipt.operation.in_(
+                                ["upload_document", "upload_audio", "import_document"]
+                            ),
+                            ProcessingReceipt.lease_expires_at <= now,
+                        )
+                        .limit(20)
+                        .with_for_update(skip_locked=True)
+                    )
+                ).all()
+            )
+            for receipt in rows:
+                receipt.lease_token = uuid4()
+                receipt.lease_expires_at = now + timedelta(seconds=90)
+        return rows

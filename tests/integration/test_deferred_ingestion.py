@@ -14,27 +14,31 @@ import pytest
 from sqlalchemy import func, select, update
 from test_processing_postgres import anyio_backend, store  # noqa: F401, F811
 
-from src.api.routes import processing as routes
-from src.auth.session import require_authenticated
-from src.domain.documents import NewDocument
-from src.main import app
-from src.processing.execution import ExecuteProcessing, WorkflowRegistry
-from src.processing.models import ProcessingReceipt, ProcessingRecord
-from src.processing.submissions import SubmissionConflict, SubmissionRepository
-from src.services.audio_note_store import FileAudioNoteStore
-from src.services.document_store import FileDocumentStore
-from src.services.graph_store import GraphPersistenceError
-from src.use_cases.delete_document import DeleteDocument
-from src.use_cases.process_audio_note import ProcessAudioNote
-from src.use_cases.process_document import ProcessDocument
-from src.use_cases.request_processing import RequestProcessing
-from src.use_cases.submit_processing import (
+from src.adapters.storage.filesystem.audio_notes import FileAudioNoteStore
+from src.adapters.storage.filesystem.documents import FileDocumentStore
+from src.adapters.storage.postgres.models import ProcessingReceipt, ProcessingRecord
+from src.adapters.storage.postgres.submissions import SubmissionRepository
+from src.bootstrap.acceptance import (
     SubmitAudioNote,
     SubmitDocument,
     recover_submissions,
     workflow_config,
 )
-from src.workspaces.dependencies import get_workspace_runtime
+from src.bootstrap.archives import build_delete_document as DeleteDocument
+from src.bootstrap.audio import build_audio_processor as ProcessAudioNote
+from src.bootstrap.auth import require_authenticated
+from src.bootstrap.processing import build_executor as ExecuteProcessing
+from src.bootstrap.processing import build_processing_requests as RequestProcessing
+from src.bootstrap.processing import build_source_processor as ProcessDocument
+from src.bootstrap.processing import get_repository
+from src.bootstrap.public_api import app
+from src.bootstrap.public_dependencies import get_upload_limits
+from src.bootstrap.settings import get_settings
+from src.bootstrap.workspaces import get_workspace_runtime
+from src.core.domain.documents import NewDocument
+from src.core.graph.ports import GraphPersistenceError
+from src.core.processing.submissions import SubmissionConflict
+from src.core.processing.workflows import WorkflowRegistry
 
 pytestmark = [
     pytest.mark.anyio,
@@ -91,13 +95,13 @@ async def ingestion(store, tmp_path, monkeypatch):  # noqa: F811
         llm_model="fake-model",
     )
     monkeypatch.setattr(
-        "src.use_cases.submit_processing.workflow_config",
+        "src.bootstrap.acceptance.workflow_config",
         lambda profile="v4": {
             **config,
             **({"profile": profile} if profile != "v4" else {}),
         },
     )
-    monkeypatch.setattr("src.use_cases.request_processing.workflow_config", lambda: dict(config))
+    monkeypatch.setattr("src.bootstrap.acceptance.workflow_config", lambda: dict(config))
     runtime = SimpleNamespace(
         context=SimpleNamespace(user_id=owner, filesystem_root=tmp_path),
         document_store=FileDocumentStore(tmp_path / "documents"),
@@ -111,8 +115,8 @@ async def ingestion(store, tmp_path, monkeypatch):  # noqa: F811
         yield runtime
 
     registry = WorkflowRegistry()
-    from src.processing.execution import WorkflowDefinition
-    from src.processing.workflows import retired_extraction
+    from src.bootstrap.workflows import retired_extraction
+    from src.core.processing.workflows import WorkflowDefinition
 
     registry.register("document", 1, WorkflowDefinition(retired_extraction, frozenset()))
 
@@ -470,7 +474,7 @@ async def test_http_accepted_location_status_owner_and_size_limits(ingestion, mo
     env = ingestion
     app.dependency_overrides[get_workspace_runtime] = lambda: env.runtime
     app.dependency_overrides[require_authenticated] = lambda: "test-user"
-    monkeypatch.setattr(routes, "get_repository", lambda: env.repo)
+    app.dependency_overrides[get_repository] = lambda: env.repo
     key = str(uuid4())
     try:
         async with httpx.AsyncClient(
@@ -529,7 +533,7 @@ async def test_http_graph_failure_returns_503_and_replays_the_same_original(
     env = ingestion
     app.dependency_overrides[get_workspace_runtime] = lambda: env.runtime
     app.dependency_overrides[require_authenticated] = lambda: "test-user"
-    monkeypatch.setattr(routes, "get_repository", lambda: env.repo)
+    app.dependency_overrides[get_repository] = lambda: env.repo
     key = str(uuid4())
     path = "/v2/documents/files" if file_upload else "/v2/documents"
     payload = (
@@ -560,8 +564,8 @@ async def test_http_graph_failure_returns_503_and_replays_the_same_original(
     not os.getenv("PROCESSING_TEST_ARCADEDB_URL"), reason="requires isolated ArcadeDB"
 )
 async def test_real_arcadedb_document_write_and_replay(ingestion, monkeypatch):
-    from src.dependencies import get_document_store, get_graph_store
-    from src.graph.arcadedb.store import ArcadeDBGraphStore
+    from src.bootstrap.graph import build_graph_store as ArcadeDBGraphStore
+    from src.bootstrap.public_dependencies import get_document_store, get_graph_store
 
     env = ingestion
     graph = ArcadeDBGraphStore(
@@ -576,7 +580,7 @@ async def test_real_arcadedb_document_write_and_replay(ingestion, monkeypatch):
         app.dependency_overrides[require_authenticated] = lambda: "test-user"
         app.dependency_overrides[get_document_store] = lambda: env.runtime.document_store
         app.dependency_overrides[get_graph_store] = lambda: graph
-        monkeypatch.setattr(routes, "get_repository", lambda: env.repo)
+        app.dependency_overrides[get_repository] = lambda: env.repo
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app), base_url="http://test"
         ) as client:
@@ -646,8 +650,8 @@ async def test_outbox_dispatcher_and_workers_finish_document_and_audio(ingestion
             "-m",
             "taskiq",
             "worker",
-            "src.processing.broker:broker",
-            "src.processing.tasks",
+            "src.bootstrap.messaging:broker",
+            "src.bootstrap.worker",
             "deferred_worker_fixture",
             "--workers",
             "2",
@@ -656,7 +660,7 @@ async def test_outbox_dispatcher_and_workers_finish_document_and_audio(ingestion
             "--ack-type",
             "manual",
         ],
-        [sys.executable, "-m", "src.processing.dispatcher"],
+        [sys.executable, "-m", "src.bootstrap.dispatcher"],
     ]
     processes, logs = [], []
     try:
@@ -746,7 +750,7 @@ async def test_audio_raw_file_recovery_completes_metadata_before_accepting(inges
 
 
 async def test_legacy_audio_recovery_skips_transcription(ingestion):
-    from src.domain.audio_notes import new_audio_note
+    from src.core.domain.audio_notes import new_audio_note
 
     env = ingestion
     note = new_audio_note("voice.webm", "audio/webm", 5, None).model_copy(
@@ -790,7 +794,7 @@ async def test_http_files_audio_limit_and_sql_failure_keep_original(ingestion, m
     env = ingestion
     app.dependency_overrides[get_workspace_runtime] = lambda: env.runtime
     app.dependency_overrides[require_authenticated] = lambda: "test-user"
-    monkeypatch.setattr(routes, "get_repository", lambda: env.repo)
+    app.dependency_overrides[get_repository] = lambda: env.repo
     try:
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="http://test"
@@ -808,8 +812,8 @@ async def test_http_files_audio_limit_and_sql_failure_keep_original(ingestion, m
             )
             assert audio.status_code == 202, audio.text
             assert audio.json()["processing"]["workflow"] == "audio"
-            settings = routes.get_settings().model_copy(update={"audio_max_upload_bytes": 3})
-            monkeypatch.setattr(routes, "get_settings", lambda: settings)
+            settings = get_settings().model_copy(update={"audio_max_upload_bytes": 3})
+            app.dependency_overrides[get_upload_limits] = lambda: settings
             too_large = await client.post(
                 "/v2/audio-notes",
                 files={"file": ("voice.webm", b"audio", "audio/webm")},
@@ -884,9 +888,9 @@ async def test_legacy_audio_parent_recovers_retired_child_without_retranscribing
 async def test_archive_import_queues_v4_children_and_replays_without_duplicates(ingestion):
     from datetime import UTC, datetime
 
-    from src.domain.documents import Document
-    from src.use_cases.document_archive import DocumentArchive, DocumentArchiveTransfer
-    from src.use_cases.process_document_extractors import ProcessDocumentExtractors
+    from src.bootstrap.archives import DocumentArchive, DocumentArchiveTransfer
+    from src.bootstrap.processing import build_document_coordinator as ProcessDocumentExtractors
+    from src.core.domain.documents import Document
 
     env = ingestion
     originals = [
@@ -931,8 +935,9 @@ async def test_archive_pending_receipt_recovers_after_accept_failure(ingestion, 
 
     from sqlalchemy.exc import OperationalError
 
-    from src.domain.documents import Document
-    from src.use_cases.document_archive import DocumentArchive, DocumentArchiveTransfer
+    from src.bootstrap.archives import DocumentArchive, DocumentArchiveTransfer
+    from src.core.domain.documents import Document
+    from src.core.processing.errors import StorageUnavailable
 
     env = ingestion
     original = Document(
@@ -952,8 +957,9 @@ async def test_archive_pending_receipt_recovers_after_accept_failure(ingestion, 
         raise OperationalError("commit", {}, RuntimeError("SQL unavailable"))
 
     monkeypatch.setattr(SubmissionRepository, "accept", failed)
-    with pytest.raises(OperationalError):
+    with pytest.raises(StorageUnavailable) as failure:
         await transfer.import_archive(archive)
+    assert isinstance(failure.value.__cause__, OperationalError)
     assert await env.runtime.document_store.get(original.id) == original
     monkeypatch.setattr(SubmissionRepository, "accept", accept)
     await recover_submissions(env.submissions, env.factory)

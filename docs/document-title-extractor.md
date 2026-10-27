@@ -24,7 +24,8 @@ su configuración se componen en bootstrap; ver [arquitectura](../ARCHITECTURE.m
 `Document.title` sigue siendo un atributo opcional del documento, con máximo de
 80 caracteres. El alta guarda el original sin esperar al LLM. La configuración de
 las nuevas solicitudes agrega `document_title` a emociones y embeddings en el
-workflow de documento v4. Cada hijo tiene su propio estado, ejecución y artefacto.
+workflow de documento v4 o v5 si hay ejes habilitados. Cada hijo tiene su propio
+estado, ejecución y artefacto.
 Los trabajos ya aceptados conservan sus extractores y configuración originales.
 El audio genera el título después de transcribir y crear su documento; importación,
 texto pegado y carga de archivos usan el mismo procesamiento de documentos.
@@ -95,7 +96,7 @@ extractores independientes, emociones y embeddings). Ruff y `git diff --check`
 sin errores. Los contenedores temporales se eliminaron al finalizar. Sin despliegue,
 llamadas a proveedores reales ni evaluación editorial de títulos generados por un LLM.
 
-## Etapa 2 — PWA
+## Títulos en la PWA
 
 Implementada localmente el 2026-10-15 en `mirror-pwa`, misma rama
 `feat/app-refresh-stage1`, commit `15e200d`. Los eventos de `document_title`
@@ -120,7 +121,7 @@ pruebas usan JSDOM, IndexedDB simulado, Cytoscape headless y HTTP/SSE simulados;
 quedan pendientes aceptación en navegador/dispositivo real y flujo con LLM real.
 Documentación detallada en `mirror-pwa/docs/document-titles.md`. Sin despliegue.
 
-## Etapa 3 — material anterior
+## Material anterior y backfill
 
 Implementada localmente el 2026-10-15, sobre `feat/app-refresh-plan`.
 `BackfillDocumentTitles` inspecciona originales de un workspace y encola un
@@ -199,13 +200,11 @@ protección ante un procesamiento que se encoló después de la vista previa.
 Ruff, ayuda de la CLI y `git diff --check` sin errores. Los contenedores temporales
 se eliminaron al terminar.
 
-Las tres etapas de implementación están completas. No se ejecutó el backfill
-sobre notas reales, no se consultó un proveedor real ni se desplegó. La CLI queda
-como mantenimiento opcional; la generación bajo demanda descrita abajo pasa a ser
-el mecanismo habitual. Se mantienen los pendientes de aceptación visual/dispositivos
-y evaluación editorial con un LLM real.
+En esa validación no se ejecutó el backfill sobre notas reales, no se consultó un
+proveedor real ni se desplegó. La CLI sirve para mantenimiento opcional; la
+generación bajo demanda descrita abajo es el mecanismo habitual.
 
-## Generación bajo demanda al leer — 2026-10-15
+## Generación bajo demanda al leer
 
 Los GET autenticados de `/v2/documents/{document_id}`, `/v2/documents` y la lista
 legacy `/documents` intentan encolar la extracción si falta el título canónico.

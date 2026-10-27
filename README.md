@@ -11,8 +11,8 @@ producción se configura en `mirror-deploy`.
 ## Empezar aquí
 
 - **Implementar con un agente:** [AGENTS.md](AGENTS.md).
-- **Organización y responsabilidades:** [arquitectura](ARCHITECTURE.md) y [mapa del repositorio](docs/development/repository-map.md).
-- **Encontrar código y pruebas:** [mapa del repositorio](docs/development/repository-map.md).
+- **Organización y responsabilidades:** [arquitectura](ARCHITECTURE.md).
+- **Encontrar código y pruebas:** consultar el contrato en el [índice](docs/README.md) y buscar el área en `src/` y `tests/`.
 - **Agregar o modificar comportamiento:** [guía de implementación](docs/development/implementation.md).
 - **Ejecutar verificaciones:** [guía de pruebas](docs/development/testing.md).
 - **Buscar un contrato o procedimiento:** [índice de documentación](docs/README.md).
@@ -23,9 +23,9 @@ producción se configura en `mirror-deploy`.
 | Área | Comportamiento | Referencia |
 | --- | --- | --- |
 | Acceso | Email/contraseña, Google OAuth, sesiones revocables y recuperación | [Registro](docs/signup.md), [recuperación](docs/password-recovery.md) |
-| Aislamiento | Workspace por usuario con archivos y credenciales de grafo propios | [Mapa](docs/development/repository-map.md) |
+| Aislamiento | Workspace por usuario con archivos y credenciales de grafo propios | [Registro y workspace](docs/signup.md) |
 | Notas y audio | Ingestión `/v2`, transcripción, reintentos, SSE y originales recuperables | [Ingestión](docs/deferred-ingestion.md), [respaldos](docs/document-archives.md) |
-| Extractores | Emociones, embeddings de documentos y títulos como trabajos independientes | [Coordinación](docs/extractor-jobs.md) |
+| Extractores | Emociones, embeddings, títulos y ejes personales como trabajos independientes | [Coordinación](docs/extractor-jobs.md), [ejes](docs/personal-axes-api.md) |
 | Exploración | Lectura del grafo y navegación por emociones con citas | [Grafo](docs/graph-navigation.md) |
 | Laboratorio | Ejes personales, pruebas temporales y versiones aceptadas | [Contrato](docs/personal-axes-api.md) |
 | Invitaciones | Preguntas diarias voluntarias, centro de notificaciones y respuestas de voz | [Notificaciones](docs/notification-center.md), [audio](docs/audio-invitation-replies.md) |

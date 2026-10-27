@@ -1,10 +1,9 @@
 # Arquitectura del backend
 
-Organización vigente al 2026-10-26 para el alcance migrado: núcleo, aplicación,
-adaptadores y composición separados y validados con motores aislados e imagen de
-producción. Ejes también usa estas capas, incluidos previews, histórico y reservas.
-Todos los procesos, incluidos los comandos de mirror-deploy, apuntan a bootstrap. El
-[mapa](docs/development/repository-map.md) ubica las implementaciones actuales.
+El backend organiza núcleo, aplicación, adaptadores y composición en capas.
+Ejes también usa estas capas, incluidos previews, histórico y reservas. Los
+entrypoints de este repositorio apuntan a bootstrap. La coordinación de versiones
+con `mirror-deploy` y una imagen publicada depende del despliegue de cada entorno.
 
 Este documento es la referencia de responsabilidades, dependencias y crecimiento
 del backend. [AGENTS.md](AGENTS.md) contiene instrucciones de trabajo; los contratos
@@ -86,6 +85,7 @@ src/                              # Backend; organización por responsabilidades
 │   ├── providers/                # Integraciones con servicios externos
 │   │   ├── openai/               # Extracción, embeddings y transcripción
 │   │   ├── email/                # Entrega de correo y traducción de fallos
+│   │   ├── http/                 # Transporte HTTP para integraciones externas
 │   │   ├── security/             # Cifrado y protección de credenciales técnicas
 │   │   ├── web_push/             # Envíos push y respuestas del proveedor
 │   │   └── telemetry/            # Diagnósticos filtrados y trazas técnicas
@@ -104,7 +104,7 @@ src/                              # Backend; organización por responsabilidades
 
 Es un esquema de ubicación, no una orden de crear carpetas vacías. Cada área
 crece cuando existe una responsabilidad concreta. Dentro de un adaptador técnico
-se agrupa por capacidad: por ejemplo `storage/arcadedb/extractors/emotions.py`.
+se agrupa por capacidad: por ejemplo `adapters/storage/arcadedb/emotions.py`.
 Tener varios repositorios de una tecnología no implica un único store universal.
 
 ## Responsabilidad de cada capa
@@ -236,8 +236,8 @@ Para cada funcionalidad nueva:
    de infraestructura ni pérdida de atomicidad. Definir ownership, idempotencia y
    recuperación de efectos parciales cuando existan.
 7. **Probar y documentar.** Reglas/casos de uso con puertos falsos; adaptadores con
-   sus tecnologías y contratos de entrada. Actualizar el contrato funcional y el
-   mapa. Si cambia una frontera arquitectónica, actualizar este documento.
+   sus tecnologías y contratos de entrada. Actualizar el contrato funcional y las
+   referencias afectadas. Si cambia una frontera, actualizar este documento.
 
 Ejemplos: otra ruta de lectura de documentos amplía el área existente; un nuevo
 proveedor de transcripción implementa su puerto; un extractor de temas aporta sus

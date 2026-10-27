@@ -15,7 +15,7 @@ git diff --check
 | Cambio | Primera verificación | Ampliar cuando corresponda |
 | --- | --- | --- |
 | Documentación / instrucciones | `python3 scripts/check_repo_docs.py` | Revisar ejemplos contra código/config; no ejecutar servicios |
-| Fronteras / movimientos de módulos | `python3 scripts/check_architecture.py` y `tests/test_architecture_boundaries.py` | [Inventario y línea de base del piloto](architecture-checks.md) |
+| Fronteras / movimientos de módulos | `python3 scripts/check_architecture.py` y `tests/test_architecture_boundaries.py` | [Inventario y regresiones](architecture-checks.md) |
 | Ruta / schema público | Test HTTP de la ruta + `tests/test_openapi_docs.py` | Autenticación, ownership y casos de error |
 | Cuenta / workspace | `tests/test_identity_application.py`, `tests/test_signup_flow.py`, `tests/test_workspace_dependencies.py`, `tests/test_workspaces.py` | Recuperación PostgreSQL y `tests/integration/test_workspace_provisioning.py`; [comandos](architecture-checks.md#regresión-de-identidad-y-workspaces) |
 | Extractor | Test de la capa y configuración | Persistir artefacto sin proveedor, reemplazo y aislamiento de capas |
@@ -27,7 +27,7 @@ git diff --check
 | Migración | Revisión de head + integración de migración | Upgrade/recuperación con base aislada |
 | Docker / publicación | `tests/test_local_deploy.py`, configuración Compose | Build o smoke aislado si cambia comportamiento del contenedor |
 
-Los archivos concretos de cada familia están en [el mapa](repository-map.md).
+Buscar pruebas de la capacidad por nombre y consultar su contrato en el [índice](../README.md).
 No escribir pruebas que sólo repitan la implementación. Un cambio de comportamiento
 debe cubrir su resultado observable y el fallo que pretende resolver.
 

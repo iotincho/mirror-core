@@ -1,4 +1,4 @@
-# Control de fronteras e inventario de migración
+# Control de fronteras e inventario de arquitectura
 
 Las reglas estables están en [ARCHITECTURE.md](../../ARCHITECTURE.md); este
 documento explica el control vigente y cómo validar cada recorrido.
@@ -27,8 +27,8 @@ Cobertura actual:
 - Ningún módulo exterior a `src/bootstrap/` importa bootstrap sin una excepción
   puntual de transición. Las ubicaciones nuevas deben pertenecer al árbol objetivo.
 
-No quedan ubicaciones heredadas ni excepciones. Los procesos externos también
-usan bootstrap. `legacy_files` y `exceptions` están vacíos; cualquier ubicación
+No quedan ubicaciones heredadas ni excepciones. Los entrypoints locales usan
+bootstrap. `legacy_files` y `exceptions` están vacíos; cualquier ubicación
 o import fuera de las reglas falla en el chequeo.
 
 ## Excepciones y alcance del análisis
@@ -78,7 +78,7 @@ Puntos de composición y consumo que revisar al mover rutas:
 | Procesamiento | `src/bootstrap/{processing,workflows,worker,dispatcher,messaging}.py`; puertos core, casos agrupados y adaptadores por tecnología |
 | Settings/diagnóstico | `src/bootstrap/{settings,logging,observability}.py`; proveedor Sentry en `src/adapters/providers/telemetry/` |
 | Mantenimiento | `src/bootstrap/{data_migrations,cleanup_extractions,graph_schema}.py`; aplicación sin SQL/paths, adaptadores separados |
-| Procesos externos | `mirror-deploy` consume directamente `src/bootstrap/`; su preflight verifica la imagen antes de detener servicios |
+| Procesos externos | Comprobar los comandos de `mirror-deploy` y su compatibilidad con la imagen antes de actualizar un entorno |
 | Alembic | `migrations/env.py` importa modelos canónicos, incluido `migration_models`; no reescribir revisiones aplicadas |
 | Empaquetado | `pyproject.toml` descubre `src*` y empaqueta `src.adapters.access.cli/announcements.json`; comprobar wheel desde fuentes limpias |
 
@@ -215,7 +215,7 @@ aislamiento permitido; no presentar un bloqueo del entorno como regresión del p
 
 ## Regresión de procesamiento durable
 
-Las implementaciones durables están separadas según el [mapa](repository-map.md),
+Las implementaciones durables están separadas según la [arquitectura](../../ARCHITECTURE.md),
 con composición explícita de todos sus entrypoints. Primero validar aplicación
 sin motores; la prueba de imports bloquea infraestructura explícitamente:
 
@@ -299,4 +299,4 @@ revisiones ya aplicadas. Alembic debe seguir informando que no hay cambios nuevo
 Las carpetas antiguas de identidad/workspace y sus entradas de excepciones se
 retiraron; no restaurarlas para corregir un importador sin migrar.
 Invitaciones, notificaciones y administración tienen capas separadas; los
-consumidores externos y sus puntos de composición se describen en el mapa.
+consumidores externos y sus puntos de composición se describen en el inventario anterior.

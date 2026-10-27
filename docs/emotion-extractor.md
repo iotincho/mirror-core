@@ -193,7 +193,7 @@ reprocesamiento automático al iniciar.
 
 ## Ejecutar la prueba
 
-La limpieza de la etapa 1 debe haberse completado antes de habilitar esta prueba.
+Si se actualiza una instalación con emociones v1, completar primero el corte anterior.
 Usar la imagen nueva y la misma configuración/volumen del worker. El workspace
 se resuelve por PostgreSQL y credenciales propias; debe estar activo.
 Para extraer, se requieren `LLM_PROVIDER=openai`, `OPENAI_API_KEY` y `OPENAI_MODEL`.

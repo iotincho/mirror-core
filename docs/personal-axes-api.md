@@ -1,4 +1,4 @@
-# Backend experimental de ejes personales: entregas 1 a 4
+# Backend experimental de ejes personales
 
 Implementa creación, prueba, aceptación versionada, ejecución automática en
 notas nuevas y exploración de resultados activos por API. La PWA integra estos
@@ -373,9 +373,9 @@ lectura valida evidencia contra el original del workspace y su hash. El detalle
 y la lista agregan esas relaciones en `evidence` para facilitar la lectura.
 
 Cada respuesta de vecindad incluye `root_id`, ámbito y cursor; la de prueba añade
-`revision_hash`. El futuro cliente puede unir ramas sin duplicar IDs y descartar
-respuestas de otra revisión. Preservar posiciones/cámara y ocultar tipos de nodo
-corresponde a la etapa de UI.
+`revision_hash`. El cliente puede unir ramas sin duplicar IDs y descartar
+respuestas de otra revisión. Posiciones, cámara y visibilidad de nodos son
+responsabilidad de la interfaz.
 
 Las consultas de vecindad y lista están limitadas a la página solicitada. El
 catálogo cuenta metadatos de hasta 10000 hallazgos por eje/filtro; superar ese

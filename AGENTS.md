@@ -5,9 +5,9 @@
 - Trabajar en español. Respetar el alcance pedido; análisis/planning no autoriza implementar.
 - Empezar con `git status --short`. Preservar trabajo ajeno. No publicar, migrar
   entornos con datos ni desplegar sin autorización para esa acción.
-- Ubicar el área en [el mapa](docs/development/repository-map.md); leer sólo su
-  contrato y sus pruebas. Antes de editar, leer los `AGENTS.md` del camino al archivo,
-  incluso si la sesión comenzó en la raíz. No cargar todos los módulos.
+- Ubicar el área con [arquitectura](ARCHITECTURE.md) y el [índice](docs/README.md);
+  leer sólo su contrato y sus pruebas. Antes de editar, leer los `AGENTS.md` del
+  camino al archivo, incluso si la sesión comenzó en la raíz. No cargar todos los módulos.
 - Usar `rg --files <área>` y `rg -n '<símbolo>' <área>`. Leer rangos pequeños;
   ampliar si falta evidencia. No volcar árboles, logs o suites completos al contexto.
 - No leer por defecto prototipos, `build/`,
@@ -38,8 +38,8 @@
 - Elegir verificaciones en [pruebas](docs/development/testing.md). Usar
   `.venv/bin/python -m pytest` y `.venv/bin/python -m ruff check <rutas>`.
 - Cambios de contratos o configuración actualizan su documento vigente; cambios
-  de estructura actualizan el mapa. Ejecutar `python3 scripts/check_repo_docs.py`
-  si cambian las guías, enlaces o instrucciones.
+  de responsabilidades actualizan arquitectura y las referencias afectadas. Ejecutar
+  `python3 scripts/check_repo_docs.py` si cambian guías, enlaces o instrucciones.
 - Informar resultado, pruebas y límites reales. Un skip no es validación de
   integración; un commit/PR no acredita despliegue. No repetir pruebas aprobadas
   salvo cambios nuevos o dudas concretas.

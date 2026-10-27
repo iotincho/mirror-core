@@ -1,12 +1,11 @@
 # Documentación del backend
 
-Entrar por [el mapa](development/repository-map.md), leer el contrato del área y
-ampliar sólo si la tarea lo requiere. No cargar este directorio completo como
-contexto. Las guías describen código implementado; no acreditan despliegue.
+Ubicar la responsabilidad en [arquitectura](../ARCHITECTURE.md), leer el contrato
+del área y ampliar sólo si la tarea lo requiere. No cargar este directorio completo
+como contexto. Las guías describen código implementado; no acreditan despliegue.
 
 ## Desarrollo y agentes
 
-- [Mapa de módulos y pruebas](development/repository-map.md).
 - [Reglas de implementación y fronteras](development/implementation.md).
 - [Arquitectura, responsabilidades y criterios para nuevos módulos](../ARCHITECTURE.md).
 - [Chequeo de fronteras e inventario](development/architecture-checks.md).
@@ -33,9 +32,8 @@ contexto. Las guías describen código implementado; no acreditan despliegue.
 | Observabilidad | [sentry](sentry.md) | Configuración por proceso y privacidad |
 | Publicación de imagen | [production-image-publishing](production-image-publishing.md) | Workflow junto a `Dockerfile.prod` |
 
-Los documentos de runtime, ingestión y eventos conservan detalles de entregas
-anteriores: para selección de capas y workflow actual prevalece `extractor-jobs`;
-para cada capa, su contrato. Ante contradicción contrastar código y pruebas y
+Para selección de capas y versiones de workflow consultar `extractor-jobs`; para
+cada capacidad, su contrato. Ante contradicción contrastar código y pruebas y
 actualizar la referencia afectada, sin inferir estado de producción.
 
 ## Trabajo diferido
@@ -46,8 +44,8 @@ cuando se resuelva. No constituye una autorización de implementación.
 
 ## Mantener esta documentación
 
-Actualizar el contrato principal cuando cambia comportamiento; el mapa cuando
-cambia una responsabilidad. Eliminar planes resueltos e informes que ya no aporten
+Actualizar el contrato principal cuando cambia comportamiento y arquitectura
+cuando cambian responsabilidades o dependencias. Eliminar planes resueltos e informes que ya no aporten
 un procedimiento vigente, rescatando sólo pendientes explícitos en `pending.md`.
 No conservar copias históricas de visiones reemplazadas. Los documentos nuevos
 de primer nivel deben figurar en este índice.

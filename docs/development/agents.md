@@ -2,10 +2,9 @@
 
 ## Qué se carga y cuándo
 
-[AGENTS.md](../../AGENTS.md) contiene las reglas comunes. Los `AGENTS.md` de API,
-processing, extractores, grafo, workspaces, tests y migraciones agregan sólo las
-invariantes de su área. Una sesión iniciada en la raíz debe abrir explícitamente
-los archivos del camino al módulo antes de editarlo.
+[AGENTS.md](../../AGENTS.md) contiene las reglas comunes. Los archivos anidados
+agregan invariantes del área; buscarlos en el camino al módulo antes de editarlo.
+No presuponer que cada capacidad dispone de uno.
 
 Codex descubre instrucciones desde la raíz hasta su directorio de trabajo; los
 archivos anidados no se incorporan todos por estar en el repositorio. El límite
@@ -13,9 +12,10 @@ archivos anidados no se incorporan todos por estar en el repositorio. El límite
 [descubrimiento de instrucciones](https://learn.chatgpt.com/docs/agent-configuration/agents-md)
 y [configuración](https://learn.chatgpt.com/docs/config-file/config-reference).
 
-El mapa es la consulta inicial. Leer después el contrato específico, el caso de
-uso y una prueba cercana. Consultar [pendientes](../pending.md) sólo al planificar
-trabajo de ese alcance. No cargar toda la documentación como instrucciones.
+Usar [arquitectura](../../ARCHITECTURE.md) para ubicar la capa y el [índice](../README.md)
+para elegir el contrato. Leer después el caso de uso y una prueba cercana. Consultar
+[pendientes](../pending.md) sólo al planificar trabajo de ese alcance. No cargar
+toda la documentación como instrucciones.
 
 ## Configuración reproducible para Codex CLI
 
@@ -67,7 +67,8 @@ de aumentar el presupuesto.
 - Ampliar pruebas por riesgo. Después de pasar los checks pertinentes, cerrar la
   tarea; no ejecutar suites completas repetidamente sin una razón nueva.
 - Mantener un solo contrato vigente por tema; eliminar planes resueltos y
-  consolidar pendientes explícitos en `docs/pending.md`. Actualizar el mapa cuando cambia el punto de entrada.
+  consolidar pendientes explícitos en `docs/pending.md`. Actualizar las referencias
+  afectadas al mover responsabilidades.
 - Para continuar una tarea larga, dejar objetivo, decisión, archivos modificados,
   verificaciones y próximo paso. Evitar resúmenes completos de cada comando.
 - Evaluar delegación sólo para subtareas independientes cuando esté autorizada;

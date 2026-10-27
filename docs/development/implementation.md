@@ -1,13 +1,12 @@
 # Implementar cambios en el backend
 
 La [arquitectura](../../ARCHITECTURE.md) separa `core`, `use_cases`, `adapters`
-y `bootstrap`. El [mapa](repository-map.md) identifica las implementaciones.
-Los entrypoints externos conservados delegan a bootstrap y no son precedentes para
-agregar dependencias concretas dentro de aplicación o acceso.
+y `bootstrap`. Los entrypoints de procesos viven en bootstrap; no agregar
+dependencias concretas dentro de aplicación o acceso.
 
 ## Recorrido de una tarea
 
-1. Confirmar alcance, estado de Git y módulo en [el mapa](repository-map.md).
+1. Confirmar alcance y estado de Git; ubicar el área con arquitectura y el [índice](../README.md).
 2. Leer las instrucciones del área, el contrato específico y una prueba cercana.
 3. Identificar el comportamiento observable que cambia y sus fallos posibles.
 4. Modificar el responsable existente y sus colaboradores mínimos.

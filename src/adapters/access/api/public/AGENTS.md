@@ -13,4 +13,4 @@
 - Verificar contrato HTTP, errores seguros y usuario ajeno con la prueba cercana.
   Si cambia exposición/prefijo, incluir `tests/test_openapi_docs.py`.
 
-Referencia: [mapa](../../../../../docs/development/repository-map.md).
+Referencias: [arquitectura](../../../../../ARCHITECTURE.md) e [índice](../../../../../docs/README.md).

@@ -1,10 +1,8 @@
-# Etapa 3: ejecución durable
+# Ejecución durable
 
-Implementa la infraestructura compartida para los casos de uso diferidos.
-Los endpoints actuales conservan su comportamiento. La
-[etapa 4](deferred-ingestion.md) conecta documentos/audio mediante rutas `/v2`,
-registra ambos workflows de producción y agrega recibos idempotentes y
-relaciones padre/hijo. Un workflow desconocido termina con
+Infraestructura compartida para los casos de uso diferidos. La
+[ingestión](deferred-ingestion.md) conecta documentos/audio mediante rutas `/v2`,
+recibos idempotentes y relaciones padre/hijo. Un workflow desconocido termina con
 `workflow_not_registered`.
 
 ## Componentes y límites
@@ -26,7 +24,8 @@ Todos los comandos de ejecución usan `src.bootstrap`; no se conservan aliases a
   checkpoint, versión y evento antes de iniciar la siguiente etapa.
 - `WorkflowFailure`: el caso de uso devuelve un código seguro y decide si el
   error admite reintento y su demora. El runner limita a cuatro intentos por
-  etapa; la etapa 4 incorpora clasificación de proveedores y backoff 10/30/120 con jitter. Los errores internos inesperados terminan como
+  etapa, con clasificación de proveedores y backoff 10/30/120 con jitter. Los
+  errores internos inesperados terminan como
   `workflow_internal_error`; el adaptador traduce errores SQL a
   `StorageUnavailable`, que deja el lease para recuperación. HTTP conserva el 503
   seguro y el pedido de reutilizar la misma clave idempotente.
@@ -61,7 +60,7 @@ Esta exclusión coordina ejecutores que usan el runner. Si la conexión del lock
 se pierde mientras un servicio remoto sigue procesando una petición, el lock
 puede liberarse antes de finalizar ese efecto remoto. Los adaptadores concretos
 necesitan IDs deterministas, artefactos exclusivos y reconciliación de commits
-ambiguos. La etapa 4 integra y prueba esos adaptadores;
+ambiguos. La ingestión integra esos adaptadores;
 el token SQL no se presenta como garantía de ejecución única de efectos remotos.
 
 La exclusión por recurso usa la clave `user_id:resource_id`.
@@ -82,10 +81,10 @@ El Compose habitual incluye RabbitMQ, el worker y el dispatcher. RabbitMQ no
 publica puertos hacia el host:
 
 ```bash
-docker compose up -d --build
+docker compose --env-file .env.local up -d --build
 
 # Tres containers independientes; sin container_name ni puertos fijos.
-docker compose up -d --scale processing-worker=3 processing-worker
+docker compose --env-file .env.local up -d --scale processing-worker=3 processing-worker
 ```
 
 Cada container ejecuta un proceso Taskiq con cuatro tareas async por defecto.
@@ -110,8 +109,8 @@ Distintos entornos deben usar bases, volúmenes y vhosts Rabbit separados.
 RabbitMQ usa una imagen fija `4.3.6-management-alpine`, un hostname estable y
 volumen persistente. Este Compose es de desarrollo y usa una instancia con colas
 clásicas durables; no ofrece alta disponibilidad del broker. El despliegue de
-producción, métricas, retención de eventos/outbox y estrategia HA corresponden
-a una etapa operativa aparte. La aceptación HTTP usa PostgreSQL/outbox sin
+producción, métricas, retención de eventos/outbox y estrategia HA requieren
+definiciones operativas por entorno. La aceptación HTTP usa PostgreSQL/outbox sin
 depender de RabbitMQ disponible; el dispatcher necesita el broker para entregar
 los trabajos al worker.
 
@@ -154,4 +153,5 @@ Los comandos canónicos son `src.bootstrap.messaging:broker` con
 versiones se compone en `src/bootstrap/workflow_registry.py`, separado de las
 factories para evitar ciclos de imports. La tarea de transporte conserva su nombre
 `processing.execute`; este movimiento no cambia mensajes, versiones ni configuración
-ya aceptada. mirror-deploy usa directamente estos entrypoints, sin wrappers.
+ya aceptada. El Compose de desarrollo usa estos entrypoints; `mirror-deploy` y
+la imagen deben actualizarse coordinadamente en cada entorno.

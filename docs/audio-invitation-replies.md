@@ -1,7 +1,7 @@
 # Respuestas de audio a la pregunta diaria
 
 El backend acepta respuestas de audio mediante el flujo existente de procesamiento
-diferido. La integración visual de la PWA es una etapa posterior.
+diferido. La PWA puede asociar la grabación a la invitación al enviar el audio.
 
 ## Contrato
 

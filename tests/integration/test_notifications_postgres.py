@@ -191,7 +191,7 @@ async def test_daily_without_push_and_opening_marks_inbox_read(inbox):
     item = page.items[0]
     invitation = await service.get_invitation(owner, item.action.invitation_id)
     assert invitation.question == item.body == item.summary
-    assert item.expires_at - item.published_at == timedelta(days=15)
+    assert item.expires_at - item.published_at == timedelta(days=1)
     # A transport TTL of two hours does not expire the inbox action.
     async with repository.store.sessions.begin() as session:
         await session.execute(

@@ -1,14 +1,31 @@
 import base64
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
 
+from src.adapters.storage.postgres.invitation_notifications import add_invitation_notification
 from src.core.notifications.models import AnnouncementContent, NotificationAction, ReadAll
 from src.core.notifications.rules import NotificationError, decode_cursor, encode_cursor
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("kind", ["scheduled", "test"])
+async def test_invitation_inbox_expiry_is_one_day(kind):
+    created = datetime(2026, 10, 28, 20, 30, tzinfo=UTC)
+    invitation = SimpleNamespace(
+        id=uuid4(), user_id=uuid4(), kind=kind, question="Pregunta de prueba",
+        created_at=created, first_opened_at=None,
+    )
+    session = SimpleNamespace(execute=AsyncMock())
+    await add_invitation_notification(session, invitation)
+    values = session.execute.await_args.args[0].compile().params
+    assert values["published_at"] == created
+    assert values["expires_at"] == created + timedelta(hours=24)
 
 
 def test_publication_defaults_to_fifteen_days_and_actions_are_closed():

@@ -17,7 +17,8 @@ Bootstrap conecta el servicio con API, dispatcher y publicación explícita.
 - `notifications`: contenido estable, acción tipada, propietario, deduplicación,
   publicación, ingreso efectivo a la bandeja, vencimiento, lectura y descarte.
 - `notification_enrollments`: crea los pasos de onboarding una sola vez por usuario.
-  Descartarlos o dejarlos vencer no vuelve a generarlos.
+  Descartarlos o dejarlos vencer no vuelve a generarlos. El texto actualizado de la
+  pregunta diaria se aplica a nuevos pasos; los avisos existentes conservan su contenido.
 - `notification_announcements`: snapshot inmutable de una publicación y cursor durable
   de distribución por usuarios. El dispatcher existente distribuye lotes con locks
   `SKIP LOCKED`; el cursor y los destinatarios se confirman juntos.

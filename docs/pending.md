@@ -22,31 +22,6 @@ decisiones y contratos definitivos se documentan en su referencia específica.
   acciones masivas. Resolver efectos sobre jobs/invitaciones, confirmaciones,
   idempotencia y permisos; evaluar MFA/step-up para operaciones sensibles.
 
-## Validaciones que los informes dejaron abiertas
-
-- [ ] PWA: aceptación visual entre 320 y 1440 px, textos/listas/grafos densos,
-  scroll de diálogos, foco/teclado, contraste, texto ampliado y áreas seguras.
-  Verificar navegación, captura/fecha, material, lectura y Laboratorio.
-- [ ] Safari/iOS y Chrome/Android reales, en navegador y PWA instalada:
-  IndexedDB, recuperación de borradores, descargas/importación y aislamiento al
-  cerrar sesión/cambiar de cuenta.
-- [ ] Audio real: codecs, finalización/reproducción, bloqueo de pantalla, cambio
-  de aplicación, llamada, permisos revocados, cierre/reapertura, falta de espacio
-  y desconexión. Comprobar conservación de originales y recuperación.
-- [ ] Web Push con VAPID persistente y origen HTTPS: recepción y apertura con app
-  abierta/cerrada, permisos denegados, sesión vencida, horario, red interrumpida,
-  logout/cambio de cuenta y borradores/adjuntos. La aceptación del transporte no
-  acredita recepción. Referencia: [invitaciones](exteriorization-notifications.md).
-- [ ] Evaluación con LLM real de criterios/hallazgos de ejes y su voz lingüística:
-  voseo, tuteo, ustedeo y texto sin señales regionales, sin alterar citas ni atribuir
-  hechos ausentes. Evaluar también títulos y segmentación/embeddings con muestras
-  controladas. Las pruebas determinísticas no acreditan utilidad editorial.
-- [ ] Administración en el destino: acceso desde otro dispositivo LAN, bindings,
-  hosts/firewall, aislamiento frente al origen público y cobertura del inventario.
-- [ ] Aceptación integrada sobre HTTPS con versiones identificadas y recorridos
-  reales de notas, audio, recuperación y notificaciones. Revalidar las comprobaciones
-  de cada contrato; no arrastrar como pendiente un merge/deploy sólo porque un
-  informe antiguo lo marcaba así.
 
 ## Operación por definir o medir
 

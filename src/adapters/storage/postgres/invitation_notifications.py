@@ -1,5 +1,7 @@
 """Project the same invitation into the inbox, independently of push delivery."""
 
+from datetime import timedelta
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.adapters.storage.postgres.invitation_models import Invitation
@@ -17,5 +19,6 @@ async def add_invitation_notification(session: AsyncSession, invitation: Invitat
         body=invitation.question,
         action={"type": "open_invitation", "invitation_id": str(invitation.id)},
         now=invitation.created_at,
+        expires_at=invitation.created_at + timedelta(days=1),
         read_at=invitation.first_opened_at,
     )

@@ -31,9 +31,9 @@ ONBOARDING = (
     (
         "daily",
         "Una pregunta para encontrar por dónde empezar",
-        "Elegí si querés una pregunta diaria.",
-        "La pregunta estará en la app. "
-        "Si querés, también podés recibir un aviso en este dispositivo.",
+        "Una pregunta cada día para ayudarte a empezar a escribir.",
+        "Elegí un horario y recibí una pregunta para poner en palabras lo que quieras. "
+        "Podés responder por texto o audio y activar avisos en este dispositivo.",
         "open_invitation_settings",
     ),
 )

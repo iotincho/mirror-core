@@ -2,7 +2,8 @@
 
 Implementa mirror-pwa #46. El centro es una bandeja PostgreSQL por usuario, independiente
 del permiso push, con novedades, onboarding y preguntas diarias. La vigencia por defecto
-es **15 días** desde la publicación. Al vencer, el elemento deja de aparecer en el listado
+es **15 días** desde la publicación, salvo las preguntas diarias, que duran **24 horas**.
+Al vencer, el elemento deja de aparecer en el listado
 y contador; esto no borra físicamente la fila ni la invitación o las notas vinculadas.
 
 ## Persistencia y estados
@@ -16,7 +17,8 @@ Bootstrap conecta el servicio con API, dispatcher y publicación explícita.
 - `notifications`: contenido estable, acción tipada, propietario, deduplicación,
   publicación, ingreso efectivo a la bandeja, vencimiento, lectura y descarte.
 - `notification_enrollments`: crea los pasos de onboarding una sola vez por usuario.
-  Descartarlos o dejarlos vencer no vuelve a generarlos.
+  Descartarlos o dejarlos vencer no vuelve a generarlos. El texto actualizado de la
+  pregunta diaria se aplica a nuevos pasos; los avisos existentes conservan su contenido.
 - `notification_announcements`: snapshot inmutable de una publicación y cursor durable
   de distribución por usuarios. El dispatcher existente distribuye lotes con locks
   `SKIP LOCKED`; el cursor y los destinatarios se confirman juntos.
@@ -63,10 +65,12 @@ transacción. Las pruebas manuales aparecen como «Pregunta diaria de prueba» e
 con la misma pregunta e ID del push, pero no consumen la rotación ni habilitan el horario.
 Reintentar una solicitud aceptada no duplica el aviso ni recupera uno descartado. Si una
 prueba anterior a esta integración no tenía aviso, su replay lo incorpora conservando
-fecha y lectura. La vigencia del aviso sigue siendo de 15 días; el envío de prueba, 5 minutos.
+fecha y lectura. Los nuevos avisos de preguntas programadas y de prueba duran 24 horas
+desde la publicación. Los avisos ya existentes conservan su vencimiento. El envío de
+prueba mantiene su ventana de 5 minutos.
 
 El plazo de push existente (hasta dos horas, limitado por medianoche local) continúa
-siendo independiente de los 15 días del aviso. El historial puede abrir la pregunta y
+siendo independiente de las 24 horas del aviso. El historial puede abrir la pregunta y
 vincular una respuesta después del vencimiento de envío. Abrir por push también marca
 el elemento correspondiente como leído. No se modifican el worker del navegador ni
 el procesamiento de notas para abrir desde la bandeja.

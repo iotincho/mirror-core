@@ -10,7 +10,9 @@ from src.core.processing.transactions import ProcessingRequests
 class Submissions(Protocol):
     processing: ProcessingRequests
 
-    async def get(self, owner: UUID, operation: str, key: UUID) -> SubmissionReceipt | None: ...
+    async def get(
+        self, owner: UUID, operation: str, key: UUID, *, resource_id: UUID | None = None
+    ) -> SubmissionReceipt | None: ...
 
     async def accepted(
         self, owner: UUID, operation: str, key: UUID, request_hash: str
@@ -35,4 +37,6 @@ class Submissions(Protocol):
 
     async def claim_pending(self) -> list[SubmissionReceipt]: ...
 
-    async def validate_invitation(self, owner: UUID, invitation_id: UUID) -> None: ...
+    async def validate_invitation(
+        self, owner: UUID, invitation_id: UUID, question_id: UUID | None = None
+    ) -> UUID: ...

@@ -23,8 +23,15 @@ class PublicProcessing:
     def changed(self):
         return self.requests.changed
 
-    async def submit_document(self, original, key, *, invitation_id=None):
-        return await self.submissions.execute(original, key, invitation_id=invitation_id)
+    async def submit_document(
+        self, original, key, *, invitation_id=None, invitation_question_id=None
+    ):
+        return await self.submissions.execute(
+            original,
+            key,
+            invitation_id=invitation_id,
+            invitation_question_id=invitation_question_id,
+        )
 
     async def submit_file(self, filename, content, document_id, authored_at, key):
         original = IngestDocumentFile(self.runtime.document_store).build_new_document(
@@ -32,9 +39,24 @@ class PublicProcessing:
         )
         return await self.submit_document(original, key)
 
-    async def submit_audio(self, filename, media_type, content, authored_at, key, invitation_id):
+    async def submit_audio(
+        self,
+        filename,
+        media_type,
+        content,
+        authored_at,
+        key,
+        invitation_id,
+        invitation_question_id=None,
+    ):
         return await self.audio.execute(
-            filename, media_type, content, authored_at, key, invitation_id=invitation_id
+            filename,
+            media_type,
+            content,
+            authored_at,
+            key,
+            invitation_id=invitation_id,
+            invitation_question_id=invitation_question_id,
         )
 
     async def list(self, *, active, cursor, limit):

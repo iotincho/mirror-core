@@ -38,6 +38,10 @@ actualizar la referencia afectada, sin inferir estado de producción.
 
 ## Trabajo diferido
 
+[Plan de pregunta diaria personal](daily-question-v2-plan.md): implementación
+gradual del diseño validado. [Contratos v2](daily-question-v2-contract.md): salida
+de las etapas 1–2, con backend curado, API y persistencia; sin PWA nueva ni LLM.
+
 [Pendientes consolidados](pending.md) reúne funciones diferidas y verificaciones
 que quedaron abiertas. Revisar vigencia antes de tomar una tarea y eliminarla
 cuando se resuelva. No constituye una autorización de implementación.

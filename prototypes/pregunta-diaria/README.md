@@ -2,7 +2,7 @@
 
 Experiencia progresiva con una sola pregunta visible. Los controles «Suave», «Un poco más» y «Profundizar» cambian su profundidad sobre un mismo tema, sin desplegables. «Otra pregunta» cambia a otro tema ficticio.
 
-El flujo tiene cuatro vistas: invitación, respuesta, cierre y feedback opcional. Al avanzar, la vista anterior se oculta. Volver a la pregunta o cambiar de profundidad conserva el borrador. La captura usa un único botón contextual: micrófono sin texto, enviar con texto.
+El flujo pasa de la invitación a la respuesta y vuelve al inicio. Después de responder, aparece un panel inferior de feedback opcional sobre el inicio, sin pantalla de felicitación o cierre. Se puede cerrar con la cruz, «En otro momento», Escape o tocando fuera. «Sobre este tema…» despliega opciones dentro del mismo panel. Si se elige «Hoy paso», se vuelve al inicio sin pedir feedback. Al avanzar, la vista anterior se oculta. Volver a la pregunta o cambiar de profundidad conserva el borrador. La captura usa un único botón contextual: micrófono sin texto, enviar con texto. El inicio permite abrir escritura libre o volver a la pregunta diaria; ambos borradores se conservan por separado en memoria. El feedback queda vinculado a la pregunta respondida, aunque luego se escriba una nota libre.
 
 Desde la raíz de `mirror-core`:
 

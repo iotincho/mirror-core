@@ -7,11 +7,13 @@ from src.core.exteriorization.models import InvitationError
 from src.core.exteriorization.ports import Invitations, PushRegistration
 from src.core.exteriorization.scheduling import next_occurrence
 from src.use_cases.exteriorization.generate_invitation import GenerateInvitation
+from src.use_cases.exteriorization.record_activity import RecordInvitationActivity
 
 
 class ConfigureInvitations:
     def __init__(self, repository: Invitations, *, push: PushRegistration | None = None):
         self.repository, self.push = repository, push
+        self.activity = RecordInvitationActivity(repository)
 
     def public_key(self):
         if self.push is None:
@@ -103,7 +105,7 @@ class ConfigureInvitations:
             if preference.last_test_at and now < preference.last_test_at + timedelta(minutes=1):
                 raise InvitationError("test_rate_limited")
             preference.last_test_at = now
-            return await GenerateInvitation().execute(
+            invitation = await GenerateInvitation().execute(
                 transaction,
                 preference,
                 now,
@@ -111,6 +113,9 @@ class ConfigureInvitations:
                 [subscription],
                 request_key=key,
             )
+            if invitation is None:
+                raise InvitationError("no_eligible_questions")
+            return invitation
 
     async def get_invitation(self, user_id, invitation_id):
         async with self.repository.transaction() as transaction:

@@ -12,6 +12,7 @@ class CreateDocumentRequest(NewDocument):
     """Typed invitation input; provenance is stored separately from user content."""
 
     invitation_id: UUID | None = None
+    invitation_question_id: UUID | None = None
 
 
 class DocumentResponse(BaseModel):

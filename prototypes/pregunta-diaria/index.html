@@ -42,17 +42,21 @@
       <div class="compose-bottom"><span id="capture-hint">Podés escribir o usar tu voz.</span><button type="button" class="capture-action" id="capture-action" aria-label="Grabar respuesta de voz"></button></div>
     </section>
 
-    <section class="screen end-screen" id="end-screen" aria-labelledby="end-title" tabindex="-1" hidden>
-      <div class="end-body"><div class="end-symbol" aria-hidden="true" id="end-symbol">✓</div><p class="eyebrow" id="end-kicker">ESTE MOMENTO ES TUYO</p><h1 id="end-title">Gracias por hacerte un lugar.</h1><p class="quiet" id="end-copy">Podés seguir con tu día.</p><span class="pending" id="pending">Vista de envío pendiente</span></div>
-      <div class="screen-actions"><button class="secondary" type="button" id="give-feedback">¿Cómo te resultó la pregunta?</button><button class="text-button restart-button" type="button" id="restart">Volver a probar</button></div>
-    </section>
-
-    <section class="screen feedback-screen" id="feedback-screen" aria-labelledby="feedback-title" tabindex="-1" hidden>
-      <button class="back-button" type="button" id="feedback-back"><span aria-hidden="true">←</span> Volver</button>
-      <div class="feedback-body"><p class="eyebrow">TU MIRADA NOS AYUDA</p><h1 id="feedback-title">¿Cómo te resultó?</h1><p class="quiet">Elegí lo que se acerque a lo que sentís.</p><div class="feedback-options"><button type="button" data-feedback="helpful">Me sirvió <span aria-hidden="true">↗</span></button><button type="button" data-feedback="unrelated">No conectó conmigo <span aria-hidden="true">↗</span></button><button type="button" data-feedback="later">Ahora no <span aria-hidden="true">↗</span></button><button type="button" data-feedback="closed">Por ahora está cerrado <span aria-hidden="true">↗</span></button><button type="button" data-feedback="stop">No quiero hablar de este tema <span aria-hidden="true">↗</span></button></div></div>
+    <section class="screen home-screen" id="home-screen" aria-labelledby="home-title" tabindex="-1" hidden>
+      <div class="home-heading"><p class="eyebrow">TU ESPACIO</p><h1 id="home-title">Lo que te pasa<br>tiene un lugar acá.</h1><p class="quiet">Cuando quieras, como te salga.</p></div>
+      <button class="home-compose" type="button" id="new-note"><span>¿Qué te gustaría sacar<br>de tu cabeza?</span><span class="home-compose-icon" aria-hidden="true">↗</span></button>
+      <article class="recent-note" id="recent-note" hidden><div class="recent-heading"><span>Hace un momento</span><span class="sync-label">Pendiente de subir · Simulación</span></div><p id="recent-excerpt"></p></article>
+      <div class="home-links"><button class="text-button" type="button" id="daily-question">Volver a la pregunta diaria <span aria-hidden="true">↗</span></button><button class="text-button" type="button" id="reopen-feedback" hidden>Opinar sobre la pregunta</button></div>
     </section>
   </main>
   <footer class="app-footer"><span id="prototype-note">Contenido ficticio · Sin conexión con tus notas</span></footer>
+  <dialog class="feedback-sheet" id="feedback-sheet" aria-labelledby="sheet-title">
+    <div class="sheet-handle" aria-hidden="true"></div>
+    <button class="sheet-close" id="close-feedback" type="button" aria-label="Cerrar opinión">×</button>
+    <div id="feedback-overview"><h2 id="sheet-title" tabindex="-1">¿Cómo te resultó<br>la pregunta de hoy?</h2><div class="sheet-choices"><button type="button" data-feedback="helpful">Me sirvió</button><button type="button" data-feedback="unrelated">No conectó conmigo</button></div><button class="text-button topic-toggle" id="topic-feedback" type="button" aria-expanded="false" aria-controls="topic-options">Sobre este tema… <span aria-hidden="true">↗</span></button></div>
+    <div id="topic-options" hidden><button class="back-button" type="button" id="topic-back"><span aria-hidden="true">←</span> Volver</button><h2 id="topic-title" tabindex="-1">¿Preferís dejar<br>descansar este tema?</h2><div class="topic-choices"><button type="button" data-feedback="later">Hoy no era el momento</button><button type="button" data-feedback="closed">Por ahora está cerrado</button><button type="button" data-feedback="stop">No quiero hablar de esto</button></div></div>
+    <button class="text-button dismiss-feedback" type="button" id="dismiss-feedback">En otro momento</button>
+  </dialog>
   <div class="toast" id="toast" role="status" hidden></div>
 </div>
 </body>

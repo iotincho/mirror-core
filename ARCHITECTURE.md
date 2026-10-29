@@ -273,6 +273,11 @@ Mover módulos no modifica IDs de migración ni revisiones Alembic aplicadas.
 La API administrativa conserva pool/configuración/lifespan independientes. Sus
 métricas usan hechos tipados y cobertura desconocida `null`. La bandeja funciona
 sin permiso push y comparte transacción con las invitaciones que la originan.
+Exteriorización conserva paquetes/políticas curados inmutables y resuelve variantes
+de respuesta por propietario. Sus casos de uso aplican feedback; PostgreSQL
+serializa por preferencias de cuenta y confirma recibo, evento y límite juntos.
+Texto y audio propagan la misma identidad por aceptación y recuperación. Ver
+[contrato de pregunta diaria](docs/daily-question-v2-contract.md).
 Workspaces conserva principales restringidos por dueño; root se usa para provisión
 y mantenimiento administrativo explícito, nunca para servir lecturas públicas.
 

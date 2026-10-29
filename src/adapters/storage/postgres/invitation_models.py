@@ -18,6 +18,7 @@ from sqlalchemy import (
     func,
     text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.adapters.storage.postgres.accounts import Base
@@ -88,6 +89,8 @@ class Invitation(Base):
     catalog_version: Mapped[str] = mapped_column(String(50))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
     first_opened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    question_set: Mapped[dict | None] = mapped_column(JSONB)
+    question_policy: Mapped[dict | None] = mapped_column(JSONB)
 
 
 class InvitationDelivery(Base):
@@ -125,6 +128,16 @@ class InvitationResponse(Base):
         ForeignKeyConstraint(
             ["invitation_id", "user_id"], ["invitations.id", "invitations.user_id"]
         ),
+        ForeignKeyConstraint(
+            ["invitation_question_id", "invitation_id", "user_id"],
+            [
+                "invitation_questions.id",
+                "invitation_questions.invitation_id",
+                "invitation_questions.user_id",
+            ],
+            name="fk_invitation_response_question",
+            ondelete="CASCADE",
+        ),
     )
     user_id: Mapped[UUID] = mapped_column(
         ForeignKey("user.id", ondelete="CASCADE"), primary_key=True
@@ -132,3 +145,8 @@ class InvitationResponse(Base):
     document_id: Mapped[UUID] = mapped_column(primary_key=True)
     invitation_id: Mapped[UUID] = mapped_column()
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
+    invitation_question_id: Mapped[UUID | None] = mapped_column()
+
+
+# Register related tables wherever the invitation metadata is loaded.
+from src.adapters.storage.postgres import invitation_question_models  # noqa: E402,F401

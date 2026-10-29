@@ -22,10 +22,10 @@ def workflow_config():
     return processing_configuration.workflow_config(get_settings())
 
 
-async def validate_invitation(session, owner, invitation_id):
-    from src.adapters.storage.postgres.invitations import InvitationRepository
+async def validate_invitation(session, owner, invitation_id, question_id=None):
+    from src.adapters.storage.postgres.invitation_questions import resolve_question
 
-    await InvitationRepository(None).invitation(session, owner, invitation_id)
+    return await resolve_question(session, owner, invitation_id, question_id)
 
 
 def build_submission_port(repository, *, submissions=None):

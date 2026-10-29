@@ -66,8 +66,29 @@ def audio_metadata(receipt):
         created_at=receipt.created_at,
         authored_at=manifest["authored_at"],
         invitation_id=manifest.get("invitation_id"),
+        invitation_question_id=manifest.get("invitation_question_id"),
         status="queued",
     )
+
+
+async def invitation_manifest(
+    submissions, owner, operation, key, invitation_id, question_id, *, resource_id=None
+):
+    if invitation_id is None:
+        if question_id is not None:
+            raise ValueError("question_requires_invitation")
+        return {}
+    resolved = await submissions.validate_invitation(owner, invitation_id, question_id)
+    previous = await submissions.get(owner, operation, key, resource_id=resource_id)
+    if previous is not None and "invitation_question_id" not in previous.manifest:
+        # Preserve hashes and originals accepted by v1, including resource-ID aliases.
+        if previous.manifest.get("invitation_id") != str(invitation_id):
+            raise SubmissionConflict("idempotency_conflict")
+        default = await submissions.validate_invitation(owner, invitation_id)
+        if resolved != default:
+            raise SubmissionConflict("idempotency_conflict")
+        return {"invitation_id": str(invitation_id)}
+    return {"invitation_id": str(invitation_id), "invitation_question_id": str(resolved)}
 
 
 class SubmitDocument:
@@ -81,17 +102,38 @@ class SubmitDocument:
         key: UUID,
         *,
         invitation_id: UUID | None = None,
+        invitation_question_id: UUID | None = None,
     ):
         if "invitation_id" in document.metadata:
             supplied = UUID(document.metadata["invitation_id"])
             if invitation_id is not None and invitation_id != supplied:
                 raise SubmissionConflict("invitation_metadata_conflict")
             invitation_id = supplied
-        if invitation_id is not None:
-            await self.submissions.validate_invitation(self.runtime.context.user_id, invitation_id)
+        if "invitation_question_id" in document.metadata:
+            supplied = UUID(document.metadata["invitation_question_id"])
+            if invitation_question_id is not None and invitation_question_id != supplied:
+                raise SubmissionConflict("invitation_metadata_conflict")
+            invitation_question_id = supplied
+        association = await invitation_manifest(
+            self.submissions,
+            self.runtime.context.user_id,
+            "upload_document",
+            key,
+            invitation_id,
+            invitation_question_id,
+            resource_id=document.id,
+        )
+        if association:
             document = document.model_copy(
                 update={
-                    "metadata": {**document.metadata, "invitation_id": str(invitation_id)},
+                    "metadata": {
+                        **{
+                            k: v
+                            for k, v in document.metadata.items()
+                            if k not in {"invitation_id", "invitation_question_id"}
+                        },
+                        **association,
+                    },
                 }
             )
         receipt = await self.submissions.reserve(
@@ -102,7 +144,7 @@ class SubmitDocument:
             resource_kind="document",
             resource_id=document.id,
             config=self.workflow_config(),
-            manifest={"invitation_id": str(invitation_id)} if invitation_id else {},
+            manifest=association,
         )
         if receipt.accepted_at:
             return (
@@ -164,16 +206,23 @@ class SubmitAudioNote:
         key: UUID,
         *,
         invitation_id: UUID | None = None,
+        invitation_question_id: UUID | None = None,
     ):
         filename, media_type = validate_audio_upload(filename, media_type, content, self.max_bytes)
         # Validate dates before making a SQL reservation.
         if authored_at is not None and authored_at.tzinfo is None:
             raise ValueError("authored_at must include a timezone")
         manifest = audio_manifest(filename, media_type, content, authored_at)
-        if invitation_id is not None:
-            await self.submissions.validate_invitation(self.runtime.context.user_id, invitation_id)
-            # Keep ordinary audio fingerprints compatible with existing receipts.
-            manifest["invitation_id"] = str(invitation_id)
+        manifest.update(
+            await invitation_manifest(
+                self.submissions,
+                self.runtime.context.user_id,
+                "upload_audio",
+                key,
+                invitation_id,
+                invitation_question_id,
+            )
+        )
         receipt = await self.submissions.reserve(
             user_id=self.runtime.context.user_id,
             operation="upload_audio",

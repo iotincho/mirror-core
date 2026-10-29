@@ -7,6 +7,10 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Request
 
 from src.adapters.access.api.public.auth.cookies import COOKIE_NAME
 from src.adapters.access.api.public.invitations.schemas import (
+    FeedbackInput,
+    FeedbackRead,
+    InteractionsInput,
+    InteractionsRead,
     InvitationRead,
     PreferenceRead,
     PreferenceUpdate,
@@ -20,6 +24,10 @@ from src.core.exteriorization.models import (
     InvitationPreference,
     PushSubscription,
     session_fingerprint,
+)
+from src.core.exteriorization.question_contracts import (
+    InvitationFeedbackChoice,
+    InvitationInteractions,
 )
 from src.use_cases.exteriorization.configure_invitations import ConfigureInvitations
 
@@ -105,5 +113,35 @@ def build_router(get_authenticated_user, get_invitations, require_same_origin):
     @router.post("/invitations/{invitation_id}/opened", response_model=InvitationRead)
     async def opened(invitation_id: UUID, user: User, service: Service) -> Invitation:
         return await service.open_invitation(user.id, invitation_id)
+
+    @router.post("/invitations/{invitation_id}/feedback", response_model=FeedbackRead)
+    async def feedback(
+        invitation_id: UUID,
+        payload: FeedbackInput,
+        user: User,
+        service: Service,
+        key: Annotated[UUID, Header(alias="Idempotency-Key")],
+    ):
+        return await service.activity.feedback(
+            user.id,
+            invitation_id,
+            InvitationFeedbackChoice(**payload.model_dump()),
+            key,
+        )
+
+    @router.post("/invitations/{invitation_id}/interactions", response_model=InteractionsRead)
+    async def interactions(
+        invitation_id: UUID,
+        payload: InteractionsInput,
+        user: User,
+        service: Service,
+        key: Annotated[UUID, Header(alias="Idempotency-Key")],
+    ):
+        return await service.activity.interactions(
+            user.id,
+            invitation_id,
+            InvitationInteractions(**payload.model_dump()),
+            key,
+        )
 
     return router

@@ -35,8 +35,11 @@ class ScheduleInvitations:
                 subscriptions = await transaction.active_subscriptions(preference.user_id)
                 day = due.astimezone(ZoneInfo(preference.timezone)).date()
                 if not await transaction.scheduled_exists(preference.user_id, day):
-                    await GenerateInvitation().execute(
+                    invitation = await GenerateInvitation().execute(
                         transaction, preference, due, now, subscriptions
                     )
-                    generated += 1
+                    if invitation is None:
+                        await transaction.omit_occurrence(preference.user_id, day, now)
+                    else:
+                        generated += 1
             return generated

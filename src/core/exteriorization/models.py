@@ -5,6 +5,11 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from uuid import UUID
 
+from src.core.exteriorization.question_contracts import (
+    InvitationQuestionSet,
+    legacy_question_set,
+)
+
 
 class InvitationError(ValueError):
     def __init__(self, code: str):
@@ -61,6 +66,26 @@ class Invitation:
     catalog_version: str
     created_at: datetime
     first_opened_at: datetime | None = None
+    question_set: dict | None = field(default=None, repr=False)
+    question_policy: dict | None = field(default=None, repr=False)
+
+    @property
+    def questions(self) -> InvitationQuestionSet:
+        if self.question_set is not None:
+            return InvitationQuestionSet.model_validate(self.question_set)
+        return legacy_question_set(self.id, self.question)
+
+    @property
+    def question_schema_version(self):
+        return self.questions.question_schema_version
+
+    @property
+    def default_question_id(self):
+        return self.questions.default_question_id
+
+    @property
+    def question_groups(self):
+        return self.questions.question_groups
 
 
 @dataclass

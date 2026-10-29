@@ -5,24 +5,34 @@ from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 from src.core.exteriorization.contracts import EngineContext
-from src.core.exteriorization.engine import select_trigger
+from src.core.exteriorization.curated_questions import build_curated_questions, catalog_topics
 from src.core.exteriorization.models import Invitation
+from src.core.exteriorization.question_policy import QuestionPolicy
 from src.core.exteriorization.scheduling import expires_at
 
 
 class GenerateInvitation:
     async def execute(self, transaction, preference, due, now, subscriptions, *, request_key=None):
         kind = "test" if request_key else "scheduled"
-        trigger = select_trigger(
+        identifier = uuid4()
+        policy = QuestionPolicy()
+        prepared = build_curated_questions(
+            identifier,
+            preference.user_id,
             EngineContext(
                 now=now,
                 timezone=preference.timezone,
                 history=await transaction.history(preference.user_id),
-            )
+            ),
+            await transaction.catalog_state(preference.user_id, catalog_topics(preference.user_id)),
+            policy=policy,
         )
+        if prepared is None:
+            return None
+        trigger, package, bindings = prepared
         day = due.astimezone(ZoneInfo(preference.timezone)).date()
         invitation = Invitation(
-            id=uuid4(),
+            id=identifier,
             user_id=preference.user_id,
             kind=kind,
             local_date=day,
@@ -37,9 +47,11 @@ class GenerateInvitation:
             request_key=request_key,
             test_subscription_id=subscriptions[0].id if request_key else None,
             created_at=now,
+            question_set=package.model_dump(mode="json"),
+            question_policy=policy.model_dump(mode="json"),
             **trigger.model_dump(),
         )
-        await transaction.add_invitation(invitation)
+        await transaction.add_invitation(invitation, topic_bindings=bindings)
         await transaction.notify(invitation)
         for subscription in subscriptions:
             await transaction.enqueue_push(

@@ -419,27 +419,24 @@ class ProcessingRepository:
             self.event(session, current)
 
     async def child_and_wait(
-        self, record: ProcessingRecord, document_id: UUID, *, invitation_id: UUID | None = None
+        self,
+        record: ProcessingRecord,
+        document_id: UUID,
+        *,
+        invitation_id: UUID | None = None,
+        invitation_question_id: UUID | None = None,
     ):
         async with self.leased(record) as (session, current, now):
             if invitation_id is not None:
-                from sqlalchemy.dialects.postgresql import insert
+                from src.adapters.storage.postgres.invitation_questions import bind_response
 
-                from src.adapters.storage.postgres.invitation_models import InvitationResponse
-                from src.adapters.storage.postgres.invitations import InvitationRepository
-
-                await InvitationRepository(self.sessions).invitation(
-                    session, current.user_id, invitation_id
-                )
                 # The link and document handoff commit together after original/graph persistence.
-                await session.execute(
-                    insert(InvitationResponse)
-                    .values(
-                        user_id=current.user_id,
-                        document_id=document_id,
-                        invitation_id=invitation_id,
-                    )
-                    .on_conflict_do_nothing()
+                await bind_response(
+                    session,
+                    current.user_id,
+                    document_id,
+                    invitation_id,
+                    invitation_question_id,
                 )
             if current.child_processing_id is None:
                 child = ProcessingRecord(

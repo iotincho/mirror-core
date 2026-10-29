@@ -1,8 +1,8 @@
 # Pregunta diaria v2 · Contratos y backend curado
 
-Estado: etapas 1 y 2 implementadas localmente. Paquetes curados, persistencia y
-rutas listos para entornos migrados a `20261029_18`; sin generación LLM ni cambios
-en la PWA. Implementación no desplegada. Ver el [plan](daily-question-v2-plan.md)
+Estado: etapas 1–3 implementadas localmente. Paquetes curados, persistencia y
+rutas listos para entornos migrados a `20261029_18`; flujo PWA integrado, sin
+generación LLM. Implementación no desplegada. Ver el [plan](daily-question-v2-plan.md)
 y la [operación de invitaciones](exteriorization-notifications.md).
 
 ## Modelos y ejemplos ejecutables
@@ -261,5 +261,18 @@ batch, reservas omitidas, compatibilidad v1, selección de variante en texto/aud
 recuperación de metadata y persistencia sin repetir transcripción. Upgrade y
 ciclo downgrade/upgrade se validan con invitación y respuesta v1 sintéticas.
 Los tests usan grafo/proveedores simulados; no acreditan push real, calidad de un
-LLM, sincronización de la PWA ni dispositivo. La siguiente entrega es la PWA con
-el diseño validado; la personalización queda para la entrega 4.
+LLM, sincronización de la PWA ni dispositivo.
+
+## Integración de la entrega 3 en PWA
+
+La PWA consume el paquete sin cambiar estos contratos. La selección de profundidad
+y tema es local; texto y multipart envían `invitation_question_id`. Borradores y
+sesiones de voz conservan referencia y texto histórico. Dexie v9 confirma nota y
+oferta de opinión juntas; feedback/interacciones tienen cola e identidad propias
+y pueden llegar antes de subir la nota. Las lecturas antiguas sin paquete mantienen
+una pregunta única, sin inventar IDs ni alternativas.
+
+Regresión PWA: 32 archivos Node aprobados, lint/build/verify:build y revisión en
+Chrome headless a 320, 390, 768 y 1440 px, con API y contenido sintéticos. No se
+repitió la integración conjunta PostgreSQL/RabbitMQ; dispositivo, push, micrófono
+y teclado virtual reales siguen pendientes. La personalización corresponde a la entrega 4.

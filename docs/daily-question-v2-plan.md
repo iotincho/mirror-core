@@ -1,8 +1,8 @@
 # Plan de implementación: pregunta diaria personal
 
-Estado: etapas 1 y 2 completadas localmente, con backend curado, persistencia
-y API. Resultado y límites en [contratos v2](daily-question-v2-contract.md).
-Pendientes las entregas 3–5. Diseño validado en el
+Estado: etapas 1–3 completadas localmente, con backend curado, persistencia,
+API y flujo PWA. Resultado y límites en [contratos v2](daily-question-v2-contract.md).
+Pendientes las entregas 4–5. Diseño validado en el
 [prototipo](../prototypes/pregunta-diaria/index.html). El contrato implementado
 está en [invitaciones](exteriorization-notifications.md).
 
@@ -225,6 +225,18 @@ reduced motion y pantallas desde 320 px, incluyendo teclado virtual en dispositi
 
 **Resultado revisable:** experiencia completa con preguntas curadas y trazabilidad
 real. Permite validar la integración antes de introducir incertidumbre del LLM.
+
+Implementado localmente en `mirror-pwa`: pregunta/composición separadas, selección
+local del paquete, referencia persistida en texto/voz y Dexie v9 con oferta atómica
+y cola independiente de actividad. Modal sin subtítulo al regresar al inicio;
+cerrarlo no envía rechazo ni lo reabre automáticamente. La oferta más reciente
+puede retomarse manualmente; empezar otra actividad difiere el panel.
+
+Validación: 32 archivos de pruebas Node, lint/build/verify:build y Chrome headless
+en cuatro tamaños de 320×568 a 1440×900 con API/contenido sintéticos. La revisión
+cubre pregunta, composición y modal, selección subida y ausencia de overflow.
+No acredita backend conjunto, push, teclado virtual ni micrófono de teléfono;
+no se repitió aquí la integración PostgreSQL/RabbitMQ. Sin publicación/despliegue.
 
 ## Entrega 4 · Personalización en dos etapas, en segundo plano
 

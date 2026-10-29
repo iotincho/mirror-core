@@ -96,7 +96,7 @@ class TopicReopeningEvidence(FrozenQuestionModel):
 def reopen_topic(
     topic: TopicState, evidence: TopicReopeningEvidence, *, now: datetime
 ) -> TopicState:
-    """Evidence assessment belongs to the future context/proposal use case."""
+    """Evidence assessment is supplied by the context/proposal use case."""
     if now.tzinfo is None or now.utcoffset() is None:
         raise ValueError("aware_time_required")
     if evidence.user_id != topic.user_id or evidence.topic_id != topic.id:

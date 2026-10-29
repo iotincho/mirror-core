@@ -17,6 +17,7 @@ from src.adapters.storage.postgres.invitation_question_models import InvitationO
 from src.adapters.storage.postgres.invitation_questions import QuestionTransaction
 from src.adapters.storage.postgres.models import ProcessingRecord
 from src.adapters.storage.postgres.notification_models import Notification
+from src.adapters.storage.postgres.prepared_question_transaction import PreparedQuestionTransaction
 from src.adapters.storage.postgres.repository import ProcessingRepository
 from src.adapters.storage.postgres.snapshots import SnapshotTracker
 from src.adapters.storage.postgres.workspace_models import UserWorkspace
@@ -28,7 +29,7 @@ from src.core.exteriorization.models import InvitationPreference as PreferenceSt
 from src.core.exteriorization.models import PushSubscription as SubscriptionState
 
 
-class InvitationTransaction(SnapshotTracker, QuestionTransaction):
+class InvitationTransaction(SnapshotTracker, QuestionTransaction, PreparedQuestionTransaction):
     def __init__(self, repository, session):
         super().__init__()
         self.repository, self.session = repository, session

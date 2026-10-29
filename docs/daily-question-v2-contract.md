@@ -1,8 +1,9 @@
-# Pregunta diaria v2 · Contratos y backend curado
+# Pregunta diaria v2 · Contratos y preparación
 
-Estado: etapas 1–3 implementadas localmente. Paquetes curados, persistencia y
-rutas listos para entornos migrados a `20261029_18`; flujo PWA integrado, sin
-generación LLM. Implementación no desplegada. Ver el [plan](daily-question-v2-plan.md)
+Estado: etapas 1–4 implementadas localmente. Requiere migrar a `20261029_20`.
+Incluye flujo PWA y preparación personalizada en segundo plano. Modo predeterminado
+`curated`; proveedor validado con dobles sintéticos, sin llamadas pagas.
+Implementación no desplegada. Ver el [plan](daily-question-v2-plan.md)
 y la [operación de invitaciones](exteriorization-notifications.md).
 
 ## Modelos y ejemplos ejecutables
@@ -275,4 +276,141 @@ una pregunta única, sin inventar IDs ni alternativas.
 Regresión PWA: 32 archivos Node aprobados, lint/build/verify:build y revisión en
 Chrome headless a 320, 390, 768 y 1440 px, con API y contenido sintéticos. No se
 repitió la integración conjunta PostgreSQL/RabbitMQ; dispositivo, push, micrófono
-y teclado virtual reales siguen pendientes. La personalización corresponde a la entrega 4.
+y teclado virtual reales siguen pendientes. La implementación personalizada se detalla a continuación.
+
+## Preparación personalizada de la entrega 4
+
+`PrepareQuestions` coordina por puertos el workflow interno `question_preparation/1`.
+Bootstrap lo registra en el registro compartido; no agrega scheduler, extractor
+ni reintentos Taskiq. El dispatcher publica primero las ocurrencias vencidas y
+después reserva preparaciones para preferencias habilitadas con workspace activo,
+hasta 30 minutos antes del horario. La clave incluye propietario, instante y versión
+de preferencias. Dos dispatchers aceptan una sola preparación, job y outbox.
+Los trabajos internos no aparecen en `/processing`, SSE ni retry público.
+
+`PreparationConfiguration` congela modelo, versiones de prompt/selector, límites
+de entrada/salida, tiempo, concurrencia y anticipación, sin secretos. El worker
+consulta vigencia antes de generar y antes de aceptar el paquete. Desactivar,
+cambiar horario/zona/versión de preferencias o suspender el workspace invalida
+esa preparación. Una activación con poco margen se prepara en el siguiente ciclo;
+el programador no espera que termine. El modo `curated` también evita ejecutar
+nuevas llamadas desde jobs internos ya aceptados.
+
+### Contexto y propuestas
+
+- Inventario SQL de originales con job de documento aceptado, hasta 20 documentos
+  de los últimos 30 días. Prioriza respuestas de las últimas 14 invitaciones y luego
+  notas recientes. Lee originales por el puerto del propietario, sin cargar todas
+  las notas ni consultar emociones, ejes o ArcadeDB. Audio usa su documento
+  derivado existente; no transcribe de nuevo.
+- El historial distingue pregunta inicial, variantes efectivamente mostradas,
+  respuestas por variante y último feedback recibido. No presenta todas las
+  alternativas como si hubieran sido vistas. Consultas de actividad/feedback
+  acotadas a 126 registros por tipo y a esas catorce invitaciones.
+- Fecha autoral y de aceptación se conservan por separado. Importar una nota antigua
+  no la vuelve evidencia actual de reapertura. Las referencias guardan hash del
+  contenido, fechas, longitud de excerpt y marca de recorte. No copian notas completas
+  al snapshot. El texto enviado al proveedor se reconstruye desde esos originales.
+- Hasta 64 descriptores personales conocidos; si se excede ese límite no se genera
+  con un inventario incompleto de restricciones. Ese día queda el catálogo.
+- Presupuesto conservador: bytes UTF-8 como cota de tokens textuales, con reserva de
+  7000 para instrucciones/esquema; el adaptador comprueba además el tamaño de ambos.
+  Los excerpts usan como máximo 2400 bytes por documento y declaran el recorte.
+  Historial y descriptores también consumen presupuesto. Un contexto demasiado grande
+  falla con código seguro y no llama al proveedor.
+- El prompt trata notas e historial como datos no confiables, respeta el trato del
+  usuario y propone hasta tres temas con tres profundidades. IDs de tema existentes
+  tienen prioridad frente a títulos; la incertidumbre pide omitir, no fusionar o
+  renombrar un límite. La identidad de un tema nuevo se ancla a evidencia, no sólo
+  al título. La aplicación valida propietario, referencias, offsets y preguntas
+  distintas de una sola línea y hasta 240 caracteres. La calidad semántica necesita
+  la evaluación de la entrega 5.
+
+El adaptador usa Responses con salida estructurada Pydantic, `store=False`,
+timeout, límite de salida y retries SDK desactivados, siguiendo
+[OpenAI Docs](https://developers.openai.com/api/docs/guides/structured-outputs).
+Errores del proveedor y validación se sustituyen por códigos seguros sin cadenas
+con texto privado. No se registran notas, preguntas personales ni payloads.
+
+### Selección y publicación
+
+La selección tiene un artefacto/versionado propios y es determinística: orden
+lexicográfico por fundamento explícito, recencia autoral y esfuerzo bajo, con
+desempate estable. Después aplica las exclusiones de `QuestionPolicy`; ningún
+criterio de orden supera una pausa o cierre. Incluye una alternativa curada y
+la primera opción es general al menos cada cuatro ocurrencias personalizadas.
+El silencio no se convierte en desinterés ni disponibilidad emocional inferida.
+
+Al horario, el finalizador toma el mismo lock de preferencias, consume la preparación
+lista y revalida referencias, hashes y límites actuales. Los originales se protegen
+con los mismos locks compartidos de recurso usados por borrado/procesamiento.
+Un recurso ocupado lleva al catálogo; evidencia que ya no existe descarta las
+propuestas que la usan. El fallback no invoca un modelo. La transacción conserva invitación, índices, procedencia,
+bandeja, envíos y outbox juntos. Un resultado lento no reemplaza una publicación ni
+origina otra notificación. Una ocurrencia sin catálogo elegible se omite.
+
+Reabrir un tema conocido exige correspondencia confirmada por el proponente,
+intención explícita `reopen`, evidencia disponible y fechas autoral y de aceptación
+posteriores al límite. Una mención, inferencia, importación antigua o cierre posterior
+al snapshot no alcanzan. Se conserva el feedback histórico y la nota que habilitó
+la reapertura. Evaluar la correspondencia semántica del proveedor sigue pendiente.
+
+La lectura HTTP agrega `available_question_ids`: filtra nuevas opciones según
+restricciones actuales sin alterar `question`, variantes, IDs o textos guardados.
+La PWA la usa al abrir/refrescar y al cambiar; conserva la variante de una respuesta
+histórica ya iniciada. Un cliente con la vista cargada puede estar desactualizado.
+La aceptación de una respuesta voluntaria histórica no exige que el tema siga abierto.
+
+### Recuperación, retención y configuración
+
+Los artefactos `context`, `proposals` y `selection` son exclusivos, hash-verificados
+y publicados con fsync. Un fallo de checkpoint o aceptación SQL reutiliza los artefactos
+sin otra generación. I/O de archivos o SQL no confirmado conserva la entrega para
+recuperación por lease. Una caída entre respuesta remota y guardado durable todavía
+puede repetir una llamada; no se promete ejecución remota exactamente una vez.
+Proveedor inválido/fallido no recibe correcciones automáticas ni retries pagos SDK.
+
+`20261029_19` agrega preparaciones y descriptores de temas personales; `20261029_20`
+conserva procedencia por grupo y un código de decisión del finalizador. No hay backfill
+ni cambios a originales. Temporales y artefactos vencen 36 horas después del horario,
+con limpieza por lotes de 50 en el dispatcher. La procedencia aceptada queda vinculada
+a la invitación: configuración/versiones y referencias/hashes de evidencia, sin
+copias de las notas. Los jobs mantienen sólo configuración técnica y checkpoints.
+Downgrade pierde preparaciones/procedencia nuevas; conserva preguntas y respuestas.
+
+| Variable | Default y alcance |
+| --- | --- |
+| `DAILY_QUESTION_MODE` | `curated`; `personalized` prepara automáticamente para quienes ya tienen invitaciones habilitadas. No activa preferencias apagadas. |
+| `DAILY_QUESTION_MODEL` | Vacío reutiliza `OPENAI_MODEL`; ambos vacíos impiden preparar, sin elegir otro modelo. |
+| `DAILY_QUESTION_MAX_INPUT_TOKENS` | 24000, cota conservadora de entrada, rango 8000–64000. |
+| `DAILY_QUESTION_MAX_OUTPUT_TOKENS` | 3000, rango 1000–8000. |
+| `DAILY_QUESTION_TIMEOUT_SECONDS` | 45, rango 1–120; también limitado por el tiempo hasta el horario. |
+| `DAILY_QUESTION_CONCURRENCY` | 2 por proceso/configuración de proveedor, rango 1–8; además rige la concurrencia del worker. |
+| `DAILY_QUESTION_LEAD_MINUTES` | 30, rango 1–120. |
+
+El dispatcher admite hasta 100 preparaciones por ciclo y 1000 jobs vigentes globales.
+API, worker y dispatcher deben compartir modo, configuración y volumen de workspaces.
+No activar `personalized` en un entorno con datos como parte de esta implementación.
+
+### Verificación local
+
+```sh
+.venv/bin/python -m pytest tests/test_daily_question_preparation.py
+INVITATIONS_TEST_DATABASE_URL='postgresql+asyncpg://…/isolated_test' \
+  .venv/bin/python -m pytest tests/integration/test_question_preparations.py
+```
+
+Pruebas con originales y proveedor sintéticos: contexto acotado/recortado, referencias
+inválidas, errores seguros, repetición tras checkpoint/confirmación perdida, dispatcher
+y worker duplicados, fencing perdido, proveedor lento frente a fallback, cierre/borrado
+posterior, preferencias/workspace obsoletos, reapertura explícita, frecuencia general,
+inventario de respuestas y conservación de procedencia tras limpiar temporales.
+La suite usa el executor SQL real y su outbox sin necesitar un broker; no acredita
+transporte RabbitMQ, push, calidad de un modelo real ni comportamiento de teléfonos.
+
+Validación del 2026-10-29: **133 pruebas de core y 51 de PostgreSQL aprobadas**;
+una omitida por requerir RabbitMQ aislado. Upgrade → downgrade hasta `20261029_18`
+→ upgrade y `alembic check` aprobados, conservando invitación/respuesta v1 sintéticas.
+Arquitectura, Ruff y documentación sin errores. La PWA pasó sus 32 archivos Node,
+lint/build/verify:build y aplica disponibilidad sin cambiar el diseño aprobado.
+Siguen pendientes la evaluación del proveedor real y la habilitación de la entrega 5.

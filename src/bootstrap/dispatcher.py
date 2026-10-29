@@ -6,6 +6,7 @@ import signal
 
 from src.adapters.storage.postgres.submissions import SubmissionRepository
 from src.bootstrap.acceptance import recover_submissions
+from src.bootstrap.daily_questions import prepare_daily_questions, prepared_question_selector
 from src.bootstrap.database import close_database
 from src.bootstrap.invitations import get_invitation_repository
 from src.bootstrap.messaging import broker
@@ -47,7 +48,15 @@ async def main():
                     report_issue("axis_preview_cleanup_failed", error)
                     logger.warning("Axis preview cleanup deferred")
                 await get_recovery_repository().cleanup()
-                await ScheduleInvitations(get_invitation_repository()).execute()
+                # Publication takes priority; a slow/unavailable preparer cannot delay the day.
+                await ScheduleInvitations(
+                    get_invitation_repository(), prepared_question_selector()
+                ).execute()
+                try:
+                    await prepare_daily_questions()
+                except Exception as error:
+                    report_issue("question_preparation_schedule_failed", error)
+                    logger.warning("Daily question preparation deferred")
                 await get_notifications().distribute()
                 await repository.recover()
                 await repository.recover_parents()

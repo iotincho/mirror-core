@@ -87,6 +87,14 @@ class Invitation:
     def question_groups(self):
         return self.questions.question_groups
 
+    @property
+    def available_question_ids(self):
+        return getattr(
+            self,
+            "_available_question_ids",
+            tuple(q.id for group in self.question_groups for q in group.questions),
+        )
+
 
 @dataclass
 class InvitationDelivery:

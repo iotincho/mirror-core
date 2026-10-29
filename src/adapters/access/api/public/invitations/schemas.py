@@ -81,6 +81,7 @@ class InvitationRead(BaseModel):
     question_schema_version: Literal["1"]
     default_question_id: UUID
     question_groups: tuple["QuestionGroupRead", ...]
+    available_question_ids: tuple[UUID, ...]
 
 
 class QuestionRead(BaseModel):

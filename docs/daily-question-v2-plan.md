@@ -1,8 +1,9 @@
 # Plan de implementación: pregunta diaria personal
 
-Estado: etapas 1–3 completadas localmente, con backend curado, persistencia,
-API y flujo PWA. Resultado y límites en [contratos v2](daily-question-v2-contract.md).
-Pendientes las entregas 4–5. Diseño validado en el
+Estado: etapas 1–4 completadas localmente, con persistencia, API, flujo PWA y
+preparación personalizada. Resultado y límites en [contratos v2](daily-question-v2-contract.md).
+Pendiente la entrega 5: evaluación y habilitación operativa. El modo predeterminado
+sigue siendo `curated`; no se hicieron llamadas pagas ni despliegue. Diseño validado en el
 [prototipo](../prototypes/pregunta-diaria/index.html). El contrato implementado
 está en [invitaciones](exteriorization-notifications.md).
 
@@ -307,6 +308,15 @@ Fijar esa elección con los casos de evaluación, antes de habilitarla.
 cada checkpoint, proveedor lento/fallido/salida inválida, carrera fallback/resultado,
 notas borradas, cierre posterior a preparación y preferencia desactivada. Verificar
 que no se modifica una invitación publicada ni se repite una etapa ya guardada.
+
+Implementado en la entrega 4: workflow interno `question_preparation/1`, inventario
+SQL acotado y originales por propietario sin grafo, artefactos inmutables de contexto
+(referencias), propuestas y selección, finalización con locks/fencing y fallback curado.
+El selector es determinístico: fundamento explícito, recencia y esfuerzo, seguido
+de los límites duros y frecuencia general; no necesita una segunda llamada LLM.
+La lectura incorpora disponibilidad actual sin reescribir el paquete histórico.
+La PWA la aplica a nuevas elecciones y conserva respuestas históricas en borrador.
+Ver [implementación y verificaciones](daily-question-v2-contract.md#preparación-personalizada-de-la-entrega-4).
 
 ## Entrega 5 · Evaluación y habilitación operativa
 

@@ -1,4 +1,4 @@
-"""Versioned question-set contracts; not yet wired into the invitation runtime."""
+"""Versioned immutable question packages, historical adaptation and activity contracts."""
 
 from typing import Literal
 from uuid import UUID, uuid5

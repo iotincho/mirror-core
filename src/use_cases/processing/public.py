@@ -6,6 +6,7 @@ from src.use_cases.documents.ingest_document_file import IngestDocumentFile
 INTERNAL_WORKFLOWS = frozenset(
     {
         "invitation_push",
+        "question_preparation",
         "password_recovery_email",
         "axis_preview",
         "axis_history_note",

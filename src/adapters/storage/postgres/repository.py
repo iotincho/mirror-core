@@ -26,6 +26,7 @@ class ProcessingRepository:
     def event(session, record):
         if record.workflow in {
             "invitation_push",
+            "question_preparation",
             "password_recovery_email",
             "axis_preview",
             "axis_history_note",
@@ -480,6 +481,7 @@ class ProcessingRepository:
                 ProcessingRecord.workflow.not_in(
                     [
                         "invitation_push",
+                        "question_preparation",
                         "password_recovery_email",
                         "axis_preview",
                         "axis_history_note",

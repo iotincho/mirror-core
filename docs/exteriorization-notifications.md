@@ -1,4 +1,4 @@
-# Invitaciones para escribir — backend curado
+# Invitaciones para escribir — backend
 
 > Actualización: [Centro de notificaciones](notification-center.md) incorpora la bandeja
 > y separa habilitación diaria de push. Aplicar `20261020_12`. La descripción histórica
@@ -6,11 +6,14 @@
 > hoy se genera una invitación y su aviso aun sin suscripciones; VAPID sólo es necesario
 > para registrar dispositivos y enviar push. Los demás contratos se conservan.
 
-El motor prepara paquetes curados (`generic-v2`, catálogo `2`): hasta tres temas
+El modo predeterminado prepara paquetes curados (`generic-v2`, catálogo `2`): hasta tres temas
 con tres profundidades cada uno. Las preguntas medias conservan las doce preguntas
-del catálogo anterior. No lee notas, no consulta ArcadeDB y no invoca modelos.
+del catálogo anterior. Ese modo no lee notas ni invoca modelos. El modo operativo
+`personalized` prepara propuestas en segundo plano con originales acotados y
+selección determinística; publica el resultado listo o el catálogo. Ninguno depende
+de ArcadeDB para elegir preguntas. La habilitación/evaluación real sigue pendiente.
 Una respuesta entra por el alta normal de documentos y conserva su variante exacta.
-Aplicar la migración `20261029_18` antes de iniciar los procesos actualizados.
+Aplicar las migraciones hasta `20261029_20` antes de iniciar los procesos actualizados.
 El formato, feedback, interacciones y compatibilidad están en el
 [contrato v2](daily-question-v2-contract.md).
 
@@ -210,8 +213,10 @@ el origen público detrás de Nginx/HTTPS. No se habilita CORS con credenciales.
 La invitación pública incluye `id`, `question`, `candidate_id`, `category`, `source`,
 `engine_version`, `catalog_version`, `kind`, `local_date`, `timezone`, `scheduled_at`,
 `expires_at`, `created_at` y `first_opened_at`. Agrega `question_schema_version`,
-`default_question_id` y `question_groups`; no incluye políticas, temas internos,
+`default_question_id`, `question_groups` y `available_question_ids`; no incluye políticas, temas internos,
 evidencia o datos de suscripciones. El campo `question` sigue siendo la inicial.
+La disponibilidad se recalcula al leer según pausas/cierres; el paquete histórico
+no se reescribe y una respuesta voluntaria a una variante histórica sigue siendo válida.
 Propiedad incorrecta o recurso inexistente devuelve 404. Conflictos de cuenta,
 idempotencia o falta de suscripción activa devuelven 409; límite de prueba 429 con
 `Retry-After: 60`; fecha/zona/keys inválidas 422. El 202 no acredita entrega push.

@@ -119,7 +119,8 @@ class ConfigureInvitations:
 
     async def get_invitation(self, user_id, invitation_id):
         async with self.repository.transaction() as transaction:
-            return await transaction.invitation(user_id, invitation_id)
+            invitation = await transaction.invitation(user_id, invitation_id)
+            return await self._available_questions(transaction, user_id, invitation)
 
     async def open_invitation(self, user_id, invitation_id):
         async with self.repository.transaction() as transaction:
@@ -129,4 +130,22 @@ class ConfigureInvitations:
             await transaction.mark_invitation_read(
                 user_id, invitation_id, invitation.first_opened_at
             )
-            return invitation
+            return await self._available_questions(transaction, user_id, invitation)
+
+    @staticmethod
+    async def _available_questions(transaction, user_id, invitation):
+        now = await transaction.now()
+        states = await transaction.question_topic_states(user_id, invitation.id)
+        excluded = {
+            identifier
+            for identifier, topic in states
+            if topic.status in {"closed", "do_not_prompt"}
+            or (topic.status == "paused" and now < topic.paused_until)
+        }
+        invitation._available_question_ids = tuple(
+            q.id
+            for group in invitation.question_groups
+            for q in group.questions
+            if q.id not in excluded
+        )
+        return invitation

@@ -12,7 +12,20 @@ from src.core.exteriorization.scheduling import expires_at
 
 
 class GenerateInvitation:
-    async def execute(self, transaction, preference, due, now, subscriptions, *, request_key=None):
+    def __init__(self, personalization=None):
+        self.personalization = personalization
+
+    async def execute(
+        self,
+        transaction,
+        preference,
+        due,
+        now,
+        subscriptions,
+        *,
+        request_key=None,
+        preference_version=None,
+    ):
         kind = "test" if request_key else "scheduled"
         identifier = uuid4()
         policy = QuestionPolicy()
@@ -29,6 +42,16 @@ class GenerateInvitation:
         )
         if prepared is None:
             return None
+        if self.personalization is not None and request_key is None:
+            prepared = await self.personalization.execute(
+                transaction,
+                preference,
+                due,
+                now,
+                prepared,
+                policy,
+                preference_version=preference_version or preference.updated_at,
+            )
         trigger, package, bindings = prepared
         day = due.astimezone(ZoneInfo(preference.timezone)).date()
         invitation = Invitation(
@@ -52,6 +75,9 @@ class GenerateInvitation:
             **trigger.model_dump(),
         )
         await transaction.add_invitation(invitation, topic_bindings=bindings)
+        provenance = getattr(prepared, "provenance", None)
+        if provenance:
+            await transaction.save_question_provenance(invitation, provenance)
         await transaction.notify(invitation)
         for subscription in subscriptions:
             await transaction.enqueue_push(

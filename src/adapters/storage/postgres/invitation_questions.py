@@ -112,28 +112,30 @@ def topic_snapshot(row):
 
 class QuestionTransaction:
     async def catalog_state(self, owner, topics):
-        await self.session.execute(
-            insert(InvitationTopic)
-            .values(
-                [
-                    dict(
-                        id=identifier,
-                        user_id=owner,
-                        catalog_key=key,
-                        scope="catalog",
-                        status="open",
-                        last_feedback_sequence=0,
-                    )
-                    for identifier, key in topics
-                ]
+        if topics:
+            await self.session.execute(
+                insert(InvitationTopic)
+                .values(
+                    [
+                        dict(
+                            id=identifier,
+                            user_id=owner,
+                            catalog_key=key,
+                            scope="catalog",
+                            status="open",
+                            last_feedback_sequence=0,
+                        )
+                        for identifier, key in topics
+                    ]
+                )
+                .on_conflict_do_nothing()
             )
-            .on_conflict_do_nothing()
-        )
         rows = list(
             await self.session.scalars(
                 select(InvitationTopic).where(
                     InvitationTopic.user_id == owner,
-                    InvitationTopic.id.in_([i for i, _ in topics]),
+                    InvitationTopic.scope == "catalog",
+                    (InvitationTopic.id.in_([i for i, _ in topics]) if topics else True),
                 )
             )
         )

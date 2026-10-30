@@ -12,9 +12,16 @@ class PostgresSubmissions:
         self._config_factory = config_factory
         self.processing = PostgresProcessingRequests(repository, config_factory=config_factory)
 
-    async def get(self, owner, operation, key):
+    async def get(self, owner, operation, key, *, resource_id=None):
         async with database_errors():
-            return receipt_snapshot(await self._submissions.get(owner, operation, key))
+            return receipt_snapshot(
+                await self._submissions.get(
+                    owner,
+                    operation,
+                    key,
+                    resource_id=resource_id,
+                )
+            )
 
     async def accepted(self, owner, operation, key, request_hash):
         async with database_errors():
@@ -43,6 +50,6 @@ class PostgresSubmissions:
         async with database_errors():
             return [receipt_snapshot(row) for row in await self._submissions.claim_pending()]
 
-    async def validate_invitation(self, owner, invitation_id):
+    async def validate_invitation(self, owner, invitation_id, question_id=None):
         async with database_errors(), self._submissions.sessions() as session:
-            await self._invitation_validator(session, owner, invitation_id)
+            return await self._invitation_validator(session, owner, invitation_id, question_id)

@@ -3,6 +3,7 @@
 from functools import lru_cache
 from ipaddress import ip_network
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -92,6 +93,40 @@ class Settings(BaseSettings):
         validation_alias="WORKSPACES_PATH",
     )
     llm_provider: str = Field(default="openai", validation_alias="LLM_PROVIDER")
+    daily_question_mode: Literal["curated", "personalized"] = Field(
+        default="curated", validation_alias="DAILY_QUESTION_MODE"
+    )
+    daily_question_model: str | None = Field(default=None, validation_alias="DAILY_QUESTION_MODEL")
+    daily_question_max_calls_per_day: int = Field(
+        default=1000, ge=0, le=100000, validation_alias="DAILY_QUESTION_MAX_CALLS_PER_DAY"
+    )
+    daily_question_max_followups: int = Field(
+        default=1, ge=1, le=14, validation_alias="DAILY_QUESTION_MAX_FOLLOWUPS"
+    )
+    daily_question_rest_days: int = Field(
+        default=7, ge=1, le=90, validation_alias="DAILY_QUESTION_REST_DAYS"
+    )
+    daily_question_silence_hours: int = Field(
+        default=48, ge=1, le=720, validation_alias="DAILY_QUESTION_SILENCE_HOURS"
+    )
+    daily_question_general_every: int = Field(
+        default=4, ge=2, le=14, validation_alias="DAILY_QUESTION_GENERAL_EVERY"
+    )
+    daily_question_max_input_tokens: int = Field(
+        default=24000, ge=8000, le=64000, validation_alias="DAILY_QUESTION_MAX_INPUT_TOKENS"
+    )
+    daily_question_max_output_tokens: int = Field(
+        default=3000, ge=1000, le=8000, validation_alias="DAILY_QUESTION_MAX_OUTPUT_TOKENS"
+    )
+    daily_question_timeout_seconds: int = Field(
+        default=45, ge=1, le=120, validation_alias="DAILY_QUESTION_TIMEOUT_SECONDS"
+    )
+    daily_question_concurrency: int = Field(
+        default=2, ge=1, le=8, validation_alias="DAILY_QUESTION_CONCURRENCY"
+    )
+    daily_question_lead_minutes: int = Field(
+        default=30, ge=1, le=120, validation_alias="DAILY_QUESTION_LEAD_MINUTES"
+    )
     personal_axes_enabled: bool = Field(default=False, validation_alias="PERSONAL_AXES_ENABLED")
     personal_axes_preview_hours: int = Field(
         default=72, ge=1, le=720, validation_alias="PERSONAL_AXES_PREVIEW_HOURS"

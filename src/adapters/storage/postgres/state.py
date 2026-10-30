@@ -73,9 +73,16 @@ class PostgresExecutionStore:
         async with database_errors():
             return snapshot(await self._repository.child(record))
 
-    async def child_and_wait(self, record, document_id, *, invitation_id=None):
+    async def child_and_wait(
+        self, record, document_id, *, invitation_id=None, invitation_question_id=None
+    ):
         async with database_errors():
-            await self._repository.child_and_wait(record, document_id, invitation_id=invitation_id)
+            await self._repository.child_and_wait(
+                record,
+                document_id,
+                invitation_id=invitation_id,
+                invitation_question_id=invitation_question_id,
+            )
 
     async def claim_outbox(self, limit=20):
         async with database_errors():

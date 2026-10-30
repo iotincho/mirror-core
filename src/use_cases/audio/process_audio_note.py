@@ -125,6 +125,11 @@ class ProcessAudioNote:
                                     if note.invitation_id
                                     else {}
                                 ),
+                                **(
+                                    {"invitation_question_id": str(note.invitation_question_id)}
+                                    if note.invitation_question_id
+                                    else {}
+                                ),
                             },
                         )
                     )
@@ -149,7 +154,10 @@ class ProcessAudioNote:
                         )
                     )
                     await context.repository.child_and_wait(
-                        record, note.id, invitation_id=note.invitation_id
+                        record,
+                        note.id,
+                        invitation_id=note.invitation_id,
+                        invitation_question_id=note.invitation_question_id,
                     )
                     raise WorkflowWaiting()
         except WorkflowFailure as failure:

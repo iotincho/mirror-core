@@ -11,6 +11,8 @@ from src.adapters.storage.postgres import administration_models as admin_models 
 from src.adapters.storage.postgres import (
     invitation_models,  # noqa: F401
     notification_models,  # noqa: F401
+    question_metric_models,  # noqa: F401
+    question_preparation_models,  # noqa: F401
     recovery_models,  # noqa: F401
     workspace_models,  # noqa: F401
 )

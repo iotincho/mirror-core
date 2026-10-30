@@ -2,10 +2,11 @@
 
 import re
 from datetime import date, datetime
+from typing import Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class PreferenceUpdate(BaseModel):
@@ -77,3 +78,59 @@ class InvitationRead(BaseModel):
     expires_at: datetime
     created_at: datetime
     first_opened_at: datetime | None
+    question_schema_version: Literal["1"]
+    default_question_id: UUID
+    question_groups: tuple["QuestionGroupRead", ...]
+    available_question_ids: tuple[UUID, ...]
+
+
+class QuestionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    depth: Literal["gentle", "middle", "deep"] | None
+    text: str
+
+
+class QuestionGroupRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    source: Literal["generic", "personalized"]
+    layout: Literal["depths", "legacy"]
+    questions: tuple[QuestionRead, ...]
+
+
+class FeedbackInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    invitation_question_id: UUID
+    value: Literal["helpful", "unrelated", "not_now", "closed", "do_not_prompt"]
+
+
+class FeedbackRead(FeedbackInput):
+    id: UUID
+    invitation_id: UUID
+    recorded_at: datetime
+
+
+class InteractionInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    event_id: UUID
+    invitation_question_id: UUID
+    kind: Literal["shown", "another_requested", "passed"]
+
+
+class InteractionsInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    events: tuple[InteractionInput, ...] = Field(min_length=1, max_length=32)
+
+    @model_validator(mode="after")
+    def unique_events(self):
+        if len({event.event_id for event in self.events}) != len(self.events):
+            raise ValueError("duplicate_interaction_event")
+        return self
+
+
+class InteractionsRead(BaseModel):
+    recorded_event_ids: tuple[UUID, ...]
+
+
+InvitationRead.model_rebuild()

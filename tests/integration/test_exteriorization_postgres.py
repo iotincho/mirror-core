@@ -222,7 +222,7 @@ async def test_test_request_is_idempotent_rate_limited_and_does_not_consume_rota
     assert page.items[0].title == "Pregunta diaria de prueba"
     assert page.items[0].action.invitation_id == invitation.id
     assert page.items[0].body == invitation.question
-    assert page.items[0].expires_at - page.items[0].published_at == timedelta(days=15)
+    assert page.items[0].expires_at - page.items[0].published_at == timedelta(days=1)
     await inbox.mutate(owner, page.items[0].id, dismiss=True)
     await service.test(owner, "session-0", subscriptions[0].id, key)
     assert (await inbox.list(owner)).items == []

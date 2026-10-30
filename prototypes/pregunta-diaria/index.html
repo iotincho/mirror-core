@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111c1e">
+  <title>Tu momento · El Espejo</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+<div class="app">
+  <header class="app-header">
+    <div class="brand"><img src="../app-refresh/el-espejo-mark.png" alt=""><span>el espejo</span></div>
+    <span class="prototype-tag">PROTOTIPO</span>
+  </header>
+  <main id="flow">
+    <section class="screen invitation-screen" id="invitation-screen" aria-labelledby="question" tabindex="-1">
+      <div class="invitation-body">
+        <div class="moment-symbol" aria-hidden="true"><span></span><i></i></div>
+        <p class="eyebrow">UN MOMENTO PARA VOS</p>
+        <h1 id="question" aria-live="polite"></h1>
+        <p class="quiet">Sin apuro. Lo que aparezca está bien.</p>
+        <div class="depth-control" role="radiogroup" aria-label="Profundidad de la pregunta">
+          <button type="button" role="radio" data-depth="gentle" aria-checked="false">Suave</button>
+          <button type="button" role="radio" data-depth="middle" aria-checked="true">Un poco más</button>
+          <button type="button" role="radio" data-depth="deep" aria-checked="false">Profundizar</button>
+        </div>
+      </div>
+      <div class="screen-actions">
+        <button class="primary" type="button" id="respond">Responder <span aria-hidden="true">↗</span></button>
+        <div class="secondary-actions"><button type="button" class="text-button" id="another">Otra pregunta <span aria-hidden="true">↻</span></button><span class="separator" aria-hidden="true"></span><button type="button" class="text-button" id="skip">Hoy paso</button></div>
+      </div>
+    </section>
+
+    <section class="screen compose-screen" id="compose-screen" aria-labelledby="compose-question" tabindex="-1" hidden>
+      <div class="compose-top"><button type="button" id="back" class="back-button"><span aria-hidden="true">←</span> La pregunta</button><span class="private">Solo para vos</span></div>
+      <h1 id="compose-question"></h1>
+      <label class="sr-only" for="answer">Tu respuesta</label>
+      <textarea id="answer" spellcheck="true"></textarea>
+      <p class="inline-status" id="compose-status" role="status"></p>
+      <div class="compose-bottom"><span id="capture-hint">Podés escribir o usar tu voz.</span><button type="button" class="capture-action" id="capture-action" aria-label="Grabar respuesta de voz"></button></div>
+    </section>
+
+    <section class="screen home-screen" id="home-screen" aria-labelledby="home-title" tabindex="-1" hidden>
+      <div class="home-heading"><p class="eyebrow">TU ESPACIO</p><h1 id="home-title">Lo que te pasa<br>tiene un lugar acá.</h1><p class="quiet">Cuando quieras, como te salga.</p></div>
+      <button class="home-compose" type="button" id="new-note"><span>¿Qué te gustaría sacar<br>de tu cabeza?</span><span class="home-compose-icon" aria-hidden="true">↗</span></button>
+      <article class="recent-note" id="recent-note" hidden><div class="recent-heading"><span>Hace un momento</span><span class="sync-label">Pendiente de subir · Simulación</span></div><p id="recent-excerpt"></p></article>
+      <div class="home-links"><button class="text-button" type="button" id="daily-question">Volver a la pregunta diaria <span aria-hidden="true">↗</span></button><button class="text-button" type="button" id="reopen-feedback" hidden>Opinar sobre la pregunta</button></div>
+    </section>
+  </main>
+  <footer class="app-footer"><span id="prototype-note">Contenido ficticio · Sin conexión con tus notas</span></footer>
+  <dialog class="feedback-sheet" id="feedback-sheet" aria-labelledby="sheet-title">
+    <div class="sheet-handle" aria-hidden="true"></div>
+    <button class="sheet-close" id="close-feedback" type="button" aria-label="Cerrar opinión">×</button>
+    <div id="feedback-overview"><h2 id="sheet-title" tabindex="-1">¿Cómo te resultó<br>la pregunta de hoy?</h2><div class="sheet-choices"><button type="button" data-feedback="helpful">Me sirvió</button><button type="button" data-feedback="unrelated">No conectó conmigo</button></div><button class="text-button topic-toggle" id="topic-feedback" type="button" aria-expanded="false" aria-controls="topic-options">Sobre este tema… <span aria-hidden="true">↗</span></button></div>
+    <div id="topic-options" hidden><button class="back-button" type="button" id="topic-back"><span aria-hidden="true">←</span> Volver</button><h2 id="topic-title" tabindex="-1">¿Preferís dejar<br>descansar este tema?</h2><div class="topic-choices"><button type="button" data-feedback="later">Hoy no era el momento</button><button type="button" data-feedback="closed">Por ahora está cerrado</button><button type="button" data-feedback="stop">No quiero hablar de esto</button></div></div>
+    <button class="text-button dismiss-feedback" type="button" id="dismiss-feedback">En otro momento</button>
+  </dialog>
+  <div class="toast" id="toast" role="status" hidden></div>
+</div>
+</body>
+</html>

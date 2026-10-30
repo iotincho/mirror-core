@@ -155,7 +155,10 @@ def workflow_extractor(runtime, specification, *, extracting):
 
 
 async def close_workflow_providers():
+    from src.bootstrap.daily_questions import close_daily_question_providers
+
     try:
+        await close_daily_question_providers()
         await close_axis_providers()
         for provider in _provider_instances:
             await provider.close()
@@ -173,11 +176,13 @@ async def retired_extraction(context):
 
 def register_workflows(registry):
     # Old messages cannot recreate historical extractions after the cutover.
+    from src.bootstrap.daily_questions import build_question_preparation
     from src.bootstrap.invitations import get_send_invitation
     from src.bootstrap.personal_axes_history import build_history_workflow
     from src.bootstrap.personal_axes_previews import build_preview_workflow
     from src.bootstrap.recovery import get_send_recovery_email
     from src.core.processing.workflows import WorkflowDefinition
+    from src.use_cases.exteriorization.prepare_questions import PrepareQuestions
     from src.use_cases.processing.context import ExecutionContext
 
     registry.register(
@@ -202,6 +207,16 @@ def register_workflows(registry):
     )
 
     registry.register("invitation_push", 1, WorkflowDefinition(send_invitation, frozenset()))
+
+    async def prepare_questions(context):
+        if get_settings().daily_question_mode == "personalized":
+            await build_question_preparation().execute(context)
+
+    registry.register(
+        "question_preparation",
+        1,
+        WorkflowDefinition(prepare_questions, PrepareQuestions.transitions),
+    )
     registry.register("document", 1, WorkflowDefinition(retired_extraction, frozenset()))
     registry.register("document", 2, ProcessDocument(worker_runtime).definition)
     registry.register(

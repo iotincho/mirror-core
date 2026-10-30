@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict
 
 class Trigger(BaseModel):
     model_config = ConfigDict(frozen=True)
-    source: Literal["generic"] = "generic"
+    source: Literal["generic", "personalized"] = "generic"
     candidate_id: str
     category: str
     question: str

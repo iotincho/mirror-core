@@ -46,7 +46,7 @@ async def test_daily_generation_keeps_inbox_without_push_or_new_occurrences_on_r
     )
     persisted = []
 
-    async def add(invitation):
+    async def add(invitation, *, topic_bindings=()):
         persisted.append(("invitation", invitation))
 
     async def notify(invitation):
@@ -60,6 +60,7 @@ async def test_daily_generation_keeps_inbox_without_push_or_new_occurrences_on_r
         active_subscriptions=AsyncMock(return_value=[]),
         scheduled_exists=AsyncMock(return_value=False),
         history=AsyncMock(return_value=()),
+        catalog_state=AsyncMock(return_value=()),
         add_invitation=add,
         notify=notify,
         enqueue_push=AsyncMock(),

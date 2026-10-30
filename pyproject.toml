@@ -53,4 +53,4 @@ select = ["E", "F", "I"]
 include = ["src*"]
 
 [tool.setuptools.package-data]
-"src.adapters.access.cli" = ["announcements.json"]
+"src.adapters.access.cli" = ["announcements.json", "daily_question_cases.json"]

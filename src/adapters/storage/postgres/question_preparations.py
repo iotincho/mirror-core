@@ -17,6 +17,8 @@ from src.adapters.storage.postgres.invitation_question_models import (
 )
 from src.adapters.storage.postgres.invitation_questions import topic_snapshot
 from src.adapters.storage.postgres.models import ProcessingRecord
+from src.adapters.storage.postgres.question_metric_models import QuestionPreparationMetric
+from src.adapters.storage.postgres.question_metrics import ensure_metric
 from src.adapters.storage.postgres.question_preparation_models import (
     PersonalTopicDescription,
     QuestionPreparation,
@@ -105,6 +107,7 @@ class PostgresQuestionPreparations:
                 )
                 session.add(job)
                 await session.flush()
+                await ensure_metric(session, job)
                 session.add(
                     QuestionPreparation(
                         id=identifier,
@@ -314,6 +317,9 @@ class PostgresQuestionPreparations:
             ):
                 return False
             if row.status == "pending":
+                await ensure_metric(session, job)
+                metric = await session.get(QuestionPreparationMetric, job.id)
+                metric.ready_at = now
                 row.snapshot = snapshot.model_dump(mode="json")
                 row.proposals = proposals.model_dump(mode="json")
                 row.selection = selection

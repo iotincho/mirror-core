@@ -11,8 +11,11 @@ from src.use_cases.exteriorization.record_activity import RecordInvitationActivi
 
 
 class ConfigureInvitations:
-    def __init__(self, repository: Invitations, *, push: PushRegistration | None = None):
+    def __init__(
+        self, repository: Invitations, *, push: PushRegistration | None = None, policy=None
+    ):
         self.repository, self.push = repository, push
+        self.policy = policy
         self.activity = RecordInvitationActivity(repository)
 
     def public_key(self):
@@ -105,7 +108,7 @@ class ConfigureInvitations:
             if preference.last_test_at and now < preference.last_test_at + timedelta(minutes=1):
                 raise InvitationError("test_rate_limited")
             preference.last_test_at = now
-            invitation = await GenerateInvitation().execute(
+            invitation = await GenerateInvitation(policy=self.policy).execute(
                 transaction,
                 preference,
                 now,

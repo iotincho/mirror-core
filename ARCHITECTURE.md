@@ -284,6 +284,10 @@ artefactos durables y selección determinística. El workflow interno comparte
 leases/outbox/registro, sin entrar en el feed de documentos. El programador consume
 paquetes listos o usa catálogo, revalidando fuentes/límites bajo los locks de cuenta
 y recurso. La procedencia aceptada sobrevive a la limpieza de artefactos temporales.
+La evaluación sintética usa los mismos casos de uso con adaptadores efímeros,
+fuera del runtime de usuarios. Su CLI se compone desde bootstrap y no lee originales
+privados. PostgreSQL reserva intentos de proveedor bajo fencing/cuota global y
+conserva métricas sin contenido; el CLI operativo consulta sólo agregados.
 Workspaces conserva principales restringidos por dueño; root se usa para provisión
 y mantenimiento administrativo explícito, nunca para servir lecturas públicas.
 

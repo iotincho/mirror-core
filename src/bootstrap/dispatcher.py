@@ -6,7 +6,11 @@ import signal
 
 from src.adapters.storage.postgres.submissions import SubmissionRepository
 from src.bootstrap.acceptance import recover_submissions
-from src.bootstrap.daily_questions import prepare_daily_questions, prepared_question_selector
+from src.bootstrap.daily_questions import (
+    prepare_daily_questions,
+    prepared_question_selector,
+    question_policy,
+)
 from src.bootstrap.database import close_database
 from src.bootstrap.invitations import get_invitation_repository
 from src.bootstrap.messaging import broker
@@ -50,7 +54,9 @@ async def main():
                 await get_recovery_repository().cleanup()
                 # Publication takes priority; a slow/unavailable preparer cannot delay the day.
                 await ScheduleInvitations(
-                    get_invitation_repository(), prepared_question_selector()
+                    get_invitation_repository(),
+                    prepared_question_selector(),
+                    question_policy(get_settings()),
                 ).execute()
                 try:
                     await prepare_daily_questions()

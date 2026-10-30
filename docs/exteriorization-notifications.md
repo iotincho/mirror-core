@@ -13,9 +13,11 @@ del catálogo anterior. Ese modo no lee notas ni invoca modelos. El modo operati
 selección determinística; publica el resultado listo o el catálogo. Ninguno depende
 de ArcadeDB para elegir preguntas. La habilitación/evaluación real sigue pendiente.
 Una respuesta entra por el alta normal de documentos y conserva su variante exacta.
-Aplicar las migraciones hasta `20261029_20` antes de iniciar los procesos actualizados.
+Aplicar las migraciones hasta `20261029_22` antes de iniciar los procesos actualizados.
 El formato, feedback, interacciones y compatibilidad están en el
 [contrato v2](daily-question-v2-contract.md).
+El [procedimiento de evaluación y operación](daily-question-operations.md) describe
+cuotas, métricas y rollback; el modo predeterminado continúa en catálogo.
 
 ## Arquitectura y persistencia
 

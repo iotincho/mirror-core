@@ -97,6 +97,21 @@ class Settings(BaseSettings):
         default="curated", validation_alias="DAILY_QUESTION_MODE"
     )
     daily_question_model: str | None = Field(default=None, validation_alias="DAILY_QUESTION_MODEL")
+    daily_question_max_calls_per_day: int = Field(
+        default=1000, ge=0, le=100000, validation_alias="DAILY_QUESTION_MAX_CALLS_PER_DAY"
+    )
+    daily_question_max_followups: int = Field(
+        default=1, ge=1, le=14, validation_alias="DAILY_QUESTION_MAX_FOLLOWUPS"
+    )
+    daily_question_rest_days: int = Field(
+        default=7, ge=1, le=90, validation_alias="DAILY_QUESTION_REST_DAYS"
+    )
+    daily_question_silence_hours: int = Field(
+        default=48, ge=1, le=720, validation_alias="DAILY_QUESTION_SILENCE_HOURS"
+    )
+    daily_question_general_every: int = Field(
+        default=4, ge=2, le=14, validation_alias="DAILY_QUESTION_GENERAL_EVERY"
+    )
     daily_question_max_input_tokens: int = Field(
         default=24000, ge=8000, le=64000, validation_alias="DAILY_QUESTION_MAX_INPUT_TOKENS"
     )

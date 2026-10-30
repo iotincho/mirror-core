@@ -16,7 +16,7 @@ from src.core.exteriorization.question_contracts import (
     InvitationQuestionSet,
     QuestionGroup,
 )
-from src.core.exteriorization.question_policy import TopicState
+from src.core.exteriorization.question_policy import QuestionPolicy, TopicState
 
 
 @dataclass(frozen=True)
@@ -49,6 +49,7 @@ class PreparationConfiguration(FrozenQuestionModel):
     timeout_seconds: int = Field(default=45, ge=1, le=120)
     concurrency: int = Field(default=2, ge=1, le=8)
     lead_minutes: int = Field(default=30, ge=1, le=120)
+    policy: QuestionPolicy = Field(default_factory=QuestionPolicy)
 
 
 class SourceReference(FrozenQuestionModel):

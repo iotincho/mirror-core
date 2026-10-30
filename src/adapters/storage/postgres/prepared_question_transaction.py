@@ -12,6 +12,7 @@ from src.adapters.storage.postgres.invitation_question_models import (
     InvitationTopic,
 )
 from src.adapters.storage.postgres.invitation_questions import topic_snapshot
+from src.adapters.storage.postgres.question_metric_models import QuestionPreparationMetric
 from src.adapters.storage.postgres.question_preparation_models import (
     PersonalTopicDescription,
     QuestionGroupProvenance,
@@ -36,14 +37,23 @@ class PreparedQuestionTransaction:
         if row.status != "ready":
             row.status = "obsolete"
             row.decision = "not_ready"
+            metric = await self.session.get(QuestionPreparationMetric, row.processing_id)
+            if metric:
+                metric.decision = row.decision
             return None
         row.status = "consumed"
         row.decision = "catalog"
+        metric = await self.session.get(QuestionPreparationMetric, row.processing_id)
+        if metric:
+            metric.decision = row.decision
         return row.id, row.snapshot, row.proposals, row.selection, row.configuration
 
     async def record_question_decision(self, identifier, code):
         row = await self.session.get(QuestionPreparation, identifier)
         row.decision = code
+        metric = await self.session.get(QuestionPreparationMetric, row.processing_id)
+        if metric:
+            metric.decision = code
 
     async def save_question_provenance(self, invitation, provenance):
         for group in invitation.question_groups:
@@ -70,7 +80,7 @@ class PreparedQuestionTransaction:
                 return False
         return True
 
-    async def personal_question_facts(self, owner, proposals):
+    async def personal_question_facts(self, owner, proposals, *, rest_days=7):
         facts = []
         for proposal in sorted(proposals, key=lambda item: str(proposal_topic_id(owner, item))):
             identifier = proposal_topic_id(owner, proposal)
@@ -152,7 +162,7 @@ class PreparedQuestionTransaction:
                     is not None
                 )
                 for current, previous in zip(shown, shown[1:]):
-                    if current.shown_at - previous.shown_at >= timedelta(days=7):
+                    if current.shown_at - previous.shown_at >= timedelta(days=rest_days):
                         break
                     count += 1
             facts.append(

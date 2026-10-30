@@ -9,10 +9,12 @@ from uuid import UUID
 from src.adapters.providers.openai.daily_questions import OpenAIDailyQuestionProvider
 from src.adapters.storage.filesystem.owner_originals import FileOwnerOriginals
 from src.adapters.storage.filesystem.question_preparations import QuestionPreparationArtifacts
+from src.adapters.storage.postgres.question_metrics import PostgresQuestionMetrics
 from src.adapters.storage.postgres.question_preparations import PostgresQuestionPreparations
 from src.bootstrap.database import get_session_maker
 from src.bootstrap.settings import get_settings
 from src.core.exteriorization.personalization import PreparationConfiguration
+from src.core.exteriorization.question_policy import QuestionPolicy
 from src.core.processing.errors import WorkflowFailure
 from src.use_cases.exteriorization.prepare_questions import PrepareQuestions
 from src.use_cases.exteriorization.select_prepared_questions import (
@@ -32,6 +34,16 @@ def preparation_configuration(settings):
         timeout_seconds=settings.daily_question_timeout_seconds,
         concurrency=settings.daily_question_concurrency,
         lead_minutes=settings.daily_question_lead_minutes,
+        policy=question_policy(settings),
+    )
+
+
+def question_policy(settings):
+    return QuestionPolicy(
+        max_followups=settings.daily_question_max_followups,
+        rest_days=settings.daily_question_rest_days,
+        silence_hours=settings.daily_question_silence_hours,
+        general_every=settings.daily_question_general_every,
     )
 
 
@@ -78,6 +90,9 @@ def build_question_preparation():
         artifacts,
         proposal_provider,
         select_proposals,
+        metrics=PostgresQuestionMetrics(
+            get_session_maker(), get_settings().daily_question_max_calls_per_day
+        ),
     )
 
 
@@ -92,6 +107,7 @@ async def prepare_daily_questions():
     settings = get_settings()
     repository = PostgresQuestionPreparations(get_session_maker())
     now = datetime.now(UTC)
+    await PostgresQuestionMetrics(get_session_maker()).cleanup()
     for owner, identifier in await repository.expired(now):
         await asyncio.to_thread(shutil.rmtree, artifact_directory(owner, identifier), True)
         await repository.remove(owner, identifier)

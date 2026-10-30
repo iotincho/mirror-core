@@ -1,6 +1,7 @@
 """Prepare bounded proposals with durable replay; publication stays in the scheduler."""
 
 import asyncio
+import time
 from collections.abc import Callable
 from datetime import timedelta
 from uuid import UUID
@@ -17,6 +18,7 @@ from src.core.exteriorization.personalization import (
 )
 from src.core.exteriorization.preparation_ports import (
     PreparationArtifacts,
+    PreparationMetrics,
     PreparationProvider,
     Preparations,
 )
@@ -105,8 +107,10 @@ class PrepareQuestions:
         artifact_factory: Callable[[UUID, UUID], PreparationArtifacts],
         provider_factory: Callable[[PreparationConfiguration], PreparationProvider],
         select,
+        metrics: PreparationMetrics | None = None,
     ):
         self.repository, self.originals = repository, originals
+        self.metrics = metrics
         self.artifact_factory, self.provider_factory, self.select = (
             artifact_factory,
             provider_factory,
@@ -150,16 +154,29 @@ class PrepareQuestions:
                         remaining = (live["due_at"] - live["now"]).total_seconds()
                         if remaining <= 0:
                             return
+                        call_token = (
+                            await self.metrics.start_call(context) if self.metrics else None
+                        )
+                        clock = time.monotonic()
                         async with asyncio.timeout(min(configuration.timeout_seconds, remaining)):
                             result, usage = await provider.propose(data)
                         result = validate_proposals(result, snapshot)
-                        saved = {"result": result.model_dump(mode="json"), "usage": usage}
+                        saved = {
+                            "result": result.model_dump(mode="json"),
+                            "usage": usage,
+                            "call_token": call_token,
+                            "elapsed_ms": round((time.monotonic() - clock) * 1000),
+                        }
                     else:
                         saved = {"result": {"proposals": []}, "usage": {}}
                     await context.assert_lease()
                     if await self.repository.live(owner, identifier) is None:
                         return
                     await store.write("proposals", identity, saved)
+                if self.metrics and saved.get("call_token") is not None:
+                    await self.metrics.complete_call(
+                        context, saved["call_token"], saved["usage"], saved["elapsed_ms"]
+                    )
                 await context.advance("question_selection")
             if context.record.stage == "question_selection":
                 saved = await store.read("proposals", identity)

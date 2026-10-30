@@ -1,8 +1,10 @@
 # Pregunta diaria v2 · Contratos y preparación
 
-Estado: etapas 1–4 implementadas localmente. Requiere migrar a `20261029_20`.
+Estado: etapas 1–4 implementadas localmente; fase 5 con herramientas y pruebas locales.
+Requiere migrar a `20261029_22`. Corrida real sintética ejecutada; revisión humana,
+dispositivo y habilitación pendientes.
 Incluye flujo PWA y preparación personalizada en segundo plano. Modo predeterminado
-`curated`; proveedor validado con dobles sintéticos, sin llamadas pagas.
+`curated`; proveedor probado con dobles y con material sintético en OpenAI.
 Implementación no desplegada. Ver el [plan](daily-question-v2-plan.md)
 y la [operación de invitaciones](exteriorization-notifications.md).
 
@@ -413,4 +415,50 @@ una omitida por requerir RabbitMQ aislado. Upgrade → downgrade hasta `20261029
 → upgrade y `alembic check` aprobados, conservando invitación/respuesta v1 sintéticas.
 Arquitectura, Ruff y documentación sin errores. La PWA pasó sus 32 archivos Node,
 lint/build/verify:build y aplica disponibilidad sin cambiar el diseño aprobado.
-Siguen pendientes la evaluación del proveedor real y la habilitación de la entrega 5.
+La corrida real posterior y los pendientes de habilitación se detallan en la entrega 5.
+
+## Evaluación y controles de la entrega 5
+
+El [procedimiento operativo](daily-question-operations.md) es la referencia para
+dataset/runner, revisión, configuración compartida, métricas, habilitación y rollback.
+Incluye 18 casos sintéticos con puertos en memoria que ejecutan el mismo contexto
+y selector de producción; un resultado de referencia nunca acredita calidad real.
+Las corridas pagas exigen plan explícito de modelo, tarifas verificadas, presupuesto
+y límite de llamadas, además de autorización específica. Recibos ambiguos no se
+repiten automáticamente y la revisión se vincula al hash exacto de los resultados.
+
+`PreparationConfiguration.policy` congela las opciones aceptadas. API y dispatcher
+inyectan la política tipada en `GenerateInvitation`; la invitación conserva su propio
+snapshot para feedback posterior. El contador SQL de seguimientos usa el descanso
+configurado, sin un segundo valor fijo. Jobs v1 sin política conservan los defaults v1.
+
+`20261029_21` agrega métricas sin contenido y recibos por job/token de fencing;
+`20261029_22` indexa la admisión por día UTC. La cuota global actual limita todos
+los modelos/propietarios, incluyendo intentos desconocidos, antes de llamar al proveedor.
+Los artefactos conservan uso/latencia y referencia del intento para recuperar un
+fallo posterior de métricas sin otra generación. No se promete ejecución remota única
+si una caída ocurre antes de guardar el resultado.
+
+Las métricas sobreviven al TTL de preparación y vencen a los 90 días, con limpieza
+acotada. Sólo se exponen agregados operativos, sin notas, preguntas o IDs de personas.
+El feedback de prueba se excluye. Uso desconocido permanece desconocido; el costo
+USD no se inventa sin tarifas. La vuelta a `curated` conserva paquetes, respuestas y
+feedback, y no activa nuevas preferencias ni cambia el estado de push.
+
+Verificación local del 2026-10-29: **140 pruebas de core, 59 de PostgreSQL y una
+de transporte con dos workers Taskiq/RabbitMQ aprobadas**. La prueba de transporte
+usa push simulado; no acredita entrega a un teléfono. Los 18 casos de referencia
+pasan sin API, manteniendo calidad real y habilitación pendientes en ese checkpoint.
+Su wheel incluye dataset/entrypoint y coincide con los fuentes de esa verificación. Ruff, arquitectura
+y enlaces documentales sin errores. Upgrade/downgrade/upgrade hasta `20261029_22`
+y `alembic check` aprobados con invitación y respuesta v1 sintéticas conservadas.
+No se repitieron pruebas PWA de la fase 4 porque no cambió su código en esta entrega.
+
+El 2026-10-30 se ejecutó la evaluación real con `gpt-6-luna`: primera corrida 17/18,
+un fixture de pausa corregido en `daily-question-eval-v2` y una llamada adicional.
+Resultado corregido 18/18, reutilizando sólo respuestas cuya entrada coincidía
+exactamente. Total 17 llamadas, costo estándar estimado USD 0,0050673 frente a
+USD 0,50 autorizados. Prompt y política permanecieron sin cambios. La distinción
+entre autoría previa y posterior al límite tiene regresiones propias. Naturalidad
+editorial, revisión humana y dispositivo siguen pendientes; ver la
+[evidencia operativa](daily-question-operations.md#corrida-real-sintética--2026-10-30).

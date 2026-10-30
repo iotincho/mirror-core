@@ -8,9 +8,9 @@ from src.use_cases.exteriorization.generate_invitation import GenerateInvitation
 
 
 class ScheduleInvitations:
-    def __init__(self, repository: Invitations, personalization=None):
+    def __init__(self, repository: Invitations, personalization=None, policy=None):
         self.repository = repository
-        self.generator = GenerateInvitation(personalization)
+        self.generator = GenerateInvitation(personalization, policy)
 
     async def execute(self, now=None):
         async with self.repository.transaction() as transaction:

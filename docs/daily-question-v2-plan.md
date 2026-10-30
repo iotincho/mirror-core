@@ -2,8 +2,11 @@
 
 Estado: etapas 1–4 completadas localmente, con persistencia, API, flujo PWA y
 preparación personalizada. Resultado y límites en [contratos v2](daily-question-v2-contract.md).
-Pendiente la entrega 5: evaluación y habilitación operativa. El modo predeterminado
-sigue siendo `curated`; no se hicieron llamadas pagas ni despliegue. Diseño validado en el
+Entrega 5 implementada en herramientas/configuración, con pruebas locales y
+corrida real sintética de `gpt-6-luna`. Pendientes revisión humana, dispositivo
+y habilitación operativa.
+Ver [evaluación y operación](daily-question-operations.md). El modo predeterminado
+sigue siendo `curated`; hubo 17 llamadas sintéticas autorizadas, sin despliegue. Diseño validado en el
 [prototipo](../prototypes/pregunta-diaria/index.html). El contrato implementado
 está en [invitaciones](exteriorization-notifications.md).
 
@@ -342,6 +345,13 @@ Ver [implementación y verificaciones](daily-question-v2-contract.md#preparació
 6. Probar push y recorrido completo en dispositivo con sesión real, texto y voz,
    sync diferida y recuperación. Aprobación posterior para migrar entornos con
    datos y desplegar; este plan no autoriza esas acciones.
+
+Preparado localmente: 18 casos sintéticos con selección de producción, plan con
+presupuesto/modelo/hashes, recibos de intentos y revisión humana identificada;
+políticas tipadas compartidas, cuota diaria global, métricas agregadas y procedimiento
+de rollback. La evaluación real sintética pasó sus checks tras corregir un fixture
+ambiguo; no hubo habilitación real. La fase no se da
+por cerrada hasta completar esas validaciones externas.
 
 ## Verificaciones y documentación durante la ejecución
 

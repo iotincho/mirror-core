@@ -12,8 +12,9 @@ from src.core.exteriorization.scheduling import expires_at
 
 
 class GenerateInvitation:
-    def __init__(self, personalization=None):
+    def __init__(self, personalization=None, policy=None):
         self.personalization = personalization
+        self.policy = policy or QuestionPolicy()
 
     async def execute(
         self,
@@ -28,7 +29,7 @@ class GenerateInvitation:
     ):
         kind = "test" if request_key else "scheduled"
         identifier = uuid4()
-        policy = QuestionPolicy()
+        policy = self.policy
         prepared = build_curated_questions(
             identifier,
             preference.user_id,

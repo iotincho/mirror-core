@@ -76,7 +76,9 @@ class SelectPreparedQuestions:
             if proposal.intent in {"explore", "reopen"}
             and all(e.document_id in valid for e in proposal.evidence)
         ]
-        facts = await transaction.personal_question_facts(preference.user_id, eligible)
+        facts = await transaction.personal_question_facts(
+            preference.user_id, eligible, rest_days=policy.rest_days
+        )
         by_topic = {fact.topic.id: fact for fact in facts}
         candidates, bindings, changed, provenance = [], {}, {}, {}
         ordered = {UUID(key): index for index, key in enumerate(selection["ordered_topics"])}

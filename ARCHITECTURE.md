@@ -273,6 +273,21 @@ Mover módulos no modifica IDs de migración ni revisiones Alembic aplicadas.
 La API administrativa conserva pool/configuración/lifespan independientes. Sus
 métricas usan hechos tipados y cobertura desconocida `null`. La bandeja funciona
 sin permiso push y comparte transacción con las invitaciones que la originan.
+Exteriorización conserva paquetes/políticas curados inmutables y resuelve variantes
+de respuesta por propietario. Sus casos de uso aplican feedback; PostgreSQL
+serializa por preferencias de cuenta y confirma recibo, evento y límite juntos.
+Texto y audio propagan la misma identidad por aceptación y recuperación. Ver
+[contrato de pregunta diaria](docs/daily-question-v2-contract.md).
+La preparación personalizada es un caso de uso propio de exteriorización: inventario
+SQL acotado, lectura de originales por propietario sin grafo, puerto de propuestas,
+artefactos durables y selección determinística. El workflow interno comparte
+leases/outbox/registro, sin entrar en el feed de documentos. El programador consume
+paquetes listos o usa catálogo, revalidando fuentes/límites bajo los locks de cuenta
+y recurso. La procedencia aceptada sobrevive a la limpieza de artefactos temporales.
+La evaluación sintética usa los mismos casos de uso con adaptadores efímeros,
+fuera del runtime de usuarios. Su CLI se compone desde bootstrap y no lee originales
+privados. PostgreSQL reserva intentos de proveedor bajo fencing/cuota global y
+conserva métricas sin contenido; el CLI operativo consulta sólo agregados.
 Workspaces conserva principales restringidos por dueño; root se usa para provisión
 y mantenimiento administrativo explícito, nunca para servir lecturas públicas.
 

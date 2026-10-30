@@ -19,16 +19,26 @@ class SubmissionRepository:
         self.processing = processing
         self.sessions = processing.sessions
 
-    async def get(self, user_id, operation, key):
+    async def get(self, user_id, operation, key, *, resource_id=None):
         """Read a workspace-scoped receipt, including an interrupted reservation."""
         async with self.sessions() as session:
-            return await session.scalar(
+            receipt = await session.scalar(
                 select(ProcessingReceipt).where(
                     ProcessingReceipt.user_id == user_id,
                     ProcessingReceipt.operation == operation,
                     ProcessingReceipt.key == key,
                 )
             )
+            if receipt is None and resource_id is not None:
+                receipt = await session.scalar(
+                    select(ProcessingReceipt).where(
+                        ProcessingReceipt.user_id == user_id,
+                        ProcessingReceipt.operation == operation,
+                        ProcessingReceipt.resource_id == resource_id,
+                        ProcessingReceipt.is_original.is_(True),
+                    )
+                )
+            return receipt
 
     async def accepted(self, user_id, operation, key, request_hash):
         """Replay an accepted request before checking for active processing."""
@@ -184,28 +194,16 @@ class SubmissionRepository:
             self.processing.event(session, record)
             self.processing.schedule(session, record)
             if receipt.operation == "upload_document" and receipt.manifest.get("invitation_id"):
-                from src.adapters.storage.postgres.invitation_models import (
-                    Invitation,
-                    InvitationResponse,
-                )
+                from src.adapters.storage.postgres.invitation_questions import bind_response
 
-                invitation_id = UUID(receipt.manifest["invitation_id"])
-                invitation = await session.scalar(
-                    select(Invitation.id).where(
-                        Invitation.id == invitation_id,
-                        Invitation.user_id == receipt.user_id,
-                    )
-                )
-                if invitation is None:
-                    raise SubmissionConflict("invitation_not_found")
-                await session.execute(
-                    insert(InvitationResponse)
-                    .values(
-                        user_id=receipt.user_id,
-                        document_id=receipt.resource_id,
-                        invitation_id=invitation_id,
-                    )
-                    .on_conflict_do_nothing()
+                await bind_response(
+                    session,
+                    receipt.user_id,
+                    receipt.resource_id,
+                    UUID(receipt.manifest["invitation_id"]),
+                    UUID(receipt.manifest["invitation_question_id"])
+                    if receipt.manifest.get("invitation_question_id")
+                    else None,
                 )
             current.processing_id = record.id
             current.accepted_at = await session.scalar(select(func.clock_timestamp()))

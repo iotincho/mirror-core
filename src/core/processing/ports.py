@@ -46,7 +46,12 @@ class ExecutionStore(Protocol):
     async def child(self, record: ProcessingJob) -> ProcessingJob | None: ...
 
     async def child_and_wait(
-        self, record: ProcessingJob, document_id: UUID, *, invitation_id: UUID | None = None
+        self,
+        record: ProcessingJob,
+        document_id: UUID,
+        *,
+        invitation_id: UUID | None = None,
+        invitation_question_id: UUID | None = None,
     ) -> None: ...
 
 

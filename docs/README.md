@@ -38,6 +38,13 @@ actualizar la referencia afectada, sin inferir estado de producción.
 
 ## Trabajo diferido
 
+[Plan de pregunta diaria personal](daily-question-v2-plan.md): implementación
+gradual del diseño validado. [Contratos v2](daily-question-v2-contract.md): paquetes,
+PWA, preparación personalizada y recuperación. [Evaluación y operación](daily-question-operations.md):
+dataset sintético, runner con presupuesto, revisión, métricas y rollback.
+La corrida real sintética está ejecutada; revisión humana de calidad, aceptación en
+dispositivo y habilitación siguen pendientes.
+
 [Pendientes consolidados](pending.md) reúne funciones diferidas y verificaciones
 que quedaron abiertas. Revisar vigencia antes de tomar una tarea y eliminarla
 cuando se resuelva. No constituye una autorización de implementación.

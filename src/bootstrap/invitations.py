@@ -18,9 +18,12 @@ def WebPushTransport(settings):
 
 
 def build_invitations(repository):
+    from src.bootstrap.daily_questions import question_policy
+
     settings = get_settings()
     return ConfigureInvitations(
         repository,
+        policy=question_policy(settings),
         push=PushConfiguration(
             settings.web_push_public_key,
             settings.web_push_private_key,

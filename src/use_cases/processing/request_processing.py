@@ -187,6 +187,7 @@ class RequestProcessing:
         record = await self.repository.get(processing_id, self.runtime.context.user_id)
         if record is None or record.workflow in {
             "invitation_push",
+            "question_preparation",
             "password_recovery_email",
             "axis_preview",
             "axis_history_note",

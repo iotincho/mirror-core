@@ -7,11 +7,16 @@ from src.core.exteriorization.models import InvitationError
 from src.core.exteriorization.ports import Invitations, PushRegistration
 from src.core.exteriorization.scheduling import next_occurrence
 from src.use_cases.exteriorization.generate_invitation import GenerateInvitation
+from src.use_cases.exteriorization.record_activity import RecordInvitationActivity
 
 
 class ConfigureInvitations:
-    def __init__(self, repository: Invitations, *, push: PushRegistration | None = None):
+    def __init__(
+        self, repository: Invitations, *, push: PushRegistration | None = None, policy=None
+    ):
         self.repository, self.push = repository, push
+        self.policy = policy
+        self.activity = RecordInvitationActivity(repository)
 
     def public_key(self):
         if self.push is None:
@@ -103,7 +108,7 @@ class ConfigureInvitations:
             if preference.last_test_at and now < preference.last_test_at + timedelta(minutes=1):
                 raise InvitationError("test_rate_limited")
             preference.last_test_at = now
-            return await GenerateInvitation().execute(
+            invitation = await GenerateInvitation(policy=self.policy).execute(
                 transaction,
                 preference,
                 now,
@@ -111,10 +116,14 @@ class ConfigureInvitations:
                 [subscription],
                 request_key=key,
             )
+            if invitation is None:
+                raise InvitationError("no_eligible_questions")
+            return invitation
 
     async def get_invitation(self, user_id, invitation_id):
         async with self.repository.transaction() as transaction:
-            return await transaction.invitation(user_id, invitation_id)
+            invitation = await transaction.invitation(user_id, invitation_id)
+            return await self._available_questions(transaction, user_id, invitation)
 
     async def open_invitation(self, user_id, invitation_id):
         async with self.repository.transaction() as transaction:
@@ -124,4 +133,22 @@ class ConfigureInvitations:
             await transaction.mark_invitation_read(
                 user_id, invitation_id, invitation.first_opened_at
             )
-            return invitation
+            return await self._available_questions(transaction, user_id, invitation)
+
+    @staticmethod
+    async def _available_questions(transaction, user_id, invitation):
+        now = await transaction.now()
+        states = await transaction.question_topic_states(user_id, invitation.id)
+        excluded = {
+            identifier
+            for identifier, topic in states
+            if topic.status in {"closed", "do_not_prompt"}
+            or (topic.status == "paused" and now < topic.paused_until)
+        }
+        invitation._available_question_ids = tuple(
+            q.id
+            for group in invitation.question_groups
+            for q in group.questions
+            if q.id not in excluded
+        )
+        return invitation

@@ -13,8 +13,11 @@ from src.adapters.storage.postgres.invitation_models import (
     PushSubscription,
 )
 from src.adapters.storage.postgres.invitation_notifications import add_invitation_notification
+from src.adapters.storage.postgres.invitation_question_models import InvitationOccurrence
+from src.adapters.storage.postgres.invitation_questions import QuestionTransaction
 from src.adapters.storage.postgres.models import ProcessingRecord
 from src.adapters.storage.postgres.notification_models import Notification
+from src.adapters.storage.postgres.prepared_question_transaction import PreparedQuestionTransaction
 from src.adapters.storage.postgres.repository import ProcessingRepository
 from src.adapters.storage.postgres.snapshots import SnapshotTracker
 from src.adapters.storage.postgres.workspace_models import UserWorkspace
@@ -26,7 +29,7 @@ from src.core.exteriorization.models import InvitationPreference as PreferenceSt
 from src.core.exteriorization.models import PushSubscription as SubscriptionState
 
 
-class InvitationTransaction(SnapshotTracker):
+class InvitationTransaction(SnapshotTracker, QuestionTransaction, PreparedQuestionTransaction):
     def __init__(self, repository, session):
         super().__init__()
         self.repository, self.session = repository, session
@@ -135,10 +138,20 @@ class InvitationTransaction(SnapshotTracker):
             for row in rows
         )
 
-    async def add_invitation(self, invitation):
+    async def add_invitation(self, invitation, *, topic_bindings=()):
         self.synchronize()
         self.session.add(Invitation(**asdict(invitation)))
         await self.session.flush()
+        await self.add_question_indexes(invitation, topic_bindings)
+        if invitation.kind == "scheduled":
+            self.session.add(
+                InvitationOccurrence(
+                    user_id=invitation.user_id,
+                    local_date=invitation.local_date,
+                    outcome="published",
+                    recorded_at=invitation.created_at,
+                )
+            )
 
     async def notify(self, invitation):
         await add_invitation_notification(self.session, invitation)
@@ -200,6 +213,8 @@ class InvitationTransaction(SnapshotTracker):
         return [self.track(row, SubscriptionState) for row in rows]
 
     async def scheduled_exists(self, owner, day):
+        if await self.session.get(InvitationOccurrence, (owner, day)) is not None:
+            return True
         return (
             await self.session.scalar(
                 select(Invitation.id).where(

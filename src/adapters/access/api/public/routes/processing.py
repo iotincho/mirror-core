@@ -110,9 +110,12 @@ def build_router(get_actions, get_limits):
             raise HTTPException(413, "Upload exceeds configured size limit")
         try:
             document, record = await actions.submit_document(
-                NewDocument(**payload.model_dump(exclude={"invitation_id"})),
+                NewDocument(
+                    **payload.model_dump(exclude={"invitation_id", "invitation_question_id"})
+                ),
                 key,
                 invitation_id=payload.invitation_id,
+                invitation_question_id=payload.invitation_question_id,
             )
         except Exception as error:
             raise http_error(error) from error
@@ -156,6 +159,7 @@ def build_router(get_actions, get_limits):
         limits=Depends(get_limits),
         authored_at: Annotated[datetime | None, Form()] = None,
         invitation_id: Annotated[UUID | None, Form()] = None,
+        invitation_question_id: Annotated[UUID | None, Form()] = None,
     ):
         content = await read_upload(file, limits.audio_max_upload_bytes)
         try:
@@ -166,6 +170,7 @@ def build_router(get_actions, get_limits):
                 authored_at,
                 key,
                 invitation_id=invitation_id,
+                invitation_question_id=invitation_question_id,
             )
         except Exception as error:
             raise http_error(error) from error

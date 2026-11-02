@@ -1,9 +1,12 @@
 # Journals · Plan de implementación
 
-Estado: planificación del 2 de noviembre de 2026, sin implementación autorizada.
+Estado: plan del 2 de noviembre de 2026. Etapa 1 implementada localmente por
+autorización del usuario; alcance y decisiones adoptadas en
+[contratos del núcleo](journals-contract.md). Etapas 2–7 pendientes.
 Fuente de producto: [definición de Journals](journals-design.md).
-Las decisiones propuestas aquí completan aspectos abiertos del diseño y deben
-validarse antes de implementar la entrega que dependa de ellas.
+Las decisiones de calendario y contratos de etapa 1 se concretan en esa referencia.
+Las propuestas de integración restantes deben validarse antes de la entrega
+que dependa de ellas.
 
 ## Resultado y alcance
 
@@ -157,6 +160,11 @@ Las entregas son incrementos revisables. El piloto se habilita después de compl
 el recorrido integrado; no basta con implementar tablas o un formulario.
 
 ### 1. Contratos y reglas puras
+
+Implementada localmente: modelos, reglas, proyecciones, puerto de contexto y
+fixtures/pruebas sintéticas. Sin adapters ni garantía SQL de concurrencia; ver
+[contrato vigente](journals-contract.md). Los schemas HTTP se definirán en acceso,
+sin exponer directamente modelos internos.
 
 Definir modelos y errores en `core/journals`, fixtures sintéticas y contratos
 públicos/administrativos. Cerrar las propuestas anteriores con ejemplos ejecutables
@@ -403,6 +411,6 @@ contra el diseño validado**. Los prototipos pueden prepararse con los contratos
 de la entrega 1, sin esperar al backend completo. Cada entrega mantiene funcional
 la escritura existente.
 
-El próximo trabajo implementable, cuando se autorice, es cerrar los contratos de
-la entrega 1 y sus pruebas sintéticas. No comenzar por añadir campos sueltos al
+El próximo trabajo implementable, cuando se autorice, es la entrega 2 sobre los
+contratos de etapa 1. No comenzar por añadir campos sueltos al
 prompt, tablas sin invariantes o una pantalla que gestione el calendario localmente.

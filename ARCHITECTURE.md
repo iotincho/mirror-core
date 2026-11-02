@@ -56,6 +56,7 @@ src/                              # Backend; organización por responsabilidades
 │   ├── workspaces/               # Identidad, alcance y disponibilidad del espacio
 │   ├── auth/                     # Identidad, contraseñas, sesiones y recuperación
 │   ├── exteriorization/          # Invitaciones, horarios y consentimiento
+│   ├── journals/                 # Templates, recorridos y reglas puras de etapas
 │   ├── administration/           # Contratos de inventario, métricas y permisos
 │   └── maintenance/              # Hechos y puertos de migraciones operativas
 ├── use_cases/                    # Acciones de aplicación y coordinación por puertos
@@ -204,6 +205,18 @@ el alcance ya resuelto y bootstrap construye clientes acotados y gestiona su cie
 La API pública y administrativa se ensamblan por separado. Compartir núcleo y
 casos de uso no registra automáticamente rutas administrativas en el proceso público.
 Las observaciones técnicas se correlacionan sin volcar notas, audio o credenciales.
+
+### Journals y contexto de preguntas
+
+`core/journals` posee templates versionados, snapshots de recorridos, etapas y
+reglas temporales. Su ciclo de vida justifica una capacidad independiente de
+exteriorización. La etapa 1 sólo contiene modelos, funciones puras y contratos de
+contexto/proyección: no hay persistencia, rutas ni composición operativa todavía.
+No duplica `Document`, no genera invitaciones y no importa exteriorización.
+Sus contratos distinguen el contexto público, la configuración administrativa y
+el contexto interno de generación con intención personal. Exteriorización podrá
+consumir el puerto de contexto por inyección; su preparación y publicación siguen
+perteneciendo al área existente. Ver [contratos de Journals](docs/journals-contract.md).
 
 ## Criterios para agregar módulos y funcionalidades
 

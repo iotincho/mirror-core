@@ -1,7 +1,9 @@
 # Journals · Definición de producto
 
 Estado: referencia de exploración y diseño acordada el 2 de noviembre de 2026.
-No describe una funcionalidad implementada ni autoriza su implementación.
+Describe la intención de producto. La etapa 1 del núcleo está implementada
+localmente; su alcance y límites están en [contratos](journals-contract.md).
+El resto de la funcionalidad sigue pendiente.
 Los contratos vigentes de pregunta diaria siguen en
 [pregunta diaria v2](daily-question-v2-contract.md).
 El [plan de implementación](journals-implementation-plan.md) detalla las

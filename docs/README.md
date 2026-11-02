@@ -24,6 +24,7 @@ como contexto. Las guías describen código implementado; no acreditan despliegu
 | Embeddings | [document-embeddings](document-embeddings.md) | La búsqueda HTTP anterior sigue retirada |
 | Títulos | [document-title-extractor](document-title-extractor.md) | Generación independiente y títulos al leer |
 | Laboratorio / ejes | [personal-axes-api](personal-axes-api.md) | Versiones, pruebas, resultados e historial |
+| Journals · núcleo | [journals-contract](journals-contract.md) | Etapa 1 local: reglas puras y contratos; sin persistencia ni API |
 | Originales / respaldos | [document-archives](document-archives.md) | [Recuperación de audio](audio-transcription-recovery.md) |
 | Registro / workspace | [signup](signup.md) | [Recuperación de contraseña](password-recovery.md) |
 | Invitaciones / push | [exteriorization-notifications](exteriorization-notifications.md) | [Respuestas de voz](audio-invitation-replies.md) |
@@ -41,7 +42,7 @@ actualizar la referencia afectada, sin inferir estado de producción.
 [Journals · Definición de producto](journals-design.md): diseño de templates,
 recorridos personales y etapas con avance automático y ajustes opcionales desde
 administración. Primer caso: preparación e intención para una experiencia
-psicodélica. Referencia de diseño, sin implementación autorizada.
+psicodélica. Referencia de producto; núcleo de etapa 1 implementado localmente.
 [Plan de implementación de Journals](journals-implementation-plan.md): fronteras,
 contratos a cerrar, entregas, compatibilidad y validaciones por repositorio.
 

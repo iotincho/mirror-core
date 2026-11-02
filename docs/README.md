@@ -38,6 +38,13 @@ actualizar la referencia afectada, sin inferir estado de producción.
 
 ## Trabajo diferido
 
+[Journals · Definición de producto](journals-design.md): diseño de templates,
+recorridos personales y etapas con avance automático y ajustes opcionales desde
+administración. Primer caso: preparación e intención para una experiencia
+psicodélica. Referencia de diseño, sin implementación autorizada.
+[Plan de implementación de Journals](journals-implementation-plan.md): fronteras,
+contratos a cerrar, entregas, compatibilidad y validaciones por repositorio.
+
 [Plan de pregunta diaria personal](daily-question-v2-plan.md): implementación
 gradual del diseño validado. [Contratos v2](daily-question-v2-contract.md): paquetes,
 PWA, preparación personalizada y recuperación. [Evaluación y operación](daily-question-operations.md):

@@ -240,12 +240,19 @@ Payload push:
 {
   "binding_id": "UUID-opaco-de-la-suscripción",
   "title": "Un momento para vos",
-  "question": "¿Cómo estuvo tu día?",
+  "question": "Tenés una invitación para escribir.",
   "invitation_id": "UUID",
   "url": "/?invitation_id=UUID",
   "tag": "invitation:UUID"
 }
 ```
+
+El campo `question` contiene texto genérico para mantener compatibilidad con workers
+instalados que lo muestran directamente. La pregunta personal no se incluye en el
+payload; se consulta mediante la API autenticada. El worker actualizado también ignora
+preguntas que lleguen en payloads antiguos. Publicar primero el backend para proteger
+workers instalados antes de habilitar la continuidad tras vencimiento en la PWA: una
+entrega antigua ya aceptada por el proveedor no puede retirarse de ese modo.
 
 La ruta de apertura acordada usa el parámetro `invitation_id`; el service worker
 existente deberá enfocar/abrir esa URL y el editor resolver el ID después de login.

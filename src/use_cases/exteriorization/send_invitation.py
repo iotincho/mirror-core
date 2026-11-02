@@ -59,7 +59,9 @@ class SendInvitation:
             payload = {
                 "binding_id": str(subscription.binding_id),
                 "title": "Un momento para vos",
-                "question": invitation.question,
+                # Keep the existing field for older installed workers, but never
+                # send personal question text in a notification payload.
+                "question": "Tenés una invitación para escribir.",
                 "invitation_id": str(invitation.id),
                 "url": f"/?invitation_id={invitation.id}",
                 "tag": f"invitation:{invitation.id}",

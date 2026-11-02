@@ -189,7 +189,10 @@ async def test_concurrent_occurrence_generates_one_question_for_all_devices(stor
     await run_jobs(repo, owner, transport)
     await run_jobs(repo, owner, transport)
     assert len(transport.payloads) == 2
-    assert {item[1]["question"] for item in transport.payloads} == {invitations[0].question}
+    assert {item[1]["question"] for item in transport.payloads} == {
+        "Tenés una invitación para escribir."
+    }
+    assert invitations[0].question not in str(transport.payloads[0][1])
 
 
 async def test_scheduler_rolls_back_everything_if_job_creation_fails(store, monkeypatch):

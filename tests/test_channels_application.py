@@ -126,6 +126,8 @@ async def test_expired_push_destination_is_disabled_without_replacing_terminal_r
     assert not subscription.active and delivery.status == "failed"
     state.cancel_deliveries.assert_awaited_once_with(owner, subscription_id)
     payload = transport.send.await_args.args[1]
+    assert payload["question"] == "Tenés una invitación para escribir."
+    assert invitation.question not in str(payload)
     assert payload["binding_id"] == str(subscription.binding_id)
     assert payload["tag"] == f"invitation:{invitation_id}"
     assert context.assert_lease.await_count == 2

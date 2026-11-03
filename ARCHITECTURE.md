@@ -217,8 +217,14 @@ conserva versiones de template, snapshots de recorridos, índices de etapas y re
 en una unidad de trabajo. El lock de preferencias existente serializa mutaciones
 con la publicación de invitaciones; el índice parcial garantiza un activo por cuenta.
 Bootstrap compone la capacidad y su reconciliación en el dispatcher existente,
-controlada por `JOURNALS_ENABLED`, deshabilitado por defecto. No hay rutas ni
-integración con el contenido de la pregunta diaria o la ingestión todavía.
+controlada por `JOURNALS_ENABLED`, deshabilitado por defecto. Todavía no hay rutas
+de gestión ni integración con el contenido de la pregunta diaria. La ingestión
+resuelve referencias históricas por un colaborador de aplicación inyectado;
+texto/audio propagan la misma identidad por originales, recibos y recuperación.
+El índice de entradas pertenece a Journals y se escribe en la transacción de
+aceptación de texto/audio o handoff al documento hijo. La derivación obtiene su
+pertenencia del audio aceptado. Ningún adaptador de salida llama casos de uso
+para decidir la asociación, ni se consulta la etapa actual al recuperar persistencia.
 No duplica `Document`, no genera invitaciones y no importa exteriorización.
 Sus contratos distinguen el contexto público, la configuración administrativa y
 el contexto interno de generación con intención personal. Exteriorización podrá

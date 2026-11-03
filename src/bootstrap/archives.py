@@ -14,6 +14,7 @@ def DocumentArchiveTransfer(
 ):
     from src.adapters.storage.postgres.submission_port import PostgresSubmissions
     from src.adapters.storage.postgres.submissions import SubmissionRepository as SQLSubmissions
+    from src.bootstrap.acceptance import build_capture_resolver
     from src.use_cases.documents.archive import DocumentArchiveTransfer as Case
 
     if submissions is None and processing is not None:
@@ -29,7 +30,17 @@ def DocumentArchiveTransfer(
     if isinstance(processing, ProcessingRepository):
         processing = requests_store(processing)
     return Case(
-        documents, processing, user_id, submissions, graph=graph, workflow_config=workflow_config
+        documents,
+        processing,
+        user_id,
+        submissions,
+        graph=graph,
+        workflow_config=workflow_config,
+        journal_capture=(
+            build_capture_resolver(submissions.sessions)
+            if isinstance(submissions, PostgresSubmissions)
+            else None
+        ),
     )
 
 

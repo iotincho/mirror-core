@@ -1,9 +1,10 @@
 # Journals · Contratos y persistencia
 
-Estado al 3 de noviembre de 2026: etapas 1–2 implementadas localmente. Núcleo,
+Estado al 3 de noviembre de 2026: etapas 1–3 implementadas localmente. Núcleo,
 aplicación, persistencia PostgreSQL y reconciliación compuestos. Requiere migración
-`20261103_23`; `JOURNALS_ENABLED=false` por defecto. Sin endpoints, vínculo de notas,
-integración del generador diario ni interfaz. No habilitado ni desplegado.
+`20261103_24`; `JOURNALS_ENABLED=false` por defecto. La ingestión de texto/audio
+conserva pertenencia histórica. Sin endpoints de gestión de Journals, integración
+del generador diario ni interfaz. No habilitado ni desplegado.
 Ver [diseño de producto](journals-design.md) y
 [plan de implementación](journals-implementation-plan.md).
 
@@ -31,7 +32,8 @@ estándar y Pydantic; no importa exteriorización, aplicación o infraestructura
   [migración](../migrations/versions/20261103_23_journals.py): revisiones y recibos atómicos.
 
 Los contratos de aplicación no son schemas HTTP publicados automáticamente.
-Los adaptadores de acceso traducirán sus propios schemas en entregas posteriores.
+Los adaptadores de acceso traducen sus propios schemas; la referencia de captura
+tiene representación HTTP propia, sin exponer directamente modelos internos.
 `ActivateRun` no contiene propietario: la aplicación resolverá el usuario destino
 desde acceso administrativo validado. Las operaciones públicas resolverán sesión
 y workspace; este núcleo no autentica solicitudes.
@@ -134,7 +136,7 @@ Así la revisión fijada por una pregunta identifica también la intención que 
 Las claves foráneas compuestas impiden mezclar dueños al vincular etapas o recibos.
 El puntero a la revisión actual es diferido hasta commit: no se puede confirmar
 un recorrido sin su snapshot. Índices, revisión y recibo se escriben juntos.
-La tabla de entradas/notas y su integración de aceptación pertenecen a etapa 3.
+La tabla de entradas y su integración de aceptación se agregan en etapa 3.
 
 `ManageJournals` coordina activar, ajustar, pausar, reanudar, avanzar, cerrar y
 editar intención. Devuelve un recibo técnico, que se confirma después de salir
@@ -230,16 +232,106 @@ que el servidor hubiera emitido previamente una referencia: la resolución y
 aceptación durable deberán fijar ese contexto según el contrato de captura.
 
 Referencias ajenas, inexistentes o con otra revisión devuelven el mismo código
-seguro `journal_reference_not_found`. El esquema no modifica recibos, originales,
-hashes ni respuestas existentes. La propagación por texto/audio, las versiones
-de manifiesto y los replays históricos se implementarán en la etapa 3; esta entrega
-no afirma compatibilidad de persistencia que todavía no se ha verificado.
+seguro `journal_reference_not_found`. La resolución verifica pertenencia a una
+revisión existente, no demuestra el momento de captura declarado por el cliente.
+No recalcula la etapa actual ni convierte una nota libre en journal por defecto.
+
+## Pertenencia durable de originales, etapa 3
+
+### Transporte e identidad
+
+`POST /v2/documents` admite `journal_reference` opcional como objeto con los campos
+de `EntryReference`. El adaptador lo traduce al contrato interno. También se valida
+la referencia en `metadata.journal_reference` si está presente; contradicción con
+el campo tipado devuelve `409 journal_reference_conflict`.
+
+`POST /v2/audio-notes` admite un campo multipart `journal_reference` opcional, con
+ese objeto serializado como JSON. Las lecturas y la aceptación del audio devuelven
+el objeto tipado o `null`. Los documentos conservan la referencia como JSON
+canónico dentro de `metadata.journal_reference`, que ya se devuelve en sus lecturas.
+Los endpoints de archivo `.md`/`.txt` siguen siendo escritura libre.
+
+La referencia se resuelve antes de reservar o escribir originales, por dueño e
+historia. `ResolveJournalCapture` implementa el puerto `CaptureReferences`, inyectado
+directamente a los casos de aceptación/importación por bootstrap. El adaptador
+PostgreSQL de recibos no llama casos de uso para resolverla. No se necesita el lock
+de preferencias al aceptar una captura: los snapshots referidos son inmutables,
+por lo que un ajuste concurrente no altera lo que se validó.
+
+Si hay invitación, su asociación histórica prevalece: `journal_invitation_contexts`
+relaciona una invitación con dueño, recorrido, revisión y etapa, con FKs compuestas.
+La ausencia de fila significa pregunta libre. Esta entrega sólo consume esa
+asociación; su productor será la publicación transaccional de etapa 4, sin backfill
+de preguntas existentes. El cliente no puede adjuntar otro journal a una invitación
+libre ni sustituir su contexto. La pertenencia de pregunta/variante sigue validándose
+por el camino existente de exteriorización.
+
+El manifiesto de una nueva captura vinculada agrega `journal_identity: "entry/1"`
+y `journal_reference` como JSON canónico. Ese marcador no se agrega al texto ni a
+los metadatos del documento; el original sólo guarda su referencia. El hash del
+texto incluye esos metadatos y el del audio su manifiesto. Omitir o cambiar la
+asociación con la misma clave es conflicto. Campo tipado y representación canónica
+en metadata equivalen a la misma solicitud de texto.
+
+Sin journal no se agregan campos al manifiesto ni se cambian hashes. Los recibos
+v1/v2 previos conservan su representación y compatibilidad de variante inicial.
+Un recibo histórico sin marcador no puede adquirir ahora una asociación. Replays
+y aliases por ID explícito conservan el original y la configuración aceptada.
+No se reescriben originales ni recibos anteriores.
+
+Referencias ajenas/inexistentes devuelven `404`, contradicciones de asociación
+`409`, formas inválidas `422` y disponibilidad SQL `503`, con códigos seguros.
+La aceptación de referencias históricas del propietario sigue disponible con el
+flag apagado; no depende de que el recorrido siga activo. No se registra contenido.
+
+### Atomicidad y recuperación
+
+`journal_entries` es un índice de pertenencia por dueño, tipo (`audio`/`document`)
+y UUID de original, con referencia compuesta a la revisión de etapa y fecha de
+aceptación. Guarda IDs y fechas, sin copiar texto, audio, objetivos o intención.
+Un recurso sólo tiene una asociación; repetir el enlace con otra referencia falla.
+
+En texto, original y vértice base se guardan antes del commit SQL, según el contrato
+de ingestión existente. Entrada de journal, recibo aceptado, job, evento y outbox
+se confirman juntos. Un fallo SQL deja el original recuperable y toda esa transacción
+sin confirmar; retry o reconciliación usan la referencia fijada en el manifiesto,
+sin volver a resolver etapa ni llamar proveedores.
+
+En audio, el upload acepta la entrada `audio` junto con su job/recibo/outbox. Los
+metadatos JSON incluyen la referencia; si sobrevivió sólo el raw, se reconstruyen
+desde el manifiesto. El worker propaga la referencia al documento derivado. Después
+de persistir ese original y su base de grafo, el handoff SQL obtiene la asociación
+del audio ya aceptado y confirma la entrada `document` junto con hijo, transición
+del padre, eventos y outbox. No consulta la etapa actual ni añade reintentos del
+broker. Fallos de handoff reutilizan la transcripción y sus artefactos.
+
+El borrado bajo el lock de recurso elimina las entradas de ambos tipos para ese
+UUID y mantiene el tombstone de procesamiento. Un replay de upload sobre un recurso
+marcado como eliminado devuelve `resource_deleted`, aunque un archivo haya quedado
+pendiente de limpieza; no vuelve a crear el índice. Reprocesar no reasigna el journal.
+La futura consulta de entradas deberá comprobar disponibilidad del original, no
+tratar el índice SQL como fuente de contenido.
+
+El respaldo v1 conserva la referencia en metadata. Antes de importar el primer
+documento se validan todas las referencias contra snapshots del dueño destino.
+Si falta un recorrido/revisión o pertenece a otra cuenta, se rechaza sin escrituras;
+no se descarta la pertenencia silenciosamente. Un import válido preserva el original
+y confirma su entrada con la aceptación SQL. El respaldo no incluye templates ni
+historia de recorridos: no permite por sí solo restaurar notas vinculadas después
+de recrear esos datos o cambiar de propietario. Ver [respaldos](document-archives.md).
+
+La migración `20261103_24` es aditiva, sin backfill ni cambios a originales. Debe
+aplicarse antes de iniciar la nueva API, workers y dispatcher, aun con el flag
+apagado, porque los caminos de aceptación, derivación y borrado conocen las tablas.
+Su downgrade pierde índices de pertenencia y contexto de invitación; conserva
+originales y jobs, pero no ofrece reconstrucción automática del índice al subir.
 
 ## Validación y próximo paso
 
 ```sh
 .venv/bin/python -m pytest tests/test_journals_contracts.py tests/test_architecture_boundaries.py
 .venv/bin/python -m pytest tests/test_journals_application.py
+.venv/bin/python -m pytest tests/test_journal_entries.py
 .venv/bin/python -m ruff check src/core/journals tests/test_journals_contracts.py
 python3 scripts/check_architecture.py
 python3 scripts/check_repo_docs.py
@@ -268,5 +360,13 @@ compartido con preferencias, catch-up concurrente y preservación de historia.
 La migración se compara con los modelos SQL y conserva cuentas/sesiones/preferencias
 sintéticas anteriores. Un skip no valida estas garantías.
 
-El próximo paso es la etapa 3: pertenencia durable de notas de texto y audio.
-No hay endpoints, llamadas pagas, interfaces ni experiencia de piloto habilitada.
+La aceptación usa también `PROCESSING_TEST_DATABASE_URL`, con una base desechable
+`journals_test*` para `tests/integration/test_journal_ingestion.py`. Cubre texto y
+audio espontáneos/respuestas, replays, capturas después de cierre/ajuste, fallos SQL
+y handoff, restauración de metadata, borrado, importación y HTTP. Las regresiones
+de pregunta diaria y audio conservan v1/v2. Grafo y transcripción son dobles; no se
+acredita ArcadeDB, broker, dispositivo ni proveedor real por esas pruebas.
+
+El próximo paso es la etapa 4: generación y publicación de pregunta diaria dentro
+del journal. Las pantallas administrativas y PWA siguen pendientes de prototipos
+validados antes de implementar sus interfaces. No hay experiencia de piloto habilitada.

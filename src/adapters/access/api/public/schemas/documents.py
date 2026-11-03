@@ -5,6 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from src.adapters.access.api.public.schemas.journals import JournalReference
 from src.core.domain.documents import NewDocument
 
 
@@ -13,6 +14,7 @@ class CreateDocumentRequest(NewDocument):
 
     invitation_id: UUID | None = None
     invitation_question_id: UUID | None = None
+    journal_reference: JournalReference | None = None
 
 
 class DocumentResponse(BaseModel):

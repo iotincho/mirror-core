@@ -7,7 +7,13 @@ from uuid import uuid4
 
 import pytest
 
-from src.core.journals.contracts import ActivateRun, AdjustRun, ChangeLifecycle, EditIntention
+from src.core.journals.contracts import (
+    ActivateRun,
+    AdjustRun,
+    ChangeLifecycle,
+    EditIntention,
+    ResponseJournalContext,
+)
 from src.core.journals.errors import JournalError, JournalStorageUnavailable
 from src.core.journals.ports import OwnerAccess
 from src.core.journals.templates import PREPARATION_TEMPLATE
@@ -27,6 +33,7 @@ class MemoryJournals:
         self.now = datetime(2026, 11, 3, 12, tzinfo=UTC)
         self.access = OwnerAccess(exists=True, enabled=True, workspace_active=True)
         self.definitions, self.runs, self.receipts = {}, {}, {}
+        self.responses = {}
         self.fail_commit = False
         self.fail_receipt = False
 
@@ -83,6 +90,11 @@ class MemoryJournals:
             if self.fail_receipt:
                 raise JournalStorageUnavailable()
             receipts[(owner, value.key)] = value
+
+        async def response_context(invitation_id):
+            if invitation_id not in self.responses:
+                raise JournalError("journal_reference_not_found")
+            return ResponseJournalContext(reference=self.responses[invitation_id])
 
         yield SimpleNamespace(**locals())
         if self.fail_commit:

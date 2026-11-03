@@ -8,8 +8,10 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from src.adapters.storage.postgres.accounts import User
+from src.adapters.storage.postgres.invitation_models import Invitation
 from src.adapters.storage.postgres.invitations import InvitationRepository
 from src.adapters.storage.postgres.journal_models import (
+    JournalInvitationRecord,
     JournalReceiptRecord,
     JournalRevisionRecord,
     JournalRunRecord,
@@ -17,6 +19,7 @@ from src.adapters.storage.postgres.journal_models import (
     JournalTemplateRecord,
 )
 from src.adapters.storage.postgres.workspace_models import UserWorkspace
+from src.core.journals.contracts import EntryReference, ResponseJournalContext
 from src.core.journals.errors import JournalError, JournalStorageUnavailable
 from src.core.journals.models import JournalRun, JournalTemplate
 from src.core.journals.ports import MutationReceipt, OwnerAccess
@@ -124,6 +127,31 @@ class JournalTransaction:
     async def lock_owner(self):
         # Same preference-row lock as invitations; defaults stay disabled for a new row.
         await self.invitations.preference(self.session, self.owner)
+
+    async def response_context(self, invitation_id):
+        invitation = await self.session.scalar(
+            select(Invitation.id).where(
+                Invitation.id == invitation_id,
+                Invitation.user_id == self.owner,
+            )
+        )
+        if invitation is None:
+            raise JournalError("journal_reference_not_found")
+        row = await self.session.scalar(
+            select(JournalInvitationRecord).where(
+                JournalInvitationRecord.invitation_id == invitation_id,
+                JournalInvitationRecord.owner_id == self.owner,
+            )
+        )
+        return ResponseJournalContext(
+            reference=EntryReference(
+                run_id=row.run_id,
+                stage_id=row.stage_id,
+                run_revision=row.revision,
+            )
+            if row
+            else None
+        )
 
     async def now(self):
         return await self.session.scalar(select(func.clock_timestamp()))

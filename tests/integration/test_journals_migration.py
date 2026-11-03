@@ -4,6 +4,7 @@ import asyncio
 import os
 import subprocess
 import sys
+from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
@@ -15,6 +16,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from src.adapters.storage.postgres.base import Base
 from src.adapters.storage.postgres.journals import PostgresJournals
+from src.core.journals.rules import activate
 from src.core.journals.templates import PREPARATION_TEMPLATE
 
 pytestmark = [
@@ -88,12 +90,28 @@ async def test_upgrade_keeps_legacy_accounts_sessions_and_preferences_and_downgr
                 ),
                 {"owner": owner},
             )
+        await migrate("upgrade", "20261103_23")
+        from sqlalchemy.ext.asyncio import async_sessionmaker
+
+        repository = PostgresJournals(async_sessionmaker(engine))
+        await repository.install_template(PREPARATION_TEMPLATE)
+        old_run = activate(
+            PREPARATION_TEMPLATE, run_id=uuid4(), owner=owner, timezone="UTC", now=datetime.now(UTC)
+        )
+        async with repository.transaction(owner) as transaction:
+            await transaction.save(old_run, expected_revision=None)
         await migrate("upgrade", "head")
         await migrate("upgrade", "head")
 
         def differences(connection):
             metadata = MetaData()
             Table("user", metadata, Column("id", Uuid(), primary_key=True))
+            Table(
+                "invitations",
+                metadata,
+                Column("id", Uuid(), primary_key=True),
+                Column("user_id", Uuid()),
+            )
             for table in Base.metadata.tables.values():
                 if table.name.startswith("journal_"):
                     table.to_metadata(metadata)
@@ -109,17 +127,17 @@ async def test_upgrade_keeps_legacy_accounts_sessions_and_preferences_and_downgr
 
         async with engine.connect() as connection:
             assert not await connection.run_sync(differences)
-            assert await connection.scalar(text("SELECT count(*) FROM journal_runs")) == 0
-            assert await connection.scalar(text("SELECT count(*) FROM journal_templates")) == 0
+            assert await connection.scalar(text("SELECT count(*) FROM journal_runs")) == 1
+            assert await connection.scalar(text("SELECT count(*) FROM journal_templates")) == 1
+            assert await connection.scalar(text("SELECT count(*) FROM journal_entries")) == 0
             assert await connection.scalar(text("SELECT count(*) FROM accesstoken")) == 1
             assert (
                 await connection.execute(
                     text("SELECT enabled,local_time,timezone FROM invitation_preferences")
                 )
             ).one() == (False, "17:00", "UTC")
-        from sqlalchemy.ext.asyncio import async_sessionmaker
-
-        repository = PostgresJournals(async_sessionmaker(engine))
+        async with repository.transaction(owner) as transaction:
+            assert await transaction.run(old_run.id, 1) == old_run
         await repository.install_template(PREPARATION_TEMPLATE)
         await migrate("downgrade", "20261029_22")
         async with engine.connect() as connection:

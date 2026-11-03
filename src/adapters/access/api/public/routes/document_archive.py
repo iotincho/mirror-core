@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from src.core.documents.archive import ArchiveConflict, DocumentArchive
 from src.core.graph.ports import GraphPersistenceError
+from src.core.journals.errors import JournalError, JournalStorageUnavailable
 from src.core.processing.errors import StorageUnavailable
 from src.core.processing.submissions import SubmissionConflict
 
@@ -50,6 +51,12 @@ def build_router(get_export_archive, get_import_archive):
             ) from error
         try:
             return await transfer.import_archive(archive)
+        except JournalError as error:
+            raise HTTPException(422, error.code) from None
+        except ValidationError:
+            raise HTTPException(422, "Referencia de journal inválida.") from None
+        except JournalStorageUnavailable:
+            raise HTTPException(503, "journal_storage_unavailable") from None
         except (ArchiveConflict, SubmissionConflict) as error:
             raise HTTPException(409, str(error)) from error
         except StorageUnavailable as error:

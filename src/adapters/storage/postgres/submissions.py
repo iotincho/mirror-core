@@ -125,6 +125,10 @@ class SubmissionRepository:
                 resource_id is not None and receipt.resource_id != resource_id
             ):
                 raise SubmissionConflict("idempotency_conflict")
+            if receipt.accepted_at is not None:
+                record = await session.get(ProcessingRecord, receipt.processing_id)
+                if record.resource_deleted:
+                    raise SubmissionConflict("resource_deleted")
             if receipt.key != key:
                 if receipt.accepted_at is None:
                     raise SubmissionConflict("upload_in_progress")
@@ -193,6 +197,17 @@ class SubmissionRepository:
             await session.flush()
             self.processing.event(session, record)
             self.processing.schedule(session, record)
+            from src.adapters.storage.postgres.journal_entries import bind_journal_entry
+            from src.core.journals.entries import manifest_reference
+
+            await bind_journal_entry(
+                session,
+                current.user_id,
+                current.resource_kind,
+                current.resource_id,
+                manifest_reference(current.manifest),
+                await session.scalar(select(func.clock_timestamp())),
+            )
             if receipt.operation == "upload_document" and receipt.manifest.get("invitation_id"):
                 from src.adapters.storage.postgres.invitation_questions import bind_response
 

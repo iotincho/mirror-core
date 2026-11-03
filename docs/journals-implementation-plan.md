@@ -1,8 +1,8 @@
 # Journals · Plan de implementación
 
-Estado: plan del 2 de noviembre de 2026. Etapas 1–2 implementadas localmente por
+Estado: plan del 2 de noviembre de 2026. Etapas 1–3 implementadas localmente por
 autorización del usuario; alcance y decisiones adoptadas en
-[contratos de Journals](journals-contract.md). Etapas 3–7 pendientes.
+[contratos de Journals](journals-contract.md). Etapas 4–7 pendientes.
 Fuente de producto: [definición de Journals](journals-design.md).
 Las decisiones de calendario y contratos de etapa 1 se concretan en esa referencia.
 Las propuestas de integración restantes deben validarse antes de la entrega
@@ -208,6 +208,12 @@ atómicos; repetición de reconciliación no duplica transiciones. Documentar p�
 de datos de un eventual downgrade antes de ofrecerlo como recuperación.
 
 ### 3. Pertenencia durable de texto y audio
+
+Implementada localmente: migración `20261103_24`, referencia opcional de captura
+en HTTP, normalización e identidad `entry/1`, pertenencia SQL atómica con aceptación
+y handoff de audio, replays/recuperación y borrado/importación protegidos. El
+publicador de etapa 4 todavía no produce asociaciones de invitaciones. Ver
+[contrato vigente](journals-contract.md#pertenencia-durable-de-originales-etapa-3).
 
 Ampliar los contratos de aceptación y lectura existentes, no crear endpoints de
 upload exclusivos de Journals. Propagar la pertenencia normalizada por reserva,
@@ -418,6 +424,6 @@ contra el diseño validado**. Los prototipos pueden prepararse con los contratos
 de la entrega 1, sin esperar al backend completo. Cada entrega mantiene funcional
 la escritura existente.
 
-El próximo trabajo implementable, cuando se autorice, es la entrega 3 sobre los
-contratos y persistencia de etapas 1–2. No comenzar por añadir campos sueltos al
+El próximo trabajo implementable, cuando se autorice, es la entrega 4 sobre los
+contratos y persistencia de etapas 1–3. No comenzar por añadir campos sueltos al
 prompt, tablas sin invariantes o una pantalla que gestione el calendario localmente.

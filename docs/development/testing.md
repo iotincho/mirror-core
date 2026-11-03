@@ -24,7 +24,7 @@ git diff --check
 | Audio / emociones / embeddings / respaldos | `tests/test_stage3_application.py` y suite de la capacidad | Replay sin proveedor, transacciones reales de capas y navegación; [comandos](architecture-checks.md#regresión-de-audio-extractores-grafo-y-respaldos) |
 | Grafo | Test de proyección/navegación afectado | Integración ArcadeDB con esquema y transacciones reales |
 | Invitaciones / bandeja / administración | `tests/test_channels_application.py`, `tests/test_exteriorization.py`, `tests/test_notifications.py`, `tests/test_administration_api.py` | SQL, revocación y sincronizador; [comandos](architecture-checks.md#regresión-de-invitaciones-bandeja-y-administración) |
-| Journals | `tests/test_journals_contracts.py`, `tests/test_journals_application.py` | `tests/integration/test_journals_postgres.py` y `tests/integration/test_journals_migration.py` con PostgreSQL desechable; [contrato](../journals-contract.md) |
+| Journals | `tests/test_journals_contracts.py`, `tests/test_journals_application.py`, `tests/test_journal_entries.py` | `tests/integration/test_journals_postgres.py`, `tests/integration/test_journals_migration.py` y `tests/integration/test_journal_ingestion.py` con PostgreSQL desechable; [contrato](../journals-contract.md) |
 | Migración | Revisión de head + integración de migración | Upgrade/recuperación con base aislada |
 | Docker / publicación | `tests/test_local_deploy.py`, configuración Compose | Build o smoke aislado si cambia comportamiento del contenedor |
 

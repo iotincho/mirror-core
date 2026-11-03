@@ -20,6 +20,7 @@ from pydantic import ValidationError
 
 from src.adapters.access.api.public.errors import invitation_status
 from src.adapters.access.api.public.schemas.documents import CreateDocumentRequest, DocumentResponse
+from src.adapters.access.api.public.schemas.journals import JournalReference
 from src.adapters.access.api.public.schemas.processing import (
     AcceptedAudio,
     AcceptedDocument,
@@ -36,6 +37,8 @@ from src.core.documents.ports import DocumentNotFoundError
 from src.core.domain.documents import NewDocument
 from src.core.exteriorization.models import InvitationError
 from src.core.graph.ports import GraphPersistenceError
+from src.core.journals.contracts import EntryReference
+from src.core.journals.errors import JournalError, JournalStorageUnavailable
 from src.core.processing.errors import StorageUnavailable
 from src.core.processing.reads import ProcessingNotFound
 from src.core.processing.submissions import SubmissionConflict
@@ -48,6 +51,21 @@ Key = Annotated[UUID, Header(alias="Idempotency-Key")]
 
 
 def http_error(error):
+    if isinstance(error, JournalError):
+        status = (
+            404
+            if error.code
+            in {
+                "journal_reference_not_found",
+                "journal_owner_not_found",
+            }
+            else 409
+            if error.code == "journal_reference_conflict"
+            else 422
+        )
+        return HTTPException(status, error.code)
+    if isinstance(error, JournalStorageUnavailable):
+        return HTTPException(503, "journal_storage_unavailable")
     if isinstance(error, InvitationError):
         return HTTPException(invitation_status(error.code), error.code)
     if isinstance(error, ProcessingNotFound):
@@ -111,11 +129,26 @@ def build_router(get_actions, get_limits):
         try:
             document, record = await actions.submit_document(
                 NewDocument(
-                    **payload.model_dump(exclude={"invitation_id", "invitation_question_id"})
+                    **payload.model_dump(
+                        exclude={
+                            "invitation_id",
+                            "invitation_question_id",
+                            "journal_reference",
+                        }
+                    )
                 ),
                 key,
                 invitation_id=payload.invitation_id,
                 invitation_question_id=payload.invitation_question_id,
+                **(
+                    {
+                        "journal_reference": EntryReference.model_validate(
+                            payload.journal_reference.model_dump(),
+                        )
+                    }
+                    if payload.journal_reference is not None
+                    else {}
+                ),
             )
         except Exception as error:
             raise http_error(error) from error
@@ -160,9 +193,19 @@ def build_router(get_actions, get_limits):
         authored_at: Annotated[datetime | None, Form()] = None,
         invitation_id: Annotated[UUID | None, Form()] = None,
         invitation_question_id: Annotated[UUID | None, Form()] = None,
+        journal_reference: Annotated[str | None, Form()] = None,
     ):
         content = await read_upload(file, limits.audio_max_upload_bytes)
         try:
+            reference = (
+                EntryReference.model_validate(
+                    JournalReference.model_validate_json(
+                        journal_reference,
+                    ).model_dump()
+                )
+                if journal_reference is not None
+                else None
+            )
             note, record = await actions.submit_audio(
                 file.filename,
                 file.content_type,
@@ -171,6 +214,7 @@ def build_router(get_actions, get_limits):
                 key,
                 invitation_id=invitation_id,
                 invitation_question_id=invitation_question_id,
+                **({"journal_reference": reference} if reference is not None else {}),
             )
         except Exception as error:
             raise http_error(error) from error

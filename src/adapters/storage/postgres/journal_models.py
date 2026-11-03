@@ -145,3 +145,66 @@ class JournalReceiptRecord(Base):
     run_id: Mapped[UUID] = mapped_column()
     revision: Mapped[int] = mapped_column(Integer)
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class JournalInvitationRecord(Base):
+    """Immutable publication context, populated by the journal question publisher."""
+
+    __tablename__ = "journal_invitation_contexts"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["invitation_id", "owner_id"],
+            ["invitations.id", "invitations.user_id"],
+            name="fk_journal_invitation_owner",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["run_id", "owner_id", "revision", "stage_id"],
+            [
+                "journal_stage_revisions.run_id",
+                "journal_stage_revisions.owner_id",
+                "journal_stage_revisions.revision",
+                "journal_stage_revisions.stage_id",
+            ],
+            name="fk_journal_invitation_stage",
+            ondelete="CASCADE",
+        ),
+    )
+    invitation_id: Mapped[UUID] = mapped_column(primary_key=True)
+    owner_id: Mapped[UUID] = mapped_column()
+    run_id: Mapped[UUID] = mapped_column()
+    revision: Mapped[int] = mapped_column(Integer)
+    stage_id: Mapped[UUID] = mapped_column()
+
+
+class JournalEntryRecord(Base):
+    __tablename__ = "journal_entries"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["run_id", "owner_id", "revision", "stage_id"],
+            [
+                "journal_stage_revisions.run_id",
+                "journal_stage_revisions.owner_id",
+                "journal_stage_revisions.revision",
+                "journal_stage_revisions.stage_id",
+            ],
+            name="fk_journal_entry_stage",
+            ondelete="CASCADE",
+        ),
+        CheckConstraint("resource_kind IN ('document','audio')", name="ck_journal_entry_kind"),
+        Index(
+            "ix_journal_entry_context",
+            "owner_id",
+            "run_id",
+            "resource_kind",
+            "accepted_at",
+            "resource_id",
+        ),
+    )
+    owner_id: Mapped[UUID] = mapped_column(primary_key=True)
+    resource_kind: Mapped[str] = mapped_column(String(12), primary_key=True)
+    resource_id: Mapped[UUID] = mapped_column(primary_key=True)
+    run_id: Mapped[UUID] = mapped_column()
+    revision: Mapped[int] = mapped_column(Integer)
+    stage_id: Mapped[UUID] = mapped_column()
+    accepted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

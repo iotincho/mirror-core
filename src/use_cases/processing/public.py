@@ -25,13 +25,20 @@ class PublicProcessing:
         return self.requests.changed
 
     async def submit_document(
-        self, original, key, *, invitation_id=None, invitation_question_id=None
+        self,
+        original,
+        key,
+        *,
+        invitation_id=None,
+        invitation_question_id=None,
+        journal_reference=None,
     ):
         return await self.submissions.execute(
             original,
             key,
             invitation_id=invitation_id,
             invitation_question_id=invitation_question_id,
+            **({"journal_reference": journal_reference} if journal_reference is not None else {}),
         )
 
     async def submit_file(self, filename, content, document_id, authored_at, key):
@@ -49,6 +56,7 @@ class PublicProcessing:
         key,
         invitation_id,
         invitation_question_id=None,
+        journal_reference=None,
     ):
         return await self.audio.execute(
             filename,
@@ -58,6 +66,7 @@ class PublicProcessing:
             key,
             invitation_id=invitation_id,
             invitation_question_id=invitation_question_id,
+            **({"journal_reference": journal_reference} if journal_reference is not None else {}),
         )
 
     async def list(self, *, active, cursor, limit):

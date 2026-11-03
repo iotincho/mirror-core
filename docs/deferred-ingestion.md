@@ -102,6 +102,16 @@ crear otra nota después. Documentos distintos con el mismo texto no se fusionan
 Un documento legado ya existente no se reemplaza a través de un upload nuevo:
 para procesarlo se usa la operación explícita de extracción.
 
+Texto y audio admiten la [referencia de captura de Journals](journals-contract.md#pertenencia-durable-de-originales-etapa-3),
+validada por dueño e historia antes de reservar. `journal_entries` se confirma con
+recibo/job/evento/outbox en el mismo commit. Audio conserva la referencia en sus
+metadatos y el handoff confirma el vínculo del derivado junto al hijo, sin repetir
+transcripción ni resolver la etapa vigente. Los recibos sin journal mantienen sus
+hashes; capturas nuevas vinculadas fijan el manifiesto `journal_identity: entry/1`.
+Un recurso marcado como eliminado rechaza replay con `resource_deleted` y no
+recrea su asociación, incluso si quedó un original pendiente de limpieza.
+Requiere migración aditiva `20261103_24` antes de iniciar los nuevos procesos.
+
 RabbitMQ no participa en la aceptación HTTP. Si cae después del commit, el job
 queda queued y su intención de entrega en SQL. Los uploads de texto tienen un
 límite `DOCUMENT_MAX_UPLOAD_BYTES` de 5 MiB por defecto; el audio conserva su

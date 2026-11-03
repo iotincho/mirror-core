@@ -17,6 +17,16 @@ from src.core.documents.ports import (
 )
 from src.core.domain.audio_notes import AudioNote
 from src.core.domain.documents import Document, NewDocument
+from src.core.journals.contracts import EntryReference
+from src.core.journals.entries import (
+    IDENTITY_KEY,
+    REFERENCE_KEY,
+    manifest_reference,
+    metadata_reference,
+    reference_manifest,
+)
+from src.core.journals.errors import JournalStorageUnavailable
+from src.core.journals.ports import CaptureReferences
 from src.core.processing.acceptance import Submissions
 from src.core.processing.errors import WorkflowFailure
 from src.core.processing.ports import ProcessingWorkspace
@@ -67,6 +77,7 @@ def audio_metadata(receipt):
         authored_at=manifest["authored_at"],
         invitation_id=manifest.get("invitation_id"),
         invitation_question_id=manifest.get("invitation_question_id"),
+        journal_reference=manifest_reference(manifest),
         status="queued",
     )
 
@@ -91,10 +102,41 @@ async def invitation_manifest(
     return {"invitation_id": str(invitation_id), "invitation_question_id": str(resolved)}
 
 
+async def journal_manifest(
+    submissions,
+    resolver,
+    owner,
+    operation,
+    key,
+    supplied,
+    invitation_id,
+    *,
+    resource_id=None,
+):
+    if supplied is None and invitation_id is None:
+        return {}
+    if resolver is None:
+        raise JournalStorageUnavailable()
+    reference = await resolver.resolve(owner, supplied, invitation_id=invitation_id)
+    previous = await submissions.get(owner, operation, key, resource_id=resource_id)
+    if previous is not None and IDENTITY_KEY not in previous.manifest and reference is not None:
+        # A new association must never reinterpret a previously accepted legacy identity.
+        raise SubmissionConflict("idempotency_conflict")
+    return reference_manifest(reference)
+
+
 class SubmitDocument:
-    def __init__(self, submissions: Submissions, runtime: ProcessingWorkspace, *, workflow_config):
+    def __init__(
+        self,
+        submissions: Submissions,
+        runtime: ProcessingWorkspace,
+        *,
+        workflow_config,
+        journal_capture: CaptureReferences | None = None,
+    ):
         self.workflow_config = workflow_config
         self.submissions, self.runtime = submissions, runtime
+        self.journal_capture = journal_capture
 
     async def execute(
         self,
@@ -103,7 +145,13 @@ class SubmitDocument:
         *,
         invitation_id: UUID | None = None,
         invitation_question_id: UUID | None = None,
+        journal_reference: EntryReference | None = None,
     ):
+        embedded = metadata_reference(document.metadata)
+        if embedded is not None:
+            if journal_reference is not None and embedded != journal_reference:
+                raise SubmissionConflict("journal_reference_conflict")
+            journal_reference = embedded
         if "invitation_id" in document.metadata:
             supplied = UUID(document.metadata["invitation_id"])
             if invitation_id is not None and invitation_id != supplied:
@@ -123,6 +171,17 @@ class SubmitDocument:
             invitation_question_id,
             resource_id=document.id,
         )
+        journal = await journal_manifest(
+            self.submissions,
+            self.journal_capture,
+            self.runtime.context.user_id,
+            "upload_document",
+            key,
+            journal_reference,
+            invitation_id,
+            resource_id=document.id,
+        )
+        association.update(journal)
         if association:
             document = document.model_copy(
                 update={
@@ -130,9 +189,9 @@ class SubmitDocument:
                         **{
                             k: v
                             for k, v in document.metadata.items()
-                            if k not in {"invitation_id", "invitation_question_id"}
+                            if k not in {"invitation_id", "invitation_question_id", REFERENCE_KEY}
                         },
-                        **association,
+                        **{k: v for k, v in association.items() if k != IDENTITY_KEY},
                     },
                 }
             )
@@ -193,9 +252,11 @@ class SubmitAudioNote:
         max_bytes: int,
         *,
         workflow_config,
+        journal_capture: CaptureReferences | None = None,
     ):
         self.workflow_config = workflow_config
         self.submissions, self.runtime, self.max_bytes = submissions, runtime, max_bytes
+        self.journal_capture = journal_capture
 
     async def execute(
         self,
@@ -207,6 +268,7 @@ class SubmitAudioNote:
         *,
         invitation_id: UUID | None = None,
         invitation_question_id: UUID | None = None,
+        journal_reference: EntryReference | None = None,
     ):
         filename, media_type = validate_audio_upload(filename, media_type, content, self.max_bytes)
         # Validate dates before making a SQL reservation.
@@ -221,6 +283,17 @@ class SubmitAudioNote:
                 key,
                 invitation_id,
                 invitation_question_id,
+            )
+        )
+        manifest.update(
+            await journal_manifest(
+                self.submissions,
+                self.journal_capture,
+                self.runtime.context.user_id,
+                "upload_audio",
+                key,
+                journal_reference,
+                invitation_id,
             )
         )
         receipt = await self.submissions.reserve(

@@ -5,9 +5,20 @@ from datetime import datetime
 from typing import Literal, Protocol
 from uuid import UUID
 
+from src.core.journals.contracts import EntryReference, ResponseJournalContext
 from src.core.journals.models import Instant, JournalModel, JournalRun, JournalTemplate, Revision
 
 Operation = Literal["activate", "adjust", "pause", "resume", "advance", "close", "intention"]
+
+
+class CaptureReferences(Protocol):
+    async def resolve(
+        self,
+        owner: UUID,
+        supplied: EntryReference | None,
+        *,
+        invitation_id: UUID | None = None,
+    ) -> EntryReference | None: ...
 
 
 class OwnerAccess(JournalModel):
@@ -36,6 +47,7 @@ class JournalTransaction(Protocol):
     async def run(self, identifier: UUID, revision: int | None = None) -> JournalRun | None: ...
     async def save(self, run: JournalRun, *, expected_revision: int | None) -> None: ...
     async def record_receipt(self, receipt: MutationReceipt) -> None: ...
+    async def response_context(self, invitation_id: UUID) -> ResponseJournalContext: ...
 
 
 class Journals(Protocol):

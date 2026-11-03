@@ -198,6 +198,9 @@ class AdjustRun(JournalModel):
     purpose: str | None = Field(default=None, min_length=1, max_length=2000, repr=False)
     instructions: str | None = Field(default=None, max_length=4000, repr=False)
     catalogs: tuple[StageCatalog, ...] | None = Field(default=None, max_length=52, repr=False)
+    reviewed_catalogs: tuple[StageCatalog, ...] | None = Field(
+        default=None, max_length=52, repr=False
+    )
 
 
 class ActivateRun(JournalModel):

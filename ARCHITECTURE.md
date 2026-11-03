@@ -217,8 +217,11 @@ conserva versiones de template, snapshots de recorridos, índices de etapas y re
 en una unidad de trabajo. El lock de preferencias existente serializa mutaciones
 con la publicación de invitaciones; el índice parcial garantiza un activo por cuenta.
 Bootstrap compone la capacidad y su reconciliación en el dispatcher existente,
-controlada por `JOURNALS_ENABLED`, deshabilitado por defecto. Todavía no hay rutas
-de gestión ni interfaces. La ingestión
+controlada por `JOURNALS_ENABLED`, deshabilitado por defecto. La gestión LAN usa
+`AdministerJournals` y rutas propias en la aplicación administrativa, con su pool
+SQL y sin contenido personal. Las previsualizaciones llaman las reglas puras;
+las mutaciones reutilizan `ManageJournals` y sus recibos. El panel administra
+configuración e historia; la experiencia pública PWA sigue pendiente. La ingestión
 resuelve referencias históricas por un colaborador de aplicación inyectado;
 texto/audio propagan la misma identidad por originales, recibos y recuperación.
 El índice de entradas pertenece a Journals y se escribe en la transacción de

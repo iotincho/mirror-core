@@ -70,9 +70,11 @@ class ManageJournals:
                     "run_id": str(run_id) if run_id else None,
                     "command": command.model_dump(
                         mode="json",
-                        exclude={"catalogs"}
-                        if getattr(command, "catalogs", None) is None
-                        else set(),
+                        exclude={
+                            name
+                            for name in ("catalogs", "reviewed_catalogs")
+                            if getattr(command, name, None) is None
+                        },
                     ),
                 },
                 sort_keys=True,
@@ -124,6 +126,7 @@ class ManageJournals:
                         purpose=command.purpose,
                         instructions=command.instructions,
                         catalogs=command.catalogs,
+                        reviewed_catalogs=command.reviewed_catalogs,
                         **arguments,
                     )
                 elif operation == "intention":

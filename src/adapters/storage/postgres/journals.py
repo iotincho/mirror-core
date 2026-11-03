@@ -3,7 +3,7 @@
 from contextlib import asynccontextmanager
 
 from pydantic import ValidationError
-from sqlalchemy import func, insert, select, update
+from sqlalchemy import case, func, insert, select, text, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
@@ -46,12 +46,16 @@ def parse_stored(model, payload):
 
 
 class PostgresJournals:
-    def __init__(self, sessions):
-        self.sessions = sessions
+    def __init__(self, sessions, *, read_only=False):
+        self.sessions, self.read_only = sessions, read_only
 
     @asynccontextmanager
     async def transaction(self, owner):
         async with journal_database_errors(), self.sessions.begin() as session:
+            if self.read_only:
+                await session.execute(
+                    text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+                )
             yield JournalTransaction(session, owner, InvitationRepository(self.sessions))
 
     async def install_template(self, template):
@@ -78,7 +82,11 @@ class PostgresJournals:
     async def templates(self, limit=50):
         if not 1 <= limit <= 100:
             raise ValueError("journal_invalid_page_limit")
-        async with journal_database_errors(), self.sessions() as session:
+        async with journal_database_errors(), self.sessions.begin() as session:
+            if self.read_only:
+                await session.execute(
+                    text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
+                )
             rows = await session.scalars(
                 select(JournalTemplateRecord.definition)
                 .order_by(
@@ -205,6 +213,42 @@ class JournalTransaction:
         if run.owner_id != self.owner or run.id != identifier or run.revision != revision:
             raise JournalStorageUnavailable()
         return run
+
+    async def runs(self, *, limit, offset):
+        total = await self.session.scalar(
+            select(func.count())
+            .select_from(JournalRunRecord)
+            .where(JournalRunRecord.owner_id == self.owner)
+        )
+        rows = (
+            await self.session.execute(
+                select(JournalRunRecord.id, JournalRunRecord.revision)
+                .where(JournalRunRecord.owner_id == self.owner)
+                .order_by(
+                    case(
+                        (JournalRunRecord.status == "active", 0),
+                        (JournalRunRecord.status == "paused", 1),
+                        else_=2,
+                    ),
+                    JournalRunRecord.updated_at.desc(),
+                    JournalRunRecord.id,
+                )
+                .limit(limit)
+                .offset(offset)
+            )
+        ).all()
+        return tuple([await self.run(row.id, row.revision) for row in rows]), total
+
+    async def revisions(self, identifier, *, limit, offset):
+        query = select(JournalRevisionRecord.revision).where(
+            JournalRevisionRecord.owner_id == self.owner,
+            JournalRevisionRecord.run_id == identifier,
+        )
+        total = await self.session.scalar(select(func.count()).select_from(query.subquery()))
+        rows = await self.session.scalars(
+            query.order_by(JournalRevisionRecord.revision.desc()).limit(limit).offset(offset)
+        )
+        return tuple([await self.run(identifier, revision) for revision in rows]), total
 
     async def save(self, run, *, expected_revision):
         if run.owner_id != self.owner:

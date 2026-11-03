@@ -210,6 +210,7 @@ def adjust_remaining_stages(
     purpose: str | None = None,
     instructions: str | None = None,
     catalogs: tuple[StageCatalog, ...] | None = None,
+    reviewed_catalogs: tuple[StageCatalog, ...] | None = None,
 ) -> JournalRun:
     now = require_revision(run, expected_revision, now)
     effective_at = run.paused_at if run.status == "paused" else now
@@ -252,10 +253,15 @@ def adjust_remaining_stages(
         if catalogs is None
         else catalogs
     )
-    if catalogs is not None:
+    if catalogs is not None and reviewed_catalogs is not None:
+        raise JournalError("journal_catalog_update_conflict")
+    submitted = catalogs if catalogs is not None else reviewed_catalogs
+    if submitted is not None:
         definitions = {stage.definition.key: stage.definition for stage in stages}
         old = {item.stage_key: item for item in run.catalogs}
-        for catalog in catalogs:
+        if len({item.stage_key for item in submitted}) != len(submitted):
+            raise JournalError("journal_invalid_catalog_stage")
+        for catalog in submitted:
             definition = definitions.get(catalog.stage_key)
             if definition is None or catalog.goal_hash != goal_hash(
                 run.purpose if purpose is None else purpose,
@@ -266,6 +272,10 @@ def adjust_remaining_stages(
             previous = old.get(catalog.stage_key)
             if previous and {p.key for p in catalog.prompts} - {p.key for p in previous.prompts}:
                 raise JournalError("journal_catalog_topic_identity_changed")
+        if reviewed_catalogs is not None:
+            merged = {item.stage_key: item for item in selected_catalogs}
+            merged.update({item.stage_key: item for item in reviewed_catalogs})
+            selected_catalogs = tuple(merged.values())
     return revised(
         run,
         now,

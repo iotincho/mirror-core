@@ -1,8 +1,8 @@
 # Journals · Plan de implementación
 
-Estado: plan del 2 de noviembre de 2026. Etapas 1–4 implementadas localmente por
+Estado: plan del 2 de noviembre de 2026. Etapas 1–5 implementadas localmente por
 autorización del usuario; alcance y decisiones adoptadas en
-[contratos de Journals](journals-contract.md). Etapas 5–7 pendientes.
+[contratos de Journals](journals-contract.md). Etapas 6–7 pendientes.
 Fuente de producto: [definición de Journals](journals-design.md).
 Las decisiones de calendario y contratos de etapa 1 se concretan en esa referencia.
 Las propuestas de integración restantes deben validarse antes de la entrega
@@ -242,8 +242,8 @@ Implementada localmente el 3 de noviembre de 2026; contrato vigente en
 [pregunta diaria de Journals](journals-contract.md#pregunta-diaria-contextualizada-etapa-4).
 Incluye migración `20261103_25`, template v2 con catálogo, workflow `/2` y
 publicación atómica. Probada con PostgreSQL desechable y proveedores sintéticos;
-sin habilitación, llamadas reales ni despliegue. El siguiente paso es el prototipo
-administrativo de etapa 5.
+sin habilitación, llamadas reales ni despliegue. La integración administrativa
+se completó en la etapa 5.
 
 Extender el workflow de preparación existente con una nueva versión y contratos
 compatibles. Conservar el handler anterior mientras haya trabajos aceptados de esa
@@ -294,6 +294,21 @@ límites persistentes; dos dispatchers; una única ocurrencia por día; modo hab
 sin recorrido. Las pruebas no consumen proveedores reales.
 
 ### 5. API y panel administrativo
+
+Prototipo diseñado y **aprobado por el usuario** el 3 de noviembre de 2026.
+En el repositorio `mirror-admin`: `docs/prototypes/journals/index.html` contiene el
+HTML navegable; `docs/prototypes/journals/README.md` registra decisiones, capturas
+y revisión técnica. Las referencias entre repositorios se conservan como rutas.
+Incluye activación, calendario, edición de etapas futuras, revisión del respaldo,
+ciclo de vida, historial y errores/conflictos; revisado en Chrome a 320/390/768/1440 px.
+Etapa implementada localmente: API administrativa dedicada, panel conectado,
+previsualización autoritativa de calendario, revisión parcial del respaldo,
+historial, conflictos y recuperación idempotente de guardados. Se conservó el
+alcance completo aprobado, con los ajustes avanzados dentro del editor.
+Ver [contrato vigente](journals-contract.md#administración-lan-y-panel-etapa-5).
+Validada con PostgreSQL temporal, Chrome y proxies Nginx aislados; sin migrar
+datos reales, habilitar el flag o desplegar. El próximo paso es el prototipo PWA
+de etapa 6, antes de implementar su interfaz.
 
 Antes de implementar el código de interfaz, diseñar un prototipo navegable con
 datos sintéticos y revisarlo con el usuario. Debe cubrir activación desde un

@@ -99,7 +99,8 @@ La lectura de originales sucede fuera del servicio administrativo. Es una proyec
 
 - Migración desde esquema anterior: usuarios históricos siguen sin fecha inventada y las sesiones existentes sobreviven.
 - PostgreSQL aislado: conteos, filtros booleanos, búsqueda literal con `%`, idempotencia, importación con fecha antigua, extractores hijos, borrados, lectura fallida, inventario vencido y exclusión mutua.
-- API pública sin rutas administrativas; API administrativa sin rutas de contenido; única mutación para el permiso de Laboratorio.
+- API pública sin rutas administrativas; API administrativa sin rutas de contenido;
+  mutaciones explícitas de Laboratorio y configuración de Journals.
 - Respuestas explícitas sin hashes, OAuth, contenido o secretos; errores SQL devuelven 503 genérico y no-store.
 - PWA: foreground, frecuencia acotada, limpieza al logout y fallo offline silencioso; suite completa, lint y build.
 - Panel: tipos, pruebas, lint, build sin fixtures y verificación por navegador contra la API.
@@ -115,13 +116,34 @@ permiso inicia en `false` para todas las cuentas. El global `PERSONAL_AXES_ENABL
 debe ser igual en API, workers, dispatcher y admin-api; con el global apagado se
 puede guardar el permiso, pero la funcionalidad permanece inaccesible.
 
-El proceso administrativo ahora permite exclusivamente
+El permiso de Laboratorio usa
 `PATCH /api/admin/users/{id}/laboratory` con `{"laboratory_enabled": true|false}`.
 Se comprueba el origen exacto, incluidos puerto y protocolo. El proxy de mirror-admin
-permite sólo ese PATCH y conserva el Host completo. Las demás mutaciones permanecen
-bloqueadas; no se añade autenticación al panel LAN existente.
+permite ese PATCH y las rutas declaradas de Journals, conservando el Host completo.
+Las demás mutaciones permanecen bloqueadas; no se añade autenticación al panel LAN existente.
 
 Las lecturas conservan `REPEATABLE READ READ ONLY`; la mutación usa su propia
 transacción de escritura. No se conceden privilegios administrativos al usuario de
 la PWA. Revocar bloquea nuevas pruebas y nuevas reservas de ejes, conserva los datos
 y permite terminar los trabajos ya aceptados. Ver [contrato](personal-axes-api.md).
+
+## Gestión de Journals
+
+Usuarios → Cuenta → Journals permite activar un template instalado, revisar el
+calendario, ajustar etapas/propósito/respaldo, pausar, reanudar, avanzar, cerrar y
+consultar revisiones. El prototipo fue aprobado y la etapa 5 está implementada
+localmente; no se desplegó ni habilitó. Ver la superficie y garantías completas
+en [contratos de Journals](journals-contract.md#administración-lan-y-panel-etapa-5).
+
+Aplicar hasta `20261103_25` antes de actualizar procesos. Compartir
+`JOURNALS_ENABLED` con API pública, workers, dispatcher y admin-api; su default
+sigue siendo `false`. El dispatcher instala templates de forma idempotente al
+reconciliar; el endpoint de lectura no hace instalaciones. Los Compose local y de
+distribución pasan el flag explícitamente al proceso administrativo.
+
+No agrega volúmenes, claves de proveedores o acceso al texto de intención/notas
+en admin-api. Las nuevas rutas se componen en `src.bootstrap.administration`, con
+schemas HTTP específicos y comprobación de origen. Las lecturas son read-only;
+las mutaciones confirman su unidad de trabajo antes de devolver recibo.
+El proxy LAN debe actualizarse junto al panel para permitir las rutas declaradas.
+El gateway público conserva su bloqueo de `/api/admin`.

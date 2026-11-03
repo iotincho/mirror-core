@@ -1,9 +1,10 @@
 # Journals · Contratos y persistencia
 
-Estado al 3 de noviembre de 2026: etapas 1–4 implementadas localmente. Núcleo,
+Estado al 3 de noviembre de 2026: etapas 1–5 implementadas localmente. Núcleo,
 aplicación, persistencia PostgreSQL, reconciliación y pregunta diaria compuestos.
 Requiere migración `20261103_25`; `JOURNALS_ENABLED=false` por defecto. Texto/audio
-conservan pertenencia histórica. Sin endpoints de gestión de Journals ni interfaz.
+conservan pertenencia histórica. API LAN de gestión y panel administrativo
+implementados; experiencia pública de Journals en PWA pendiente.
 No habilitado ni desplegado.
 Ver [diseño de producto](journals-design.md) y
 [plan de implementación](journals-implementation-plan.md).
@@ -178,8 +179,8 @@ sin `catalogs` se interpretan como catálogo vacío; no se reescriben sus JSON.
 ## Composición, configuración y reconciliación
 
 `src/bootstrap/journals.py` compone repositorio, acciones y consultas. Comparte el
-pool del proceso que lo llama; administración usará sus sesiones independientes
-al incorporar las rutas de etapa 5. No se agrega otro proceso, broker o proveedor.
+pool del proceso que lo llama. `src/bootstrap/administration.py` compone las rutas
+LAN con el pool y los settings independientes de administración. No se agrega otro proceso, broker o proveedor.
 El código del dispatcher invoca reconciliación con errores técnicos seguros y
 continúa el resto de sus tareas si Journals no está disponible.
 
@@ -431,6 +432,127 @@ journal y restaura la unicidad anterior; sus jobs internos vencen por el runtime
 Conserva originales, recorridos e invitaciones publicadas. No es una recuperación
 de preparaciones eliminadas. No se ha aplicado sobre datos reales.
 
+## Administración LAN y panel, etapa 5
+
+El prototipo en `mirror-admin/docs/prototypes/journals/` fue aprobado por el
+usuario el 3 de noviembre de 2026, conservando su alcance completo. La interfaz
+se implementa con React-admin/MUI en `src/features/users/journals/`, dentro de
+Usuarios → Cuenta → Journals. No incorpora otra biblioteca o un editor público
+de templates. El prototipo queda fuera del bundle y del contexto Docker.
+
+### Aplicación y acceso
+
+`AdministerJournals` coordina consultas, previsualizaciones y traducción de ajustes
+al `ManageJournals` existente. Los puertos de Journals agregan listados acotados
+de recorridos y revisiones; PostgreSQL conserva el alcance del propietario.
+Las lecturas administrativas usan `REPEATABLE READ READ ONLY` y devuelven
+configuración aunque la cuenta o la funcionalidad esté deshabilitada. Las
+mutaciones y previsualizaciones exigen cuenta y workspace habilitados; los
+guardados mantienen el lock de preferencias, control de revisión y commit previo
+a la confirmación existentes. No se crea una segunda unidad de escritura.
+
+`AdministrativeConfiguration` añade fechas, cambio, procedencia y etapa editable
+a la vista administrativa, sin intención ni entradas. La etapa editable pausada
+se resuelve para `paused_at`. Los snapshots históricos se proyectan para su
+fecha de revisión. Los schemas HTTP son propios del adaptador y excluyen también
+la referencia de captura de la vista pública anidada. El historial expone sólo
+revisión, fecha, tipo de cambio y procedencia; una edición de intención no expone
+su texto. La cuenta destino proviene del acceso LAN administrativo existente;
+ninguna de estas rutas se registra en la aplicación pública.
+
+### Superficie HTTP
+
+Prefijo `/api/admin`; todas las respuestas son `Cache-Control: no-store`.
+
+| Método y ruta | Resultado |
+| --- | --- |
+| `GET /journals/templates` | Hasta cien definiciones instaladas, con versiones, etapas y catálogos. No instala templates desde una lectura. |
+| `GET /users/{owner}/journals?limit=20&offset=0` | Flag global, acceso de cuenta/workspace, reloj SQL, configuraciones y total. Activos primero, luego pausados y anteriores. |
+| `GET /users/{owner}/journals/{run}?revision=N` | Configuración vigente o revisión histórica de esa cuenta. |
+| `GET /users/{owner}/journals/{run}/revisions?limit=20&offset=0` | Metadatos paginados de revisiones, de más reciente a más antigua. |
+| `POST /users/{owner}/journals/preview-activation` | Calendario de inicio inmediato para template/versión/zona, sin persistir recorrido o recibo. |
+| `POST /users/{owner}/journals` | Activa la copia personal y devuelve recibo confirmado. |
+| `POST /users/{owner}/journals/{run}/preview` | Ajuste propuesto con fechas y etapas cuyo respaldo requiere revisión; sin persistir. |
+| `PATCH /users/{owner}/journals/{run}` | Confirma un ajuste con `expected_revision`. |
+| `POST /users/{owner}/journals/{run}/actions` | `pause`, `resume`, `advance` o `close`, con `expected_revision`. |
+
+Los listados por cuenta admiten hasta cincuenta registros por página y offset
+hasta cien mil. No hay rutas administrativas de intención, notas o audio.
+Las mutaciones requieren `Idempotency-Key` UUID y cuerpo estricto; los POST de
+previsualización no requieren esa clave porque no escriben. Todos los POST/PATCH
+comprueban el origen exacto, incluidos protocolo y puerto, reutilizando la regla
+LAN existente. No se introduce autenticación o acceso desde cookies públicas.
+
+El recibo HTTP incluye sólo `key`, `run_id`, `revision`, `operation` y
+`recorded_at`. No incluye propietario ni hash de solicitud. Una revisión, activo
+o clave en conflicto devuelve `409`; recurso ajeno/inexistente, `404`;
+configuración inválida, `422`; persistencia no confirmada, `503`. Los errores
+de validación de estas rutas no devuelven inputs ni excepciones con contenido.
+
+### Revisión parcial de preguntas
+
+El PATCH recibe etapas restantes, propósito/indicaciones opcionales y
+`reviewed_catalogs`: sólo los catálogos revisados explícitamente, con clave de
+etapa y preguntas. No recibe `goal_hash`. La aplicación calcula la aprobación
+contra la definición resultante y la revisión inmutable solicitada. Esa
+normalización es idéntica en un replay aunque después cambie la intención.
+
+El contrato interno `AdjustRun.reviewed_catalogs` agrega actualizaciones parciales:
+reemplaza las etapas revisadas y conserva los demás catálogos, incluidos los
+pendientes de revisión. No se combina con `AdjustRun.catalogs`, que conserva su
+semántica previa de reemplazo completo. Ambos campos se excluyen del hash de
+comando cuando valen `null`, conservando los recibos históricos. Aprobar una etapa
+no aprueba las demás ni cambia identidades temáticas. Las preguntas de una etapa
+nueva pueden incorporarse después; entretanto no tiene respaldo elegible.
+
+### Comportamiento del panel y recuperación
+
+El proveedor valida respuestas y comandos con schemas estrictos, propaga
+cancelación, usa `no-store` y expone sólo códigos de error conocidos. Un fallo
+HTTP nunca se sustituye por fixtures. La demo de desarrollo informa que Journals
+requiere el modo API. El build no contiene el prototipo ni los fixtures de pruebas.
+
+La activación presenta template, calendario y confirmación. El servidor calcula
+las fechas con las reglas puras existentes, incluida la zona IANA y el primer día
+parcial. La hora exacta de inicio se fija al confirmar. La edición compara
+antes/después y muestra el calendario resultante; no recalcula intervalos en JS.
+Cambiar objetivo/indicaciones requiere revisar el respaldo o reconocer
+expresamente que se guardará pendiente y esa etapa no emitirá preguntas.
+Los textos de respaldo editados sin aprobar no se descartan silenciosamente al guardar.
+
+Las escrituras son pesimistas. Un recibo confirmado es la única señal de éxito;
+después se actualizan las consultas. Si se pierde la respuesta, se conserva en
+memoria la solicitud congelada y la misma clave por cuenta. «Comprobar resultado»
+repite esa solicitud idempotente; si faltaba confirmar, completa el mismo intento.
+No permite otro cambio para esa cuenta mientras el resultado sea ambiguo, ni
+aplica respuestas de una cuenta a otra. Un cambio de ruta conserva el pendiente.
+Recargar/cerrar muestra la advertencia de salida: borradores y pendientes son
+estado de sesión en memoria, no un respaldo durable del navegador. Si se fuerza
+la salida, se debe consultar configuración/historial antes de iniciar otro cambio.
+
+Un `409` conserva el borrador y recupera la configuración actual. Los cambios de
+campos distintos se combinan; colisiones de un mismo campo requieren elección.
+Las aprobaciones del respaldo se conservan sólo si siguen correspondiendo al
+objetivo y los textos combinados. Si cambió la etapa editable, se conserva el
+borrador para revisión manual y se impide aplicar automáticamente sus cambios a
+una etapa ya terminada. Los snapshots de historial son sólo lectura.
+
+### Operación y frontera de despliegue
+
+No requiere una migración nueva: el head sigue siendo `20261103_25`. Aplicar ese
+esquema antes de arrancar las versiones nuevas. Compartir `JOURNALS_ENABLED` entre
+API pública, worker, dispatcher y admin-api; ambos Compose lo pasan explícitamente
+al proceso administrativo sin añadirle originales o claves de proveedores.
+Los templates se instalan por la reconciliación existente del dispatcher, no
+mediante GET administrativo. El panel muestra ausencia de templates sin inventarlos.
+
+El Nginx LAN permite POST sólo en activación, previsualización y acciones de
+Journals, PATCH sólo en detalle de recorrido y en el permiso de Laboratorio.
+El resto conserva su allowlist de lectura. Se preservan Host, puerto y cabecera
+de idempotencia. El gateway público conserva el bloqueo previo de `/api/admin`,
+incluidas variantes codificadas verificadas por HTTP. Construir o verificar
+imágenes localmente no habilita la funcionalidad ni acredita despliegue.
+
 ## Validación y próximo paso
 
 ```sh
@@ -481,7 +603,18 @@ borrado de evidencia, cuenta inactiva, rollback completo de publicación,
 concurrencia y recuperación sin otra llamada. La prueba de migración cubre JSON
 legado sin catálogos, backfill libre y downgrade con dos contextos de una ocurrencia.
 
-El próximo paso es la etapa 5, comenzando por el prototipo del panel administrativo.
-Las pantallas administrativas y PWA requieren prototipos validados antes de
-implementar sus interfaces. No hay experiencia de piloto habilitada; proveedor
+La API de etapa 5 se verifica en `tests/integration/test_administrative_journals.py`
+con `ADMIN_TEST_DATABASE_URL` en una base `admin_test*` desechable. Cubre lectura
+sin contenido personal, cuenta deshabilitada, preview sin escrituras, rollback,
+confirmación perdida, activación concurrente, revisión parcial y nueva etapa,
+replays tras editar intención, origen y aislamiento. La regresión de administración
+y la de Journals/pregunta diaria usan bases separadas del navegador.
+En `mirror-admin`, pruebas del proveedor y editor, lint, tipos, build y
+`verify:build`; Chrome recorre el build contra API/SQL reales temporales a
+320/390/768/1440 px. `tests/integration/journals-proxy.py` verifica Nginx con
+upstream ficticio y gateway público aislados. El test de Compose de Journals vive
+en `mirror-deploy/tests/test_journals_admin.py`; no consulta un destino con datos.
+
+El próximo paso es el prototipo de PWA de etapa 6, antes de implementar su interfaz.
+No hay experiencia de piloto habilitada; proveedor
 real, broker, push y dispositivos no fueron validados en esta etapa.

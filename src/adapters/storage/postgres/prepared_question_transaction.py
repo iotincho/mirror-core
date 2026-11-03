@@ -12,23 +12,30 @@ from src.adapters.storage.postgres.invitation_question_models import (
     InvitationTopic,
 )
 from src.adapters.storage.postgres.invitation_questions import topic_snapshot
+from src.adapters.storage.postgres.journal_models import JournalInvitationRecord
+from src.adapters.storage.postgres.journal_question_context import journal_source_ids
 from src.adapters.storage.postgres.question_metric_models import QuestionPreparationMetric
 from src.adapters.storage.postgres.question_preparation_models import (
     PersonalTopicDescription,
     QuestionGroupProvenance,
     QuestionPreparation,
 )
+from src.core.exteriorization.journal_questions import context_key
 from src.core.exteriorization.personalization import PersonalQuestionFact, proposal_topic_id
 
 
 class PreparedQuestionTransaction:
-    async def prepared_questions(self, owner, due, preference_version):
+    async def journal_sources(self, owner, reference, identifiers):
+        return await journal_source_ids(self.session, owner, reference, identifiers)
+
+    async def prepared_questions(self, owner, due, preference_version, *, journal_reference=None):
         row = await self.session.scalar(
             select(QuestionPreparation)
             .where(
                 QuestionPreparation.user_id == owner,
                 QuestionPreparation.due_at == due,
                 QuestionPreparation.preference_version == preference_version,
+                QuestionPreparation.context_key == context_key(journal_reference),
             )
             .with_for_update()
         )
@@ -172,12 +179,19 @@ class PreparedQuestionTransaction:
             )
         return facts
 
-    async def personalized_initials(self, owner):
+    async def personalized_initials(self, owner, *, journal_reference=None):
+        query = select(Invitation.source).where(
+            Invitation.user_id == owner, Invitation.kind == "scheduled"
+        )
+        if journal_reference is not None:
+            query = query.join(
+                JournalInvitationRecord, JournalInvitationRecord.invitation_id == Invitation.id
+            ).where(
+                JournalInvitationRecord.owner_id == owner,
+                JournalInvitationRecord.run_id == journal_reference.run_id,
+            )
         sources = await self.session.scalars(
-            select(Invitation.source)
-            .where(Invitation.user_id == owner, Invitation.kind == "scheduled")
-            .order_by(Invitation.created_at.desc(), Invitation.id.desc())
-            .limit(14)
+            query.order_by(Invitation.created_at.desc(), Invitation.id.desc()).limit(14)
         )
         count = 0
         for source in sources:

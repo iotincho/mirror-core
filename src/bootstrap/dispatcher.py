@@ -13,7 +13,7 @@ from src.bootstrap.daily_questions import (
 )
 from src.bootstrap.database import close_database
 from src.bootstrap.invitations import get_invitation_repository
-from src.bootstrap.journals import reconcile_journals
+from src.bootstrap.journals import build_journal_queries, reconcile_journals
 from src.bootstrap.messaging import broker
 from src.bootstrap.notifications import get_notifications
 from src.bootstrap.observability import initialize_sentry, report_issue, trace_operation
@@ -63,6 +63,7 @@ async def main():
                     get_invitation_repository(),
                     prepared_question_selector(),
                     question_policy(get_settings()),
+                    journal_contexts=build_journal_queries(),
                 ).execute()
                 try:
                     await prepare_daily_questions()

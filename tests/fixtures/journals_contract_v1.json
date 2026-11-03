@@ -34,7 +34,8 @@
         "instructions": "Dar lugar a dudas, apoyos y la decisión de posponer o cerrar.",
         "duration_days": 7
       }
-    ]
+    ],
+    "catalogs": []
   },
   "activation": {
     "run_id": "91d604b1-b88e-4877-b9bc-a9cfae550002",
@@ -112,5 +113,43 @@
     "template_id": "91d604b1-b88e-4877-b9bc-a9cfae550001",
     "template_version": 1,
     "timezone": "America/Argentina/Buenos_Aires"
+  },
+  "legacy_adjust": {
+    "command": {
+      "expected_revision": 1,
+      "remaining_stages": [
+        {
+          "key": "explore",
+          "name": "Qué quiero explorar",
+          "objective": "Identificar un propósito primario provisional.",
+          "instructions": "Permitir que la inquietud todavía sea imprecisa.",
+          "duration_days": 7
+        },
+        {
+          "key": "meaning",
+          "name": "Qué significa para mí",
+          "objective": "Explorar los deseos y expectativas en las palabras elegidas.",
+          "instructions": "No atribuir causas ni sugerir recuerdos.",
+          "duration_days": 7
+        },
+        {
+          "key": "daily-life",
+          "name": "Cómo aparece en mi vida",
+          "objective": "Reconocer situaciones cotidianas relacionadas con el propósito.",
+          "instructions": "Invitar a nombrar ejemplos concretos sin exigir profundizar.",
+          "duration_days": 7
+        },
+        {
+          "key": "intention",
+          "name": "Qué intención quiero llevar",
+          "objective": "Revisar lo escrito y formular una intención propia y flexible.",
+          "instructions": "Dar lugar a dudas, apoyos y la decisión de posponer o cerrar.",
+          "duration_days": 7
+        }
+      ],
+      "purpose": null,
+      "instructions": "Foco de prueba"
+    },
+    "request_hash": "00323bdfd48a6804b7153df43df5d72aa01416a2819daa2822c29c2ed560d31f"
   }
 }

@@ -72,7 +72,7 @@ class PostgresJournals:
                     JournalTemplateRecord.version == template.version,
                 )
             )
-            if existing != definition:
+            if parse_stored(JournalTemplate, existing) != template:
                 raise JournalError("journal_template_version_conflict")
 
     async def templates(self, limit=50):

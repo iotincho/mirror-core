@@ -15,6 +15,7 @@ from src.adapters.storage.postgres.invitation_models import (
 from src.adapters.storage.postgres.invitation_notifications import add_invitation_notification
 from src.adapters.storage.postgres.invitation_question_models import InvitationOccurrence
 from src.adapters.storage.postgres.invitation_questions import QuestionTransaction
+from src.adapters.storage.postgres.journal_models import JournalInvitationRecord
 from src.adapters.storage.postgres.models import ProcessingRecord
 from src.adapters.storage.postgres.notification_models import Notification
 from src.adapters.storage.postgres.prepared_question_transaction import PreparedQuestionTransaction
@@ -39,6 +40,11 @@ class InvitationTransaction(SnapshotTracker, QuestionTransaction, PreparedQuesti
 
     async def preference(self, owner):
         return self.track(await self.repository.preference(self.session, owner), PreferenceState)
+
+    async def bind_journal_context(self, invitation, reference):
+        from src.adapters.storage.postgres.journal_entries import bind_journal_invitation
+
+        await bind_journal_invitation(self.session, invitation.user_id, invitation.id, reference)
 
     async def cancel_deliveries(self, owner, subscription_id=None):
         self.synchronize()
@@ -126,12 +132,19 @@ class InvitationTransaction(SnapshotTracker, QuestionTransaction, PreparedQuesti
             .values(read_at=func.coalesce(Notification.read_at, when))
         )
 
-    async def history(self, owner):
+    async def history(self, owner, *, journal_reference=None):
+        query = select(Invitation).where(
+            Invitation.user_id == owner, Invitation.kind == "scheduled"
+        )
+        if journal_reference is not None:
+            query = query.join(
+                JournalInvitationRecord, JournalInvitationRecord.invitation_id == Invitation.id
+            ).where(
+                JournalInvitationRecord.owner_id == owner,
+                JournalInvitationRecord.run_id == journal_reference.run_id,
+            )
         rows = await self.session.scalars(
-            select(Invitation)
-            .where(Invitation.user_id == owner, Invitation.kind == "scheduled")
-            .order_by(Invitation.created_at.desc(), Invitation.id.desc())
-            .limit(7)
+            query.order_by(Invitation.created_at.desc(), Invitation.id.desc()).limit(7)
         )
         return tuple(
             Trigger(**{field: getattr(row, field) for field in Trigger.model_fields})

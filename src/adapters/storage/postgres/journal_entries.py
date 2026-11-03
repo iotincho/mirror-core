@@ -3,7 +3,7 @@
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
-from src.adapters.storage.postgres.journal_models import JournalEntryRecord
+from src.adapters.storage.postgres.journal_models import JournalEntryRecord, JournalInvitationRecord
 from src.core.journals.contracts import EntryReference
 from src.core.processing.submissions import SubmissionConflict
 
@@ -51,3 +51,16 @@ async def bind_derived_journal_entry(session, owner, audio_id, document_id, acce
             ),
             accepted_at,
         )
+
+
+async def bind_journal_invitation(session, owner, invitation_id, reference):
+    session.add(
+        JournalInvitationRecord(
+            invitation_id=invitation_id,
+            owner_id=owner,
+            run_id=reference.run_id,
+            revision=reference.run_revision,
+            stage_id=reference.stage_id,
+        )
+    )
+    await session.flush()

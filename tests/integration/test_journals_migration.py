@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 from src.adapters.storage.postgres.base import Base
 from src.adapters.storage.postgres.journals import PostgresJournals
+from src.adapters.storage.postgres.models import ProcessingRecord
 from src.core.journals.rules import activate
 from src.core.journals.templates import PREPARATION_TEMPLATE
 
@@ -100,6 +101,38 @@ async def test_upgrade_keeps_legacy_accounts_sessions_and_preferences_and_downgr
         )
         async with repository.transaction(owner) as transaction:
             await transaction.save(old_run, expected_revision=None)
+        async with engine.begin() as connection:
+            # Actual v1 JSON predates optional catalogs, including immutable revisions.
+            await connection.execute(
+                text("UPDATE journal_templates SET definition=definition-'catalogs'")
+            )
+            await connection.execute(
+                text("UPDATE journal_run_revisions SET snapshot=snapshot-'catalogs'")
+            )
+        await migrate("upgrade", "20261103_24")
+        job, preparation = uuid4(), uuid4()
+        async with engine.begin() as connection:
+            await connection.execute(
+                ProcessingRecord.__table__.insert().values(
+                    id=job,
+                    user_id=owner,
+                    workflow="question_preparation",
+                    workflow_version=1,
+                    resource_kind="question_preparation",
+                    resource_id=preparation,
+                    stage="question_context",
+                ),
+            )
+            await connection.execute(
+                text(
+                    "INSERT INTO question_preparations"
+                    "(id,user_id,processing_id,due_at,preference_version,status,"
+                    "configuration,created_at,expires_at) "
+                    "VALUES (:preparation,:owner,:job,now(),now(),'pending','{}',"
+                    "now(),now()+interval '1 day')"
+                ),
+                {"preparation": preparation, "owner": owner, "job": job},
+            )
         await migrate("upgrade", "head")
         await migrate("upgrade", "head")
 
@@ -127,6 +160,10 @@ async def test_upgrade_keeps_legacy_accounts_sessions_and_preferences_and_downgr
 
         async with engine.connect() as connection:
             assert not await connection.run_sync(differences)
+            assert (
+                await connection.scalar(text("SELECT context_key FROM question_preparations"))
+                == "free"
+            )
             assert await connection.scalar(text("SELECT count(*) FROM journal_runs")) == 1
             assert await connection.scalar(text("SELECT count(*) FROM journal_templates")) == 1
             assert await connection.scalar(text("SELECT count(*) FROM journal_entries")) == 0
@@ -139,6 +176,24 @@ async def test_upgrade_keeps_legacy_accounts_sessions_and_preferences_and_downgr
         async with repository.transaction(owner) as transaction:
             assert await transaction.run(old_run.id, 1) == old_run
         await repository.install_template(PREPARATION_TEMPLATE)
+        async with engine.begin() as connection:
+            await connection.execute(
+                text(
+                    "INSERT INTO question_preparations"
+                    "(id,user_id,processing_id,due_at,preference_version,status,"
+                    "configuration,created_at,expires_at,context_key) "
+                    "SELECT :id,user_id,processing_id,due_at,preference_version,status,"
+                    "configuration,created_at,expires_at,'journal:synthetic' "
+                    "FROM question_preparations WHERE id=:previous"
+                ),
+                {"id": uuid4(), "previous": preparation},
+            )
+        await migrate("downgrade", "20261103_24")
+        async with engine.connect() as connection:
+            assert await connection.scalar(text("SELECT count(*) FROM question_preparations")) == 1
+            assert (
+                await connection.scalar(text("SELECT id FROM question_preparations")) == preparation
+            )
         await migrate("downgrade", "20261029_22")
         async with engine.connect() as connection:
             assert await connection.scalar(text("SELECT to_regclass('journal_templates')")) is None

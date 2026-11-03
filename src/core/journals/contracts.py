@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import Field, field_validator
 
 from src.core.journals.calendar import utc
+from src.core.journals.catalogs import catalog_for
 from src.core.journals.errors import JournalError
 from src.core.journals.models import (
     Instant,
@@ -16,6 +17,7 @@ from src.core.journals.models import (
     JournalStatus,
     Revision,
     ScheduledStage,
+    StageCatalog,
     StageDefinition,
 )
 from src.core.journals.rules import effective_status, stage_at
@@ -75,6 +77,7 @@ class JournalQuestionContext(JournalModel):
     stage_objective: str = Field(repr=False)
     stage_instructions: str = Field(repr=False)
     intention: IntentionVersion | None = Field(default=None, repr=False)
+    catalog: StageCatalog | None = Field(default=None, repr=False)
 
 
 QuestionContext = FreeQuestionContext | JournalQuestionContext
@@ -103,6 +106,7 @@ def question_context(owner: UUID, run: JournalRun | None, at: datetime) -> Quest
         stage_objective=stage.definition.objective,
         stage_instructions=stage.definition.instructions,
         intention=run.intention,
+        catalog=catalog_for(run, stage),
     )
 
 
@@ -168,11 +172,23 @@ class AdministrativeRunView(JournalModel):
     run: PublicRunView
     instructions: str = Field(repr=False)
     stages: tuple[ScheduledStage, ...]
+    catalogs: tuple[StageCatalog, ...] = Field(default=(), repr=False)
+    catalog_review_required: tuple[str, ...] = ()
 
 
 def administrative_run(run: JournalRun, at: datetime) -> AdministrativeRunView:
     return AdministrativeRunView(
-        run=public_run(run, at), instructions=run.instructions, stages=run.stages
+        run=public_run(run, at),
+        instructions=run.instructions,
+        stages=run.stages,
+        catalogs=run.catalogs,
+        catalog_review_required=tuple(
+            stage.definition.key
+            for stage in run.stages
+            if run.status in {"active", "paused"}
+            and stage.ends_at > (run.paused_at or at)
+            and catalog_for(run, stage) is None
+        ),
     )
 
 
@@ -181,6 +197,7 @@ class AdjustRun(JournalModel):
     remaining_stages: tuple[StageDefinition, ...] = Field(min_length=1, max_length=52)
     purpose: str | None = Field(default=None, min_length=1, max_length=2000, repr=False)
     instructions: str | None = Field(default=None, max_length=4000, repr=False)
+    catalogs: tuple[StageCatalog, ...] | None = Field(default=None, max_length=52, repr=False)
 
 
 class ActivateRun(JournalModel):

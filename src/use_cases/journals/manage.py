@@ -68,7 +68,12 @@ class ManageJournals:
                     "version": "journal-mutation/1",
                     "operation": operation,
                     "run_id": str(run_id) if run_id else None,
-                    "command": command.model_dump(mode="json"),
+                    "command": command.model_dump(
+                        mode="json",
+                        exclude={"catalogs"}
+                        if getattr(command, "catalogs", None) is None
+                        else set(),
+                    ),
                 },
                 sort_keys=True,
                 separators=(",", ":"),
@@ -118,6 +123,7 @@ class ManageJournals:
                         command.remaining_stages,
                         purpose=command.purpose,
                         instructions=command.instructions,
+                        catalogs=command.catalogs,
                         **arguments,
                     )
                 elif operation == "intention":

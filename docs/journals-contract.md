@@ -1,10 +1,10 @@
 # Journals · Contratos y persistencia
 
-Estado al 3 de noviembre de 2026: etapas 1–3 implementadas localmente. Núcleo,
-aplicación, persistencia PostgreSQL y reconciliación compuestos. Requiere migración
-`20261103_24`; `JOURNALS_ENABLED=false` por defecto. La ingestión de texto/audio
-conserva pertenencia histórica. Sin endpoints de gestión de Journals, integración
-del generador diario ni interfaz. No habilitado ni desplegado.
+Estado al 3 de noviembre de 2026: etapas 1–4 implementadas localmente. Núcleo,
+aplicación, persistencia PostgreSQL, reconciliación y pregunta diaria compuestos.
+Requiere migración `20261103_25`; `JOURNALS_ENABLED=false` por defecto. Texto/audio
+conservan pertenencia histórica. Sin endpoints de gestión de Journals ni interfaz.
+No habilitado ni desplegado.
 Ver [diseño de producto](journals-design.md) y
 [plan de implementación](journals-implementation-plan.md).
 
@@ -15,7 +15,7 @@ No crea notas, invitaciones o trabajos. Su núcleo depende sólo de biblioteca
 estándar y Pydantic; no importa exteriorización, aplicación o infraestructura.
 
 - [Modelos](../src/core/journals/models.py): `JournalTemplate`, `StageDefinition`,
-  `ScheduledStage`, `JournalRun` e `IntentionVersion` inmutables.
+  `ScheduledStage`, `JournalRun`, `StageCatalog` e `IntentionVersion` inmutables.
 - [Reglas](../src/core/journals/rules.py): activación, resolución de etapa,
   ajustes, pausa, reanudación, avance explícito, cierre y edición de intención.
 - [Calendario](../src/core/journals/calendar.py): fronteras locales e instantes UTC.
@@ -97,7 +97,7 @@ su misma transacción, sin esperar al próximo ciclo del dispatcher.
 Los estados son `active`, `paused`, `completed`, `closed`. Pausados y terminados no
 conducen preguntas. Cerrar conserva todas las etapas en el snapshot. El modo libre
 devuelto por el contrato es una selección de contexto, no la emisión de otra
-invitación: la integración futura conservará la unicidad diaria y las preferencias.
+invitación: el publicador conserva la unicidad diaria y las preferencias.
 Completar preparación no activa integración ni afirma que ocurrió una experiencia.
 
 ## Contexto público, administrativo y de generación
@@ -105,8 +105,8 @@ Completar preparación no activa integración ni afirma que ocurrió una experie
 | Contrato | Contenido | Excluye |
 | --- | --- | --- |
 | `PublicRunView` | Nombre, propósito, template/versiones, revisión, zona, estado efectivo, etapas visibles y referencia de captura actual. | Propietario, indicaciones internas e intención personal. |
-| `AdministrativeRunView` | Vista del recorrido y configuración de indicaciones/etapas. | Entradas e intención personal. |
-| `JournalQuestionContext` | Propietario ya resuelto, referencia, propósito, indicaciones, objetivo de etapa e intención versionada. | Agregado completo, notas o referencias de evidencia no verificadas. |
+| `AdministrativeRunView` | Vista del recorrido, configuración, catálogos y claves de etapas que requieren revisión del catálogo. | Entradas e intención personal. |
+| `JournalQuestionContext` | Propietario ya resuelto, referencia, propósito, indicaciones, objetivo de etapa, intención versionada y catálogo compatible. | Agregado completo, notas o referencias de evidencia no verificadas. |
 | `FreeQuestionContext` | Modo libre y propietario resuelto. | Pertenencia implícita a un journal. |
 
 La intención se representa aparte en `IntentionVersion`, con texto opcional,
@@ -115,8 +115,8 @@ incrementa la revisión del recorrido para invalidar preparaciones futuras. El
 contexto interno anterior conserva la intención que conocía; la configuración
 administrativa no empieza a recibirla por haberse editado.
 
-`QueryJournals.resolve` implementa el puerto `QuestionContextResolver`; todavía
-no lo consume el generador de invitaciones. Los campos sensibles se
+`QueryJournals.resolve` implementa el puerto `QuestionContextResolver`, inyectado
+al generador de invitaciones. Los campos sensibles se
 excluyen de `repr` y los errores de validación ocultan inputs en su representación
 textual. Eso no vuelve seguro registrar `model_dump()`, `.errors()` o payloads;
 los adaptadores deberán emitir sólo códigos y correlación técnica.
@@ -171,6 +171,10 @@ automáticos: el cliente futuro conservará su clave para recuperar una respuest
 ambigua. El adaptador verifica también que la identidad dentro del snapshot coincida
 con las columnas de alcance, y rechaza representaciones corruptas.
 
+El campo opcional `AdjustRun.catalogs` se omite del hash cuando vale `null`, para
+conservar replays de comandos aceptados antes de etapa 4. Los snapshots antiguos
+sin `catalogs` se interpretan como catálogo vacío; no se reescriben sus JSON.
+
 ## Composición, configuración y reconciliación
 
 `src/bootstrap/journals.py` compone repositorio, acciones y consultas. Comparte el
@@ -181,18 +185,21 @@ continúa el resto de sus tareas si Journals no está disponible.
 
 `JOURNALS_ENABLED` se define en settings públicos/worker/dispatcher y administrativos,
 con default `false`. Debe mantenerse consistente entre procesos al habilitar la
-funcionalidad completa. Deshabilitado, el dispatcher no consulta ni escribe tablas
-de Journals; las nuevas mutaciones se rechazan. Los replays de recibos confirmados,
+funcionalidad completa. Deshabilitado, se omiten reconciliación e instalación de
+templates y se rechazan las nuevas mutaciones. La pregunta diaria consulta el
+contexto para impedir convertir un recorrido activo en libre. Los replays de recibos confirmados,
 las vistas propias y las referencias históricas se conservan si cuenta/workspace
 siguen disponibles. Si se intenta resolver una pregunta para un journal todavía
 activo con el flag apagado, se devuelve `journals_disabled`: no se transforma su
 contexto silenciosamente en libre. Pausados y terminados sí liberan la conducción.
-Todavía no hay integración del publicador que interprete esa suspensión.
+El publicador omite esa ocurrencia y conserva la reserva diaria.
 
 Al ejecutar reconciliación habilitada se instala de forma idempotente el
-[template inicial versionado](../src/core/journals/templates.py), sin crear recorridos
-para usuarios. El template es contenido de producto independiente de la fixture
-de pruebas. No instala todavía un catálogo de preguntas por etapa; eso queda en 4.
+[template inicial versionado](../src/core/journals/templates.py) v1 y su
+[versión 2 con catálogo](../src/core/journals/preparation_catalog.py), sin crear
+recorridos para usuarios. Son contenido de producto independiente de las fixtures.
+La v1 conserva su definición y no recibe un catálogo implícito. Activaciones de v2
+copian sus catálogos; los recorridos v1 necesitan una revisión explícita para incorporarlos.
 
 `ReconcileJournals` consulta como máximo cien propietarios con un activo vencido,
 toma el lock de cada cuenta y aplica la regla pura. Dos dispatchers sólo materializan
@@ -260,9 +267,9 @@ por lo que un ajuste concurrente no altera lo que se validó.
 
 Si hay invitación, su asociación histórica prevalece: `journal_invitation_contexts`
 relaciona una invitación con dueño, recorrido, revisión y etapa, con FKs compuestas.
-La ausencia de fila significa pregunta libre. Esta entrega sólo consume esa
-asociación; su productor será la publicación transaccional de etapa 4, sin backfill
-de preguntas existentes. El cliente no puede adjuntar otro journal a una invitación
+La ausencia de fila significa pregunta libre. El publicador de etapa 4 crea esa
+asociación en la misma transacción de invitación, sin backfill de preguntas existentes.
+El cliente no puede adjuntar otro journal a una invitación
 libre ni sustituir su contexto. La pertenencia de pregunta/variante sigue validándose
 por el camino existente de exteriorización.
 
@@ -326,12 +333,111 @@ apagado, porque los caminos de aceptación, derivación y borrado conocen las ta
 Su downgrade pierde índices de pertenencia y contexto de invitación; conserva
 originales y jobs, pero no ofrece reconstrucción automática del índice al subir.
 
+## Pregunta diaria contextualizada, etapa 4
+
+### Catálogo y ajustes
+
+Cada `StageCatalog` pertenece a una clave de etapa y contiene entre una y doce
+propuestas con clave temática estable y variantes `gentle`, `middle`, `deep`.
+La v2 inicial contiene tres temas por etapa. Los textos deben ser distintos,
+de una línea, con una pregunta y hasta 240 caracteres por variante.
+
+`goal_hash` fija la aprobación editorial al propósito, indicaciones generales,
+objetivo e indicaciones de etapa. Cambiar alguno de esos campos deja el catálogo
+anterior fuera de uso. `AdministrativeRunView.catalog_review_required` identifica
+las etapas actuales/futuras sin catálogo compatible; no incluye intención privada.
+Duración, calendario e intención no alteran ese hash; cualquier mutación conserva
+su efecto de nueva revisión e invalida preparaciones anteriores.
+
+`AdjustRun.catalogs=null` conserva los catálogos de las etapas retenidas. Una tupla
+explícita reemplaza el conjunto: cada catálogo enviado debe aprobar la definición
+resultante. Una tupla vacía los retira. Para un catálogo existente se conservan las
+claves de los temas retenidos; no se permite renombrarlos para eludir un cierre.
+Las etapas nuevas pueden incorporar catálogos propios. Las etapas completadas
+conservan su definición y su historia.
+
+Los IDs de temas curados se derivan de propietario y clave temática, sin recorrido,
+etapa o revisión. Repetir el template conserva los límites y descansos anteriores.
+Los IDs de preguntas y grupos pertenecen a cada invitación. La rotación del catálogo
+usa el historial del recorrido y aplica la política existente de elegibilidad.
+
+### Preparación e inventario
+
+Exteriorización consume el contexto antes de construir candidatos, para el instante
+programado de la pregunta. `PrepareJournalQuestions` extiende los hooks de
+`PrepareQuestions`; `question_preparation/2` comparte runner, transiciones, leases,
+artefactos, cuotas y outbox con `/1`. La versión anterior permanece registrada
+y conserva configuración, identidad libre y prompt anteriores.
+
+La migración `20261103_25` agrega `question_preparations.context_key`, con backfill
+`free`, y amplía la unicidad por cuenta/horario/versión de preferencias/contexto.
+Un contexto de journal incluye recorrido, etapa y revisión. Reservar otra revisión
+vuelve obsoleta la anterior; nunca transforma su trabajo en libre.
+La configuración v2 guarda `journal_reference`; el snapshot añade esa referencia
+y el hash del contexto. Los textos de propósito, objetivo e intención se reconstruyen
+desde la revisión inmutable, sin copiarlos a jobs ni logs. La caché del proveedor
+usa sólo modelo, versión de prompt y límites técnicos, sin referencias personales.
+
+El inventario SQL incluye como máximo veinte documentos del mismo propietario y
+recorrido, vinculados a la etapa objetivo o a etapas anteriores presentes en esa
+revisión. Excluye notas libres, otros recorridos, etapas futuras y etapas quitadas;
+prioriza etapa actual y luego recencia. No aplica el corte de treinta días del
+modo libre. Conserva los presupuestos de entrada, excerpts de hasta 2400 bytes,
+fechas autorales y límites de historial de catorce invitaciones del recorrido.
+Audio aporta su documento derivado, sin otra transcripción.
+
+Los descriptores personales abiertos requieren evidencia en ese inventario.
+Los descriptores de temas restringidos del propietario se conservan como límites,
+incluso si provienen de otra práctica; no incorporan sus notas o historial al
+contexto. Más de 64 descriptores impide generar con restricciones incompletas.
+El prompt `journal-proposals-v1` acota propósito, indicaciones e intención como datos
+del recorrido y exige evidencia de sus fuentes; no amplía la autoridad de esos textos.
+
+Sin fuentes no se llama al proveedor. En modo `curated` tampoco se reservan ni
+ejecutan nuevas generaciones. La validación sintética del proveedor usa un cliente
+doble; no acredita calidad semántica con un modelo real.
+
+### Vigencia, publicación y recuperación
+
+Antes de generar se comprueban cuenta/workspace, preferencias y contexto. Antes
+de aceptar se reconstruyen hashes, fuentes y contexto histórico; la transacción
+revalida contexto actual y pertenencia SQL. El finalizador vuelve a comprobar
+evidencia, límites y revisión bajo los locks existentes de cuenta y recurso.
+Un archivo pendiente de limpieza sin su pertenencia SQL ya no sostiene una propuesta.
+No se toman locks de recursos antes del lock compartido de preferencias.
+
+La selección mantiene las tres profundidades y una alternativa curada del journal;
+la cadencia de pregunta inicial curada se cuenta dentro del recorrido (cada cuatro
+por defecto). Un fallo del proveedor o una preparación ausente/obsoleta usa el
+catálogo elegible actual. Sin catálogo compatible o si todos sus temas están
+restringidos, se omite con `no_eligible_questions` y se avanza la reserva diaria.
+No se usa el catálogo libre ni se levanta un límite para llenar esa ocurrencia.
+
+La invitación, sus grupos/procedencia, `journal_invitation_contexts`, bandeja, jobs
+de push y outbox se confirman juntos. La procedencia conserva referencia y hash
+del contexto, además de evidencia personal cuando corresponde. Las respuestas
+heredan esa asociación histórica por el camino de etapa 3. Un retry posterior a
+un artefacto durable lo reutiliza sin otra llamada al proveedor.
+
+Pausar, cerrar o completar libera la siguiente ocurrencia disponible al contexto
+libre; éste no consume preparaciones del journal. Apagar el flag con un recorrido
+activo omite la ocurrencia. Se conserva una sola publicación por día; resultados
+tardíos no reemplazan invitaciones ni generan otro push.
+
+Aplicar `20261103_25` antes de iniciar API/dispatcher/workers nuevos, también con
+el flag apagado. Detener escritores antes de migrar y mantener versiones de procesos
+consistentes. Su downgrade a `20261103_24` elimina las preparaciones temporales de
+journal y restaura la unicidad anterior; sus jobs internos vencen por el runtime.
+Conserva originales, recorridos e invitaciones publicadas. No es una recuperación
+de preparaciones eliminadas. No se ha aplicado sobre datos reales.
+
 ## Validación y próximo paso
 
 ```sh
 .venv/bin/python -m pytest tests/test_journals_contracts.py tests/test_architecture_boundaries.py
 .venv/bin/python -m pytest tests/test_journals_application.py
 .venv/bin/python -m pytest tests/test_journal_entries.py
+.venv/bin/python -m pytest tests/test_journal_questions.py
 .venv/bin/python -m ruff check src/core/journals tests/test_journals_contracts.py
 python3 scripts/check_architecture.py
 python3 scripts/check_repo_docs.py
@@ -367,6 +473,15 @@ y handoff, restauración de metadata, borrado, importación y HTTP. Las regresio
 de pregunta diaria y audio conservan v1/v2. Grafo y transcripción son dobles; no se
 acredita ArcadeDB, broker, dispositivo ni proveedor real por esas pruebas.
 
-El próximo paso es la etapa 4: generación y publicación de pregunta diaria dentro
-del journal. Las pantallas administrativas y PWA siguen pendientes de prototipos
-validados antes de implementar sus interfaces. No hay experiencia de piloto habilitada.
+`tests/integration/test_journal_question_preparation.py` usa
+`INVITATIONS_TEST_DATABASE_URL` en una base `journals_test*`, migrada al head.
+Cubre aislamiento, primer día sin notas, cambio de etapa durante anticipación,
+ajuste durante generación, revisión editorial, cadencia, límites entre recorridos,
+borrado de evidencia, cuenta inactiva, rollback completo de publicación,
+concurrencia y recuperación sin otra llamada. La prueba de migración cubre JSON
+legado sin catálogos, backfill libre y downgrade con dos contextos de una ocurrencia.
+
+El próximo paso es la etapa 5, comenzando por el prototipo del panel administrativo.
+Las pantallas administrativas y PWA requieren prototipos validados antes de
+implementar sus interfaces. No hay experiencia de piloto habilitada; proveedor
+real, broker, push y dispositivos no fueron validados en esta etapa.

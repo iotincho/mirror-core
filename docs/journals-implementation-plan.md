@@ -1,8 +1,8 @@
 # Journals · Plan de implementación
 
-Estado: plan del 2 de noviembre de 2026. Etapas 1–3 implementadas localmente por
+Estado: plan del 2 de noviembre de 2026. Etapas 1–4 implementadas localmente por
 autorización del usuario; alcance y decisiones adoptadas en
-[contratos de Journals](journals-contract.md). Etapas 4–7 pendientes.
+[contratos de Journals](journals-contract.md). Etapas 5–7 pendientes.
 Fuente de producto: [definición de Journals](journals-design.md).
 Las decisiones de calendario y contratos de etapa 1 se concretan en esa referencia.
 Las propuestas de integración restantes deben validarse antes de la entrega
@@ -237,6 +237,13 @@ entre filesystem/grafo/SQL; sincronización después de transición; audio recup
 sin retranscripción ni extracción repetida. La escritura libre mantiene su contrato.
 
 ### 4. Pregunta diaria contextualizada
+
+Implementada localmente el 3 de noviembre de 2026; contrato vigente en
+[pregunta diaria de Journals](journals-contract.md#pregunta-diaria-contextualizada-etapa-4).
+Incluye migración `20261103_25`, template v2 con catálogo, workflow `/2` y
+publicación atómica. Probada con PostgreSQL desechable y proveedores sintéticos;
+sin habilitación, llamadas reales ni despliegue. El siguiente paso es el prototipo
+administrativo de etapa 5.
 
 Extender el workflow de preparación existente con una nueva versión y contratos
 compatibles. Conservar el handler anterior mientras haya trabajos aceptados de esa

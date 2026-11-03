@@ -51,6 +51,38 @@ class StageDefinition(JournalModel):
         return value
 
 
+class CatalogPrompt(JournalModel):
+    key: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,79}$")
+    gentle: str = Field(min_length=1, max_length=240, repr=False)
+    middle: str = Field(min_length=1, max_length=240, repr=False)
+    deep: str = Field(min_length=1, max_length=240, repr=False)
+
+    @field_validator("gentle", "middle", "deep")
+    @classmethod
+    def single_question(cls, value):
+        if value != value.strip() or "\n" in value or "\r" in value or value.count("?") != 1:
+            raise ValueError("journal_invalid_catalog_question")
+        return value
+
+    @model_validator(mode="after")
+    def distinct_depths(self):
+        if len({self.gentle, self.middle, self.deep}) != 3:
+            raise ValueError("journal_duplicate_catalog_question")
+        return self
+
+
+class StageCatalog(JournalModel):
+    stage_key: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")
+    goal_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    prompts: tuple[CatalogPrompt, ...] = Field(min_length=1, max_length=12, repr=False)
+
+    @model_validator(mode="after")
+    def distinct_topics(self):
+        if len({item.key for item in self.prompts}) != len(self.prompts):
+            raise ValueError("journal_duplicate_catalog_topic")
+        return self
+
+
 class JournalTemplate(JournalModel):
     id: UUID
     version: Revision
@@ -58,6 +90,7 @@ class JournalTemplate(JournalModel):
     purpose: str = Field(min_length=1, max_length=2000, repr=False)
     instructions: str = Field(default="", max_length=4000, repr=False)
     stages: tuple[StageDefinition, ...] = Field(min_length=1, max_length=52)
+    catalogs: tuple[StageCatalog, ...] = Field(default=(), max_length=52, repr=False)
 
     @field_validator("name", "purpose")
     @classmethod
@@ -70,6 +103,9 @@ class JournalTemplate(JournalModel):
     def distinct_stages(self):
         if len({stage.key for stage in self.stages}) != len(self.stages):
             raise ValueError("journal_duplicate_stage")
+        keys = [catalog.stage_key for catalog in self.catalogs]
+        if len(set(keys)) != len(keys) or set(keys) - {stage.key for stage in self.stages}:
+            raise ValueError("journal_invalid_catalog_stage")
         return self
 
 
@@ -118,6 +154,7 @@ class JournalRun(JournalModel):
     ended_at: Instant | None = None
     stages: tuple[ScheduledStage, ...] = Field(min_length=1, max_length=52)
     intention: IntentionVersion | None = Field(default=None, repr=False)
+    catalogs: tuple[StageCatalog, ...] = Field(default=(), max_length=52, repr=False)
 
     @field_validator("name", "purpose")
     @classmethod
@@ -148,6 +185,11 @@ class JournalRun(JournalModel):
             raise ValueError("journal_duplicate_stage")
         if len({stage.definition.key for stage in self.stages}) != len(self.stages):
             raise ValueError("journal_duplicate_stage")
+        catalog_keys = [catalog.stage_key for catalog in self.catalogs]
+        if len(set(catalog_keys)) != len(catalog_keys) or set(catalog_keys) - {
+            stage.definition.key for stage in self.stages
+        }:
+            raise ValueError("journal_invalid_catalog_stage")
         if any(a.ends_at != b.starts_at for a, b in zip(self.stages, self.stages[1:])):
             raise ValueError("journal_noncontiguous_stages")
         if (self.status == "paused") != (self.paused_at is not None):

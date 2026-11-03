@@ -282,6 +282,11 @@ y teclado virtual reales siguen pendientes. La implementación personalizada se 
 
 ## Preparación personalizada de la entrega 4
 
+El contrato siguiente describe el modo libre y `question_preparation/1`.
+La integración de Journals añade `question_preparation/2`, registrado en el mismo
+runtime, sin modificar configuraciones aceptadas v1. Ver
+[contrato de Journals](journals-contract.md#pregunta-diaria-contextualizada-etapa-4).
+
 `PrepareQuestions` coordina por puertos el workflow interno `question_preparation/1`.
 Bootstrap lo registra en el registro compartido; no agrega scheduler, extractor
 ni reintentos Taskiq. El dispatcher publica primero las ocurrencias vencidas y

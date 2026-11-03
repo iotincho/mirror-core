@@ -5,6 +5,7 @@ from uuid import UUID, uuid5
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from src.core.journals.calendar import first_end, shift_days, utc
+from src.core.journals.catalogs import goal_hash
 from src.core.journals.errors import JournalError
 from src.core.journals.models import (
     IntentionVersion,
@@ -12,6 +13,7 @@ from src.core.journals.models import (
     JournalRun,
     JournalTemplate,
     ScheduledStage,
+    StageCatalog,
     StageDefinition,
 )
 
@@ -80,6 +82,7 @@ def activate(
         purpose=template.purpose,
         instructions=template.instructions,
         timezone=timezone,
+        catalogs=template.catalogs,
         started_at=now,
         updated_at=now,
         stages=tuple(stages),
@@ -206,6 +209,7 @@ def adjust_remaining_stages(
     now: datetime,
     purpose: str | None = None,
     instructions: str | None = None,
+    catalogs: tuple[StageCatalog, ...] | None = None,
 ) -> JournalRun:
     now = require_revision(run, expected_revision, now)
     effective_at = run.paused_at if run.status == "paused" else now
@@ -242,11 +246,32 @@ def adjust_remaining_stages(
             )
         )
         start = end
+    retained = {stage.definition.key for stage in stages}
+    selected_catalogs = (
+        tuple(item for item in run.catalogs if item.stage_key in retained)
+        if catalogs is None
+        else catalogs
+    )
+    if catalogs is not None:
+        definitions = {stage.definition.key: stage.definition for stage in stages}
+        old = {item.stage_key: item for item in run.catalogs}
+        for catalog in catalogs:
+            definition = definitions.get(catalog.stage_key)
+            if definition is None or catalog.goal_hash != goal_hash(
+                run.purpose if purpose is None else purpose,
+                run.instructions if instructions is None else instructions,
+                definition,
+            ):
+                raise JournalError("journal_catalog_review_required")
+            previous = old.get(catalog.stage_key)
+            if previous and {p.key for p in catalog.prompts} - {p.key for p in previous.prompts}:
+                raise JournalError("journal_catalog_topic_identity_changed")
     return revised(
         run,
         now,
         change="adjustment",
         stages=tuple(stages),
+        catalogs=selected_catalogs,
         purpose=run.purpose if purpose is None else purpose,
         instructions=run.instructions if instructions is None else instructions,
     )

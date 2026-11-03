@@ -218,7 +218,7 @@ en una unidad de trabajo. El lock de preferencias existente serializa mutaciones
 con la publicación de invitaciones; el índice parcial garantiza un activo por cuenta.
 Bootstrap compone la capacidad y su reconciliación en el dispatcher existente,
 controlada por `JOURNALS_ENABLED`, deshabilitado por defecto. Todavía no hay rutas
-de gestión ni integración con el contenido de la pregunta diaria. La ingestión
+de gestión ni interfaces. La ingestión
 resuelve referencias históricas por un colaborador de aplicación inyectado;
 texto/audio propagan la misma identidad por originales, recibos y recuperación.
 El índice de entradas pertenece a Journals y se escribe en la transacción de
@@ -227,9 +227,14 @@ pertenencia del audio aceptado. Ningún adaptador de salida llama casos de uso
 para decidir la asociación, ni se consulta la etapa actual al recuperar persistencia.
 No duplica `Document`, no genera invitaciones y no importa exteriorización.
 Sus contratos distinguen el contexto público, la configuración administrativa y
-el contexto interno de generación con intención personal. Exteriorización podrá
-consumir el puerto de contexto por inyección; su preparación y publicación siguen
-perteneciendo al área existente. Ver [contratos de Journals](docs/journals-contract.md).
+el contexto interno de generación con intención personal. Exteriorización consume
+el puerto de contexto por inyección antes de construir candidatos. Journals posee
+el catálogo editorial por etapa y su aprobación respecto del objetivo;
+exteriorización aplica rotación, límites y selección. `question_preparation/2`
+reutiliza el runtime existente con referencia a la revisión histórica y fuentes
+del recorrido; `/1` conserva el contrato libre. La publicación confirma contexto
+histórico, procedencia, invitación, bandeja y outbox en la misma transacción.
+Ver [contratos de Journals](docs/journals-contract.md).
 
 ## Criterios para agregar módulos y funcionalidades
 

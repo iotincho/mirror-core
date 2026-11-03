@@ -19,11 +19,13 @@ def WebPushTransport(settings):
 
 def build_invitations(repository):
     from src.bootstrap.daily_questions import question_policy
+    from src.bootstrap.journals import build_journal_queries
 
     settings = get_settings()
     return ConfigureInvitations(
         repository,
         policy=question_policy(settings),
+        journal_contexts=build_journal_queries(repository.sessions),
         push=PushConfiguration(
             settings.web_push_public_key,
             settings.web_push_private_key,

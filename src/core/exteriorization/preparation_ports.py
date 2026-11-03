@@ -1,8 +1,10 @@
 """Ports for preparation inventory, immutable artifacts and proposal generation."""
 
 from typing import Protocol
+from uuid import UUID
 
 from src.core.exteriorization.personalization import TopicProposals
+from src.core.journals.contracts import EntryReference, JournalQuestionContext
 
 
 class PreparationProvider(Protocol):
@@ -17,7 +19,11 @@ class PreparationArtifacts(Protocol):
 class Preparations(Protocol):
     async def schedule(self, configuration, now=None) -> int: ...
     async def live(self, owner, preparation_id, *, now=None) -> dict | None: ...
-    async def inventory(self, owner, now) -> tuple: ...
+    async def inventory(
+        self, owner, now, *, journal_reference: EntryReference | None = None
+    ) -> tuple: ...
+    async def journal_context(self, owner, reference: EntryReference) -> JournalQuestionContext: ...
+    async def journal_sources(self, owner, reference: EntryReference, identifiers) -> set[UUID]: ...
     async def accept(self, context, snapshot, proposals, selection) -> bool: ...
 
 

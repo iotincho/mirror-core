@@ -1,7 +1,7 @@
 # Journals · Definición de producto
 
 Estado: referencia de exploración y diseño acordada el 2 de noviembre de 2026.
-Describe la intención de producto. La etapa 1 del núcleo está implementada
+Describe la intención de producto. Las etapas 1–2 están implementadas
 localmente; su alcance y límites están en [contratos](journals-contract.md).
 El resto de la funcionalidad sigue pendiente.
 Los contratos vigentes de pregunta diaria siguen en

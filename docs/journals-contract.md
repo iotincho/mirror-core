@@ -1,8 +1,9 @@
-# Journals · Contratos del núcleo, etapa 1
+# Journals · Contratos y persistencia
 
-Estado: núcleo y contratos implementados localmente. Sin persistencia, endpoints,
-integración con pregunta diaria ni interfaz. El contenido de preparación es una
-fixture sintética; todavía no se instala un template en la plataforma.
+Estado al 3 de noviembre de 2026: etapas 1–2 implementadas localmente. Núcleo,
+aplicación, persistencia PostgreSQL y reconciliación compuestos. Requiere migración
+`20261103_23`; `JOURNALS_ENABLED=false` por defecto. Sin endpoints, vínculo de notas,
+integración del generador diario ni interfaz. No habilitado ni desplegado.
 Ver [diseño de producto](journals-design.md) y
 [plan de implementación](journals-implementation-plan.md).
 
@@ -23,6 +24,11 @@ estándar y Pydantic; no importa exteriorización, aplicación o infraestructura
   etapas, activación, fronteras esperadas, vista pública y solicitudes de ejemplo.
 - [Pruebas](../tests/test_journals_contracts.py): comportamiento e incompatibilidades
   sin servicios ni proveedores. Los modelos ofrecen `model_json_schema()`.
+- [Puertos](../src/core/journals/ports.py),
+  [casos de uso](../src/use_cases/journals/manage.py) y
+  [consultas](../src/use_cases/journals/query.py): unidades de trabajo por propietario.
+- [Persistencia](../src/adapters/storage/postgres/journals.py) y
+  [migración](../migrations/versions/20261103_23_journals.py): revisiones y recibos atómicos.
 
 Los contratos de aplicación no son schemas HTTP publicados automáticamente.
 Los adaptadores de acceso traducirán sus propios schemas en entregas posteriores.
@@ -46,10 +52,10 @@ identidad ficticia a un operador LAN. El llamador debe conservar las revisiones
 previas; el núcleo no mantiene una colección global ni escribe su historia.
 
 Las mutaciones exigen `expected_revision` y rechazan reloj anterior a `updated_at`.
-Esto expresa control optimista; la escritura condicional atómica y los recibos
-idempotentes se implementarán en PostgreSQL en la etapa 2. La regla de un recorrido
-activo verifica las instancias suministradas por el llamador; no acredita exclusión
-concurrente entre procesos. No debe usarse como sustituto de la restricción SQL.
+La escritura condicional en PostgreSQL comprueba la revisión y conserva la anterior.
+Un índice parcial exige un único recorrido con estado persistido `active` por cuenta.
+Si ese recorrido ya venció, la activación lo completa y libera el lugar dentro de
+su misma transacción, sin esperar al próximo ciclo del dispatcher.
 
 ## Calendario adoptado para esta etapa
 
@@ -107,11 +113,98 @@ incrementa la revisión del recorrido para invalidar preparaciones futuras. El
 contexto interno anterior conserva la intención que conocía; la configuración
 administrativa no empieza a recibirla por haberse editado.
 
-`QuestionContextResolver` es el puerto de resolución para exteriorización; todavía
-no tiene implementación ni consumidores en producción. Los campos sensibles se
+`QueryJournals.resolve` implementa el puerto `QuestionContextResolver`; todavía
+no lo consume el generador de invitaciones. Los campos sensibles se
 excluyen de `repr` y los errores de validación ocultan inputs en su representación
 textual. Eso no vuelve seguro registrar `model_dump()`, `.errors()` o payloads;
 los adaptadores deberán emitir sólo códigos y correlación técnica.
+
+## Persistencia y garantías transaccionales de etapa 2
+
+| Tabla | Autoridad |
+| --- | --- |
+| `journal_templates` | Definición inmutable por ID y versión. Instalar la misma definición es idempotente; cambiarla con la misma versión devuelve conflicto. |
+| `journal_runs` | Índice actual: dueño, template/versiones, revisión vigente, estado, fecha final y actualización. |
+| `journal_run_revisions` | Snapshot completo e inmutable de cada revisión, con configuración, etapas e intención versionada. |
+| `journal_stage_revisions` | Pertenencia relacional por dueño/recorrido/revisión/etapa, posición e intervalos. Los textos permanecen en el snapshot. |
+| `journal_mutation_receipts` | Recibo por dueño y clave idempotente: operación, hash de solicitud, revisión resultante y fecha. No guarda textos de intención o notas. |
+
+La intención no tiene otra tabla de historia: vive en los snapshots versionados.
+Así la revisión fijada por una pregunta identifica también la intención que conocía.
+Las claves foráneas compuestas impiden mezclar dueños al vincular etapas o recibos.
+El puntero a la revisión actual es diferido hasta commit: no se puede confirmar
+un recorrido sin su snapshot. Índices, revisión y recibo se escriben juntos.
+La tabla de entradas/notas y su integración de aceptación pertenecen a etapa 3.
+
+`ManageJournals` coordina activar, ajustar, pausar, reanudar, avanzar, cerrar y
+editar intención. Devuelve un recibo técnico, que se confirma después de salir
+exitosamente de la unidad transaccional. No devuelve texto privado como respuesta
+administrativa. Las vistas se consultan por separado. Las lecturas de intención
+son una operación específica para el propietario; no se agregan a la vista admin.
+
+Antes de operar se verifica que la cuenta exista, esté habilitada y tenga workspace
+activo. La identidad entregada al caso de uso debe provenir del acceso verificado:
+estos métodos no son una API para elegir libremente dueño desde el cliente público.
+SQL queda acotado al propietario y sólo devuelve modelos del núcleo o hechos tipados.
+
+El orden de mutación es: comprobar acceso, tomar el lock de la fila de preferencias
+de invitación, consultar el recibo, resolver el estado vigente y aplicar la regla,
+guardar revisión/índices y recibo, confirmar. Se reutiliza el lock existente de
+exteriorización sin cambiar `enabled`, horario, zona ni `updated_at`. Si faltaba
+la fila se crea con preferencias deshabilitadas. No se adquieren locks de recursos
+o de recorrido antes del lock compartido por cuenta.
+
+La clave idempotente es global entre operaciones de Journals para ese propietario.
+El hash `journal-mutation/1` incluye acción, recorrido y comando normalizado, sin
+el reloj ni IDs generados durante el intento. Un replay idéntico devuelve el
+recibo original, incluso si hubo cambios posteriores; otra solicitud con esa clave
+devuelve `journal_idempotency_conflict`. Los recibos no vencen independientemente
+de su historia. Un fallo antes de commit deja todo en rollback; un commit confirmado
+con respuesta perdida se recupera repitiendo la clave.
+
+Errores SQL o snapshots inválidos se traducen a `JournalStorageUnavailable`
+con código `journal_storage_unavailable`, sin payloads ni mensajes de base de datos.
+Una revisión obsoleta devuelve `journal_revision_conflict`. No se añaden retries
+automáticos: el cliente futuro conservará su clave para recuperar una respuesta
+ambigua. El adaptador verifica también que la identidad dentro del snapshot coincida
+con las columnas de alcance, y rechaza representaciones corruptas.
+
+## Composición, configuración y reconciliación
+
+`src/bootstrap/journals.py` compone repositorio, acciones y consultas. Comparte el
+pool del proceso que lo llama; administración usará sus sesiones independientes
+al incorporar las rutas de etapa 5. No se agrega otro proceso, broker o proveedor.
+El código del dispatcher invoca reconciliación con errores técnicos seguros y
+continúa el resto de sus tareas si Journals no está disponible.
+
+`JOURNALS_ENABLED` se define en settings públicos/worker/dispatcher y administrativos,
+con default `false`. Debe mantenerse consistente entre procesos al habilitar la
+funcionalidad completa. Deshabilitado, el dispatcher no consulta ni escribe tablas
+de Journals; las nuevas mutaciones se rechazan. Los replays de recibos confirmados,
+las vistas propias y las referencias históricas se conservan si cuenta/workspace
+siguen disponibles. Si se intenta resolver una pregunta para un journal todavía
+activo con el flag apagado, se devuelve `journals_disabled`: no se transforma su
+contexto silenciosamente en libre. Pausados y terminados sí liberan la conducción.
+Todavía no hay integración del publicador que interprete esa suspensión.
+
+Al ejecutar reconciliación habilitada se instala de forma idempotente el
+[template inicial versionado](../src/core/journals/templates.py), sin crear recorridos
+para usuarios. El template es contenido de producto independiente de la fixture
+de pruebas. No instala todavía un catálogo de preguntas por etapa; eso queda en 4.
+
+`ReconcileJournals` consulta como máximo cien propietarios con un activo vencido,
+toma el lock de cada cuenta y aplica la regla pura. Dos dispatchers sólo materializan
+una finalización. El reloj normal viene de PostgreSQL; pruebas inyectan reloj sin
+reescribir reglas. El cambio ordinario entre etapas se resuelve por intervalos,
+sin crear una revisión diaria ni generar preguntas atrasadas. Consultar contexto
+o estado no requiere que el dispatcher ya haya materializado la finalización.
+
+La migración es aditiva: no modifica cuentas, sesiones, preferencias, invitaciones
+u originales anteriores, no activa recorridos ni hace backfill. Aplicar esquema
+antes de iniciar una versión con Journals habilitado. Un downgrade a `20261029_22`
+**elimina irreversiblemente templates, recorridos, intención histórica y recibos**;
+no es una estrategia de recuperación de sus datos. Las notas y sesiones existentes
+no se eliminan. Upgrade/downgrade se verifican sólo en bases desechables.
 
 ## Referencia de captura y compatibilidad
 
@@ -146,18 +239,34 @@ no afirma compatibilidad de persistencia que todavía no se ha verificado.
 
 ```sh
 .venv/bin/python -m pytest tests/test_journals_contracts.py tests/test_architecture_boundaries.py
+.venv/bin/python -m pytest tests/test_journals_application.py
 .venv/bin/python -m ruff check src/core/journals tests/test_journals_contracts.py
 python3 scripts/check_architecture.py
 python3 scripts/check_repo_docs.py
 git diff --check
 ```
 
-Las pruebas incluyen fronteras exactas, días sin actividad, horarios estacionales,
+Las pruebas de núcleo/aplicación incluyen fronteras exactas, días sin actividad, horarios estacionales,
 pausa/reanudación, preservación de fechas tras ajustes, conflictos de revisión,
 aislamiento de propietarios, referencias antiguas, proyecciones privadas/públicas
 y carga del núcleo con imports de infraestructura bloqueados.
 
-El próximo paso es la etapa 2: puertos de persistencia y transacciones, snapshots
-archivados, recibos e índices SQL y reconciliación en el dispatcher existente.
-La garantía de concurrencia requiere PostgreSQL aislado. No hay migraciones,
-llamadas pagas, API o interfaces verificadas en esta etapa.
+Para SQL, usar `JOURNALS_TEST_DATABASE_URL` con una base cuyo nombre comience por
+`journals_test`, migrada al head. La prueba de migración crea otra base con ese
+prefijo y la elimina al finalizar; necesita permiso de crear/borrar bases sólo en
+esa instancia de pruebas. No apuntar estas suites a un entorno con usuarios.
+
+```sh
+.venv/bin/python -m pytest tests/integration/test_journals_postgres.py \
+  tests/integration/test_journals_migration.py
+```
+
+Las integraciones cubren activaciones y replays concurrentes, índice único incluso
+sin reglas de aplicación, revisiones simultáneas, rollback antes del recibo y fallo
+al confirmar un FK diferido, aislamiento por dueño, snapshots corruptos, lock
+compartido con preferencias, catch-up concurrente y preservación de historia.
+La migración se compara con los modelos SQL y conserva cuentas/sesiones/preferencias
+sintéticas anteriores. Un skip no valida estas garantías.
+
+El próximo paso es la etapa 3: pertenencia durable de notas de texto y audio.
+No hay endpoints, llamadas pagas, interfaces ni experiencia de piloto habilitada.

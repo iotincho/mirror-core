@@ -70,6 +70,7 @@ src/                              # Backend; organización por responsabilidades
 │   ├── workspaces/               # Preparar, resolver y reconciliar espacios
 │   ├── auth/                     # Login, recuperación y revocación de sesiones
 │   ├── exteriorization/          # Configurar, programar y enviar invitaciones
+│   ├── journals/                 # Recorridos, ajustes, consultas y reconciliación
 │   ├── administration/           # Consultar inventario y administrar permisos
 │   └── maintenance/              # Coordinar backups, cutover y recuperación
 ├── adapters/                     # Entrada/salida y tecnologías concretas
@@ -210,8 +211,14 @@ Las observaciones técnicas se correlacionan sin volcar notas, audio o credencia
 
 `core/journals` posee templates versionados, snapshots de recorridos, etapas y
 reglas temporales. Su ciclo de vida justifica una capacidad independiente de
-exteriorización. La etapa 1 sólo contiene modelos, funciones puras y contratos de
-contexto/proyección: no hay persistencia, rutas ni composición operativa todavía.
+exteriorización. Los casos de uso de `use_cases/journals` coordinan activación,
+ajustes, consultas y reconciliación por puertos acotados al propietario. PostgreSQL
+conserva versiones de template, snapshots de recorridos, índices de etapas y recibos
+en una unidad de trabajo. El lock de preferencias existente serializa mutaciones
+con la publicación de invitaciones; el índice parcial garantiza un activo por cuenta.
+Bootstrap compone la capacidad y su reconciliación en el dispatcher existente,
+controlada por `JOURNALS_ENABLED`, deshabilitado por defecto. No hay rutas ni
+integración con el contenido de la pregunta diaria o la ingestión todavía.
 No duplica `Document`, no genera invitaciones y no importa exteriorización.
 Sus contratos distinguen el contexto público, la configuración administrativa y
 el contexto interno de generación con intención personal. Exteriorización podrá

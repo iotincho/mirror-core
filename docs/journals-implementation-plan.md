@@ -1,8 +1,8 @@
 # Journals · Plan de implementación
 
-Estado: plan del 2 de noviembre de 2026. Etapa 1 implementada localmente por
+Estado: plan del 2 de noviembre de 2026. Etapas 1–2 implementadas localmente por
 autorización del usuario; alcance y decisiones adoptadas en
-[contratos del núcleo](journals-contract.md). Etapas 2–7 pendientes.
+[contratos de Journals](journals-contract.md). Etapas 3–7 pendientes.
 Fuente de producto: [definición de Journals](journals-design.md).
 Las decisiones de calendario y contratos de etapa 1 se concretan en esa referencia.
 Las propuestas de integración restantes deben validarse antes de la entrega
@@ -179,6 +179,13 @@ cambios estacionales, salto de varios días, pausa/reanudación, edición concur
 una activación por cuenta y conservación de referencias históricas.
 
 ### 2. Persistencia y casos de uso del recorrido
+
+Implementada localmente: migración `20261103_23`, snapshots y pertenencia SQL por
+etapa, recibos y casos de uso con exclusión por cuenta, consultas históricas y
+reconciliación en el dispatcher existente. `JOURNALS_ENABLED` inicia en `false`.
+Upgrade/downgrade, compatibilidad de esquema, carreras y rollback se verifican
+en PostgreSQL desechable; límites y comandos en [el contrato](journals-contract.md).
+No hay API, vínculo de notas o integración del generador en esta entrega.
 
 Crear migraciones Alembic nuevas para templates/versiones, recorridos, etapas,
 revisiones, intención y recibos administrativos. Almacenar en SQL configuración e
@@ -411,6 +418,6 @@ contra el diseño validado**. Los prototipos pueden prepararse con los contratos
 de la entrega 1, sin esperar al backend completo. Cada entrega mantiene funcional
 la escritura existente.
 
-El próximo trabajo implementable, cuando se autorice, es la entrega 2 sobre los
-contratos de etapa 1. No comenzar por añadir campos sueltos al
+El próximo trabajo implementable, cuando se autorice, es la entrega 3 sobre los
+contratos y persistencia de etapas 1–2. No comenzar por añadir campos sueltos al
 prompt, tablas sin invariantes o una pantalla que gestione el calendario localmente.

@@ -1,6 +1,8 @@
 # Journals · Definición de producto
 
 Estado: referencia de exploración y diseño acordada el 2 de noviembre de 2026.
+Prototipo PWA aprobado por el usuario el 4 de noviembre de 2026, incluida la
+descripción breve del template para la tarjeta. Su implementación sigue pendiente.
 Describe la intención de producto. Las etapas 1–5 están implementadas
 localmente; su alcance y límites están en [contratos](journals-contract.md).
 El resto de la funcionalidad sigue pendiente.
@@ -31,7 +33,7 @@ busca mantenerla presente; no se promete que aparezca durante la experiencia.
 
 | Concepto | Responsabilidad |
 | --- | --- |
-| Template de journal | Definición reutilizable: nombre, propósito general, orientación para preguntas y etapas iniciales. La biblioteca guarda templates. |
+| Template de journal | Definición reutilizable: nombre, descripción breve para la tarjeta, propósito general, orientación para preguntas y etapas iniciales. La biblioteca guarda templates. |
 | Etapa del template | Nombre, objetivo de exploración, duración prevista e indicaciones específicas para generar preguntas. |
 | Recorrido personal | Instancia de un template para un usuario: configuración propia, estado, calendario, entradas e historial. |
 | Etapa del recorrido | Etapa concreta de esa instancia, con objetivo, indicaciones, duración, fechas y ajustes propios. |
@@ -40,6 +42,13 @@ Activar un template crea un recorrido independiente con una copia de su definici
 y una referencia a la versión de origen. Cambiar el template no modifica recorridos
 existentes; ajustar un recorrido no modifica el template. Una persona puede
 realizar el mismo journal varias veces en distintos momentos de su vida.
+
+La descripción breve es texto de presentación redactado al definir el template,
+por ejemplo «Dale forma a tu intención». Es distinta del propósito completo que
+orienta las preguntas y de la intención personal del usuario. Se copia al activar
+el recorrido; cambiar el template no actualiza esa copia. No se genera con IA ni
+se deriva de las notas. La incorporación de `short_description` al backend queda
+pendiente en la etapa 6 del plan; los recorridos anteriores pueden carecer de ella.
 
 El modelo general contempla etapas ordenadas y propósitos diversos. Las fases
 «preparación» e «integración» y su contenido pertenecen al journal de psicodélicos;

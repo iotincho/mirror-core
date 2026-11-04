@@ -2,8 +2,8 @@
 
 Estado: plan del 2 de noviembre de 2026. Etapas 1–5 implementadas localmente por
 autorización del usuario; alcance y decisiones adoptadas en
-[contratos de Journals](journals-contract.md). Prototipo PWA de etapa 6 aceptado
-como base para seguir iterando; su implementación y la etapa 7 siguen pendientes.
+[contratos de Journals](journals-contract.md). Prototipo PWA de etapa 6 aprobado
+el 4 de noviembre de 2026; su implementación y la etapa 7 siguen pendientes.
 Fuente de producto: [definición de Journals](journals-design.md).
 Las decisiones de calendario y contratos de etapa 1 se concretan en esa referencia.
 Las propuestas de integración restantes deben validarse antes de la entrega
@@ -309,7 +309,7 @@ alcance completo aprobado, con los ajustes avanzados dentro del editor.
 Ver [contrato vigente](journals-contract.md#administración-lan-y-panel-etapa-5).
 Validada con PostgreSQL temporal, Chrome y proxies Nginx aislados; sin migrar
 datos reales, habilitar el flag o desplegar. El prototipo PWA de etapa 6 está
-aceptado como base para continuar la revisión de diseño.
+aprobado; su implementación sigue pendiente.
 
 Antes de implementar el código de interfaz, diseñar un prototipo navegable con
 datos sintéticos y revisarlo con el usuario. Debe cubrir activación desde un
@@ -346,9 +346,9 @@ permite sólo acciones declaradas. El bundle no incluye fixtures ni secretos.
 
 ### 6. API pública y experiencia PWA
 
-Prototipo preparado el 3 de noviembre de 2026 y **aceptado por el usuario como
-base para seguir iterando el 4 de noviembre**. Se continuará revisando detalles
-y mejorando la propuesta; la implementación de etapa 6 sigue pendiente.
+Prototipo preparado el 3 de noviembre de 2026 y **aprobado por el usuario el
+4 de noviembre**, con los ajustes móviles, visuales y el subtítulo breve de la
+tarjeta. La implementación de etapa 6 sigue pendiente.
 En `mirror-pwa`: `docs/prototypes/journals/index.html` contiene la
 demo navegable; `docs/prototypes/journals/README.md` registra las decisiones y el
 alcance, y `review.cjs` y `screenshots/` conservan la revisión técnica. Se mantiene
@@ -380,7 +380,13 @@ Quedan nombre, estado y escritura directa; tocar el nombre abre el diario.
 información, y los objetivos/calendario desde la etapa dentro del recorrido.
 El resumen prioriza pregunta e intención; las entradas evitan encabezados y
 acciones duplicadas. Ambos accesos de escritura son visibles a 320 × 568.
-Esta revisión de interfaz sigue abierta para evaluar detalles con el usuario.
+El resultado final de esta revisión está aprobado por el usuario.
+La versión compacta quedó guardada en `6228c84` de `mirror-pwa` y `943ebc0` de
+`mirror-core`. La iteración visual siguiente diferencia el recorrido activo,
+Mi diario, la pregunta y la intención mediante motivos decorativos y acentos
+menta/dorado, conservando el contenido y las acciones de esa versión compacta.
+Los motivos gráficos no agregan campos de portada. El subtítulo aprobado sí
+requiere el ajuste de backend descrito a continuación.
 
 Revisado en Chrome headless: 25 escenarios a 320/390/768/1440 px, objetivos
 táctiles, teclado/foco, texto ampliado y continuidad de captura; 17 grupos de
@@ -397,6 +403,51 @@ en curso durante un cambio de etapa. Seguir la guía visual de la PWA y revisar
 navegación, accesibilidad y adaptación móvil/escritorio. Registrar la referencia
 al prototipo y las decisiones; el diseño validado es requisito previo al código
 de interfaz de esta entrega.
+
+#### Ajuste de backend: descripción breve del template (pendiente)
+
+El subtítulo «Dale forma a tu intención» es contenido estático del prototipo.
+Para llevarlo a la aplicación, incorporar `short_description` como metadato de
+presentación del template y de su copia en el recorrido. Este cambio se entrega
+con etapa 6, antes de conectar la tarjeta PWA; no está implementado todavía.
+
+- **Dominio y contenido versionado.** Añadir un texto plano opcional, sin blancos
+  laterales y de uno a 160 caracteres, en `JournalTemplate` y `JournalRun`.
+  Ausencia o `null` significan que no hay subtítulo. El template inicial lo declara
+  explícitamente en una nueva versión publicada; conservar intactas las versiones
+  ya publicadas. No crear un editor de templates para resolver este ajuste.
+- **Activación e historia.** Copiar la descripción al activar, junto con la
+  definición aceptada. Las revisiones posteriores conservan esa copia; publicar
+  otra versión del template no modifica recorridos existentes ni sus snapshots.
+  No consultar el template más reciente para completar una tarjeta histórica.
+- **Persistencia y compatibilidad.** Usar los JSON de definición y snapshots
+  existentes, sin una tabla o índice nuevo para este atributo. Leer documentos
+  anteriores sin el campo como `None`, sin rellenarlos o reescribirlos durante
+  una lectura. Preservar instalación idempotente de versiones publicadas y replay
+  de comandos/recibos anteriores, evitando que materializar el nuevo valor nulo
+  altere su identidad. Añadir una migración aditiva sólo si el formato durable
+  realmente la necesita, con verificación sobre una base temporal.
+- **Proyecciones y adaptadores.** Exponer el valor opcional en `PublicRunView`
+  y en los schemas HTTP de listado, activo y detalle de recorridos propios.
+  Propagarlo por las lecturas administrativas, previews e historial que ya
+  presentan la definición. Resolver el acceso desde sesión/workspace o desde el
+  acceso administrativo existente; no agregar endpoints ni una fuente paralela.
+- **Generación y PWA.** Mantenerlo separado de `purpose`, las instrucciones y
+  la intención personal. No incluirlo en prompts, `goal_hash`, cadencia o límites
+  de preguntas. La PWA muestra el valor devuelto debajo del nombre y lo omite si
+  falta, incluido un backend anterior; no inventa un subtítulo ni recorta el
+  propósito como respaldo. Prever texto largo en móvil, con detalle completo
+  accesible desde información. Mi diario conserva su tratamiento de interfaz,
+  sin un template o recorrido especial.
+
+Verificaciones: validación y límites del texto; serialización con/sin el campo;
+lectura de JSON legado; copia al activar y aislamiento entre instancias/versiones;
+historial inmutable; instalación/replay idempotentes; previews y proyecciones
+públicas/administrativas; ausencia de efecto en la pregunta diaria; tarjeta sin
+descripción y texto largo en móvil. Actualizar fixtures y contratos vigentes al
+implementar, conservando los casos legados. No requieren un proveedor real.
+
+#### API pública e implementación PWA (pendientes)
 
 Exponer bajo sesión actual: recorrido activo, listado/detalle de recorridos propios,
 etapas, entradas paginadas e intención/versiones. La intención admite edición

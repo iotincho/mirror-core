@@ -68,13 +68,16 @@ entre etapas es una decisión acordada, independiente de esos detalles.
 
 La jerarquía de interfaz acordada el 3 de noviembre de 2026 sitúa **Journals en la
 navegación principal**, reemplazando «Tu material». Su portada destaca el recorrido
-activo, el foco actual y una acción directa para escribir en él. También permite
+activo y una acción directa para escribir en él. También permite
 entrar en **Mi diario**, el diario de todos los días, sin un tema fijo y disponible
 aunque no haya un recorrido activo.
 
 La consulta de material queda dentro de cada diario, en una vista secundaria de
-entradas. La portada y el resumen priorizan el contexto, la intención y la pregunta;
-la lista de notas no es la experiencia principal. Constelaciones y Laboratorio
+entradas. La portada permite elegir diario y escribir. El resumen del recorrido
+prioriza el contexto, la intención y la pregunta. La explicación general se abre
+desde información; los objetivos y el calendario, desde la etapa. La interfaz
+móvil usa títulos compactos, acciones breves y detalles bajo demanda.
+Constelaciones y Laboratorio
 siguen ofreciendo otras maneras de explorar el espacio. Esta jerarquía no añade
 análisis especializados ni presupone que esas vistas ya filtren por recorrido.
 

@@ -373,8 +373,17 @@ entrada se consulta por recencia, sin análisis ni generación adicional. La cap
 reutiliza el control actual: micrófono en vacío, envío con contenido y detener/guardar durante
 voz; no agrega un botón separado ni un paso extra de confirmación de audio.
 
+Iteración móvil posterior sobre la base aceptada: se retiran los textos
+introductorios, los títulos editoriales y la información de etapas de la portada.
+Quedan nombre, estado y escritura directa; tocar el nombre abre el diario.
+«Anteriores» se despliega bajo demanda. Las explicaciones se consultan desde
+información, y los objetivos/calendario desde la etapa dentro del recorrido.
+El resumen prioriza pregunta e intención; las entradas evitan encabezados y
+acciones duplicadas. Ambos accesos de escritura son visibles a 320 × 568.
+Esta revisión de interfaz sigue abierta para evaluar detalles con el usuario.
+
 Revisado en Chrome headless: 25 escenarios a 320/390/768/1440 px, objetivos
-táctiles, teclado/foco, texto ampliado y continuidad de captura; 15 grupos de
+táctiles, teclado/foco, texto ampliado y continuidad de captura; 17 grupos de
 comprobaciones sin errores. Esa evidencia corresponde al prototipo; no valida
 backend, audio real, dispositivo físico o persistencia. **Las rutas públicas de
 consulta/edición y las vistas PWA de esta etapa aún no están implementadas.**

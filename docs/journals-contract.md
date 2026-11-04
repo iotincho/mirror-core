@@ -615,6 +615,17 @@ En `mirror-admin`, pruebas del proveedor y editor, lint, tipos, build y
 upstream ficticio y gateway público aislados. El test de Compose de Journals vive
 en `mirror-deploy/tests/test_journals_admin.py`; no consulta un destino con datos.
 
-El próximo paso es el prototipo de PWA de etapa 6, antes de implementar su interfaz.
+El prototipo de PWA de etapa 6 está preparado en
+`mirror-pwa/docs/prototypes/journals/`, aceptado por el usuario como base para
+seguir iterando el 4 de noviembre de 2026. Continúa la revisión de detalles;
+la implementación de etapa 6 sigue pendiente. El diseño propone Journals como
+sección principal, un diario cotidiano («Mi diario») y el recorrido activo destacado con escritura
+directa; las entradas quedan dentro de cada diario como vista secundaria.
+«Mi diario» conserva las notas libres sin referencia de recorrido, sin una
+instancia o template adicional. Incluye contexto de pregunta, detalle, intención,
+captura separada y estados de continuidad/error con datos sintéticos. Su revisión
+en Chrome valida únicamente la demo; no se implementaron las rutas públicas de
+consulta/edición ni las vistas PWA de esta etapa.
+Ver el [plan de etapa 6](journals-implementation-plan.md#6-api-pública-y-experiencia-pwa).
 No hay experiencia de piloto habilitada; proveedor
 real, broker, push y dispositivos no fueron validados en esta etapa.

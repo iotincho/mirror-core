@@ -11,9 +11,11 @@ responsabilidades, entregas y decisiones propuestas para los aspectos abiertos.
 
 ## Propósito
 
-Un journal es un recorrido de escritura con propósito, etapas y memoria propia.
-Orienta la pregunta diaria hacia algo que el usuario quiere explorar, manteniendo
-la escritura libre habitual disponible para notas fuera de ese recorrido.
+Journals es el espacio de los diarios del usuario: su diario cotidiano y los
+recorridos con un propósito particular. Dentro de ese espacio, un journal con
+propósito tiene etapas y memoria propia. Orienta la pregunta diaria hacia algo
+que el usuario quiere explorar, manteniendo disponible la escritura libre de su
+diario cotidiano.
 
 El propósito general del journal y la intención personal son distintos. El primero
 orienta el acompañamiento; la segunda puede empezar imprecisa, cambiar y quedar
@@ -63,6 +65,23 @@ duración, así como el cierre al finalizar la última etapa. El avance automát
 entre etapas es una decisión acordada, independiente de esos detalles.
 
 ## Experiencia cotidiana y pertenencia
+
+La jerarquía de interfaz acordada el 3 de noviembre de 2026 sitúa **Journals en la
+navegación principal**, reemplazando «Tu material». Su portada destaca el recorrido
+activo, el foco actual y una acción directa para escribir en él. También permite
+entrar en **Mi diario**, el diario de todos los días, sin un tema fijo y disponible
+aunque no haya un recorrido activo.
+
+La consulta de material queda dentro de cada diario, en una vista secundaria de
+entradas. La portada y el resumen priorizan el contexto, la intención y la pregunta;
+la lista de notas no es la experiencia principal. Constelaciones y Laboratorio
+siguen ofreciendo otras maneras de explorar el espacio. Esta jerarquía no añade
+análisis especializados ni presupone que esas vistas ya filtren por recorrido.
+
+«Mi diario» es el nombre de interfaz para la escritura habitual. No requiere un
+template ni una activación: sus notas conservan la ausencia de referencia a un
+recorrido. El journal activo no absorbe esas notas. Los contratos de templates,
+instancias y etapas siguen aplicando a los recorridos con propósito.
 
 La pregunta de hoy debe identificar claramente el journal al que pertenece.
 Responderla crea una nota vinculada al recorrido, a la etapa y a la pregunta exacta.

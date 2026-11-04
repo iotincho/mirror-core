@@ -2,7 +2,8 @@
 
 Estado: plan del 2 de noviembre de 2026. Etapas 1–5 implementadas localmente por
 autorización del usuario; alcance y decisiones adoptadas en
-[contratos de Journals](journals-contract.md). Etapas 6–7 pendientes.
+[contratos de Journals](journals-contract.md). Prototipo PWA de etapa 6 aceptado
+como base para seguir iterando; su implementación y la etapa 7 siguen pendientes.
 Fuente de producto: [definición de Journals](journals-design.md).
 Las decisiones de calendario y contratos de etapa 1 se concretan en esa referencia.
 Las propuestas de integración restantes deben validarse antes de la entrega
@@ -307,8 +308,8 @@ historial, conflictos y recuperación idempotente de guardados. Se conservó el
 alcance completo aprobado, con los ajustes avanzados dentro del editor.
 Ver [contrato vigente](journals-contract.md#administración-lan-y-panel-etapa-5).
 Validada con PostgreSQL temporal, Chrome y proxies Nginx aislados; sin migrar
-datos reales, habilitar el flag o desplegar. El próximo paso es el prototipo PWA
-de etapa 6, antes de implementar su interfaz.
+datos reales, habilitar el flag o desplegar. El prototipo PWA de etapa 6 está
+aceptado como base para continuar la revisión de diseño.
 
 Antes de implementar el código de interfaz, diseñar un prototipo navegable con
 datos sintéticos y revisarlo con el usuario. Debe cubrir activación desde un
@@ -344,6 +345,39 @@ origen cruzado rechazado; error de commit nunca informado como guardado; proxy
 permite sólo acciones declaradas. El bundle no incluye fixtures ni secretos.
 
 ### 6. API pública y experiencia PWA
+
+Prototipo preparado el 3 de noviembre de 2026 y **aceptado por el usuario como
+base para seguir iterando el 4 de noviembre**. Se continuará revisando detalles
+y mejorando la propuesta; la implementación de etapa 6 sigue pendiente.
+En `mirror-pwa`: `docs/prototypes/journals/index.html` contiene la
+demo navegable; `docs/prototypes/journals/README.md` registra las decisiones y el
+alcance, y `review.cjs` y `screenshots/` conservan la revisión técnica. Se mantiene
+separado de la aplicación, con datos sintéticos en memoria y voz simulada.
+
+Revisado a partir de la devolución del usuario: **Journals reemplaza a «Tu material»
+en la navegación principal**. La portada destaca el journal activo, con escritura
+directa, y «Mi diario» reúne la escritura cotidiana sin un tema fijo. La consulta
+de entradas queda dentro de cada diario, separada de su resumen. El detalle del
+recorrido prioriza foco, intención y pregunta; el calendario se consulta en una hoja.
+«Mi diario» agrupa notas libres sin referencia de recorrido; no agrega un template
+ni una instancia especial. La pertenencia permanece separada de las respuestas y
+notas espontáneas del journal con propósito.
+Los borradores conservan pregunta y etapa aun después de avance/cierre. Incluye
+edición/versiones de intención, errores, conflictos, pausa, fin, primer día,
+recorridos repetidos, audio recuperable y guardado local pendiente sin conexión.
+
+Revisión del 4 de noviembre: se conserva «Tu última entrada» sólo en Mi diario,
+con título, fragmento literal, fecha y acceso al original. Se retira el bloque
+de última respuesta del resumen del recorrido por pedido del usuario. La última
+entrada se consulta por recencia, sin análisis ni generación adicional. La captura
+reutiliza el control actual: micrófono en vacío, envío con contenido y detener/guardar durante
+voz; no agrega un botón separado ni un paso extra de confirmación de audio.
+
+Revisado en Chrome headless: 25 escenarios a 320/390/768/1440 px, objetivos
+táctiles, teclado/foco, texto ampliado y continuidad de captura; 15 grupos de
+comprobaciones sin errores. Esa evidencia corresponde al prototipo; no valida
+backend, audio real, dispositivo físico o persistencia. **Las rutas públicas de
+consulta/edición y las vistas PWA de esta etapa aún no están implementadas.**
 
 Antes de implementar el código de interfaz, diseñar un prototipo navegable con
 datos sintéticos y revisarlo con el usuario. Debe cubrir acceso al recorrido,

@@ -221,7 +221,10 @@ controlada por `JOURNALS_ENABLED`, deshabilitado por defecto. La gestión LAN us
 `AdministerJournals` y rutas propias en la aplicación administrativa, con su pool
 SQL y sin contenido personal. Las previsualizaciones llaman las reglas puras;
 las mutaciones reutilizan `ManageJournals` y sus recibos. El panel administra
-configuración e historia; la experiencia pública PWA sigue pendiente. La ingestión
+configuración e historia. La API pública usa `QueryJournals` para consultas
+propias/paginadas e historia, y `ManageJournals` para intención idempotente.
+El adaptador de invitaciones agrega contexto público de la revisión publicada;
+no consulta la etapa actual para reconstruir una pregunta anterior. La ingestión
 resuelve referencias históricas por un colaborador de aplicación inyectado;
 texto/audio propagan la misma identidad por originales, recibos y recuperación.
 El índice de entradas pertenece a Journals y se escribe en la transacción de

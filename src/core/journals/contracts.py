@@ -17,6 +17,7 @@ from src.core.journals.models import (
     JournalStatus,
     Revision,
     ScheduledStage,
+    ShortDescription,
     StageCatalog,
     StageDefinition,
 )
@@ -126,6 +127,9 @@ class PublicRunView(JournalModel):
     revision: Revision
     name: str = Field(repr=False)
     purpose: str = Field(repr=False)
+    short_description: ShortDescription = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     timezone: str
     status: JournalStatus
     stages: tuple[StageView, ...]
@@ -142,6 +146,7 @@ def public_run(run: JournalRun, at: datetime) -> PublicRunView:
         revision=run.revision,
         name=run.name,
         purpose=run.purpose,
+        short_description=run.short_description,
         timezone=run.timezone,
         status=effective_status(run, at),
         stages=tuple(
@@ -222,3 +227,18 @@ class ChangeLifecycle(JournalModel):
 class EditIntention(JournalModel):
     expected_revision: Revision
     text: str | None = Field(max_length=4000, repr=False)
+
+
+class JournalEntryView(JournalModel):
+    resource_kind: Literal["document", "audio"]
+    resource_id: UUID
+    reference: EntryReference
+    accepted_at: Instant
+
+
+class InvitationJournalView(JournalModel):
+    reference: EntryReference
+    run_name: str
+    stage_name: str
+    stage_objective: str
+    purpose: str

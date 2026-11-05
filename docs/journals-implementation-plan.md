@@ -1,9 +1,9 @@
 # Journals · Plan de implementación
 
-Estado: plan del 2 de noviembre de 2026. Etapas 1–5 implementadas localmente por
+Estado: plan del 2 de noviembre de 2026. Etapas 1–6 implementadas localmente por
 autorización del usuario; alcance y decisiones adoptadas en
 [contratos de Journals](journals-contract.md). Prototipo PWA de etapa 6 aprobado
-el 4 de noviembre de 2026; su implementación y la etapa 7 siguen pendientes.
+el 4 de noviembre de 2026 e implementado en etapa 6; la etapa 7 sigue pendiente.
 Fuente de producto: [definición de Journals](journals-design.md).
 Las decisiones de calendario y contratos de etapa 1 se concretan en esa referencia.
 Las propuestas de integración restantes deben validarse antes de la entrega
@@ -309,7 +309,7 @@ alcance completo aprobado, con los ajustes avanzados dentro del editor.
 Ver [contrato vigente](journals-contract.md#administración-lan-y-panel-etapa-5).
 Validada con PostgreSQL temporal, Chrome y proxies Nginx aislados; sin migrar
 datos reales, habilitar el flag o desplegar. El prototipo PWA de etapa 6 está
-aprobado; su implementación sigue pendiente.
+aprobado e implementado en etapa 6.
 
 Antes de implementar el código de interfaz, diseñar un prototipo navegable con
 datos sintéticos y revisarlo con el usuario. Debe cubrir activación desde un
@@ -348,7 +348,10 @@ permite sólo acciones declaradas. El bundle no incluye fixtures ni secretos.
 
 Prototipo preparado el 3 de noviembre de 2026 y **aprobado por el usuario el
 4 de noviembre**, con los ajustes móviles, visuales y el subtítulo breve de la
-tarjeta. La implementación de etapa 6 sigue pendiente.
+tarjeta. Etapa 6 implementada localmente: API pública, metadatos compatibles,
+Journals en PWA, intención versionada y continuidad de captura/voz.
+Ver el [contrato vigente](journals-contract.md#api-pública-y-pwa--etapa-6) y
+`mirror-pwa/docs/journals.md` para rutas, almacenamiento y límites de validación.
 En `mirror-pwa`: `docs/prototypes/journals/index.html` contiene la
 demo navegable; `docs/prototypes/journals/README.md` registra las decisiones y el
 alcance, y `review.cjs` y `screenshots/` conservan la revisión técnica. Se mantiene
@@ -391,8 +394,8 @@ requiere el ajuste de backend descrito a continuación.
 Revisado en Chrome headless: 25 escenarios a 320/390/768/1440 px, objetivos
 táctiles, teclado/foco, texto ampliado y continuidad de captura; 17 grupos de
 comprobaciones sin errores. Esa evidencia corresponde al prototipo; no valida
-backend, audio real, dispositivo físico o persistencia. **Las rutas públicas de
-consulta/edición y las vistas PWA de esta etapa aún no están implementadas.**
+backend, audio real, dispositivo físico o persistencia. La implementación posterior
+se verifica por separado con pruebas SQL temporales y Chromium sobre la app.
 
 Antes de implementar el código de interfaz, diseñar un prototipo navegable con
 datos sintéticos y revisarlo con el usuario. Debe cubrir acceso al recorrido,
@@ -404,12 +407,13 @@ navegación, accesibilidad y adaptación móvil/escritorio. Registrar la referen
 al prototipo y las decisiones; el diseño validado es requisito previo al código
 de interfaz de esta entrega.
 
-#### Ajuste de backend: descripción breve del template (pendiente)
+#### Ajuste de backend: descripción breve del template (implementado)
 
 El subtítulo «Dale forma a tu intención» es contenido estático del prototipo.
 Para llevarlo a la aplicación, incorporar `short_description` como metadato de
 presentación del template y de su copia en el recorrido. Este cambio se entrega
-con etapa 6, antes de conectar la tarjeta PWA; no está implementado todavía.
+con etapa 6. Se publicó la versión 3, conservando las versiones 1 y 2; los JSON
+existentes permiten el cambio sin una nueva migración SQL.
 
 - **Dominio y contenido versionado.** Añadir un texto plano opcional, sin blancos
   laterales y de uno a 160 caracteres, en `JournalTemplate` y `JournalRun`.
@@ -447,7 +451,7 @@ públicas/administrativas; ausencia de efecto en la pregunta diaria; tarjeta sin
 descripción y texto largo en móvil. Actualizar fixtures y contratos vigentes al
 implementar, conservando los casos legados. No requieren un proveedor real.
 
-#### API pública e implementación PWA (pendientes)
+#### API pública e implementación PWA (implementadas)
 
 Exponer bajo sesión actual: recorrido activo, listado/detalle de recorridos propios,
 etapas, entradas paginadas e intención/versiones. La intención admite edición
@@ -473,6 +477,28 @@ fallo de upload y replay; cambio de cuenta; conflicto al editar intención; perm
 revocados; journal vacío/pausado/completo; backend antiguo sin campos de journal;
 vista móvil y escritorio, foco y lector accesibles. Offline conserva lo capturado;
 no se promete navegación remota de Journals sin conexión.
+
+#### Cierre de etapa 6 · 4 de noviembre de 2026
+
+Implementación en `src/use_cases/journals/query.py`, router/schemas públicos,
+composición y metadatos de dominio; en PWA, `src/features/journals/`, servicio
+HTTP, Dexie v10 y propagación de referencia por captura/sincronización/voz.
+La descripción usa los snapshots JSON existentes, sin migración adicional.
+La búsqueda y los filtros se conservan dentro de Entradas, bajo demanda.
+
+Verificaciones aprobadas: pytest de contratos, aplicación, pertenencia, preguntas,
+OpenAPI y fronteras; API administrativa; 18 pruebas de PostgreSQL temporal,
+incluida publicación histórica y lectura pública por propietario. Ruff y chequeos
+de arquitectura/documentación aprobados. En PWA, `npm test` (33 archivos),
+`npm run lint`, `npm run build`, `npm run verify:build` y chequeo documental;
+regresiones de lector/foco/material repetidas tras los últimos ajustes.
+`tests/integration/journals-browser.cjs` pasó 35 combinaciones de vista/tamaño
+con API simulada: texto ampliado, descripción ausente/larga, pausa, intención con
+conflicto/respuesta perdida, referencias tras recarga/cierre y MediaRecorder con
+audio sintético recuperado. No hay errores de página ni overflow horizontal.
+
+Próximo paso: etapa 7. PostgreSQL de pruebas era desechable y se eliminó al cerrar.
+No se migraron datos reales, habilitó el flag, llamó proveedores ni desplegó.
 
 ### 7. Validación integrada y preparación del piloto
 

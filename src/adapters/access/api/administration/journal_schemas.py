@@ -42,6 +42,9 @@ class Template(Schema):
     version: Positive
     name: str = Field(repr=False)
     purpose: str = Field(repr=False)
+    short_description: str | None = Field(
+        default=None, max_length=160, repr=False, exclude_if=lambda value: value is None
+    )
     instructions: str = Field(repr=False)
     stages: tuple[Stage, ...]
     catalogs: tuple[Catalog, ...]
@@ -86,6 +89,9 @@ class Run(Schema):
     revision: Positive
     name: str = Field(repr=False)
     purpose: str = Field(repr=False)
+    short_description: str | None = Field(
+        default=None, max_length=160, repr=False, exclude_if=lambda value: value is None
+    )
     timezone: str
     status: Literal["active", "paused", "completed", "closed"]
     stages: tuple[StageView, ...]

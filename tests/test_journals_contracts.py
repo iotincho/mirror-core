@@ -493,3 +493,31 @@ sys.meta_path.insert(0, BlockInfrastructure())
 from src.core.journals import contracts, rules
 """
     subprocess.run([sys.executable, "-c", source], check=True, capture_output=True, text=True)
+
+
+def test_short_description_is_copied_without_changing_legacy_snapshots_or_catalog_goals():
+    from src.core.journals.preparation_catalog import (
+        PREPARATION_TEMPLATE_V2,
+        PREPARATION_TEMPLATE_V3,
+    )
+    from src.core.journals.rules import activate
+
+    assert "short_description" not in PREPARATION_TEMPLATE_V2.model_dump(mode="json")
+    assert PREPARATION_TEMPLATE_V3.catalogs == PREPARATION_TEMPLATE_V2.catalogs
+    run = activate(
+        PREPARATION_TEMPLATE_V3, run_id=uuid4(), owner=uuid4(), timezone="UTC", now=START
+    )
+    assert run.short_description == "Dale forma a tu intención."
+    assert public_run(run, START).short_description == run.short_description
+    assert journey().short_description is None
+    assert "short_description" not in journey().model_dump(mode="json")
+
+
+@pytest.mark.parametrize("text", ["", "  Idea", "Idea ", "Idea\nNueva", "x" * 161])
+def test_short_description_rejects_invalid_presentation_text(text):
+    from src.core.journals.models import JournalTemplate
+    from src.core.journals.templates import PREPARATION_TEMPLATE
+
+    payload = PREPARATION_TEMPLATE.model_dump()
+    with pytest.raises(ValidationError):
+        JournalTemplate.model_validate({**payload, "short_description": text})

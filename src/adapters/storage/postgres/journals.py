@@ -11,6 +11,7 @@ from src.adapters.storage.postgres.accounts import User
 from src.adapters.storage.postgres.invitation_models import Invitation
 from src.adapters.storage.postgres.invitations import InvitationRepository
 from src.adapters.storage.postgres.journal_models import (
+    JournalEntryRecord,
     JournalInvitationRecord,
     JournalReceiptRecord,
     JournalRevisionRecord,
@@ -19,7 +20,7 @@ from src.adapters.storage.postgres.journal_models import (
     JournalTemplateRecord,
 )
 from src.adapters.storage.postgres.workspace_models import UserWorkspace
-from src.core.journals.contracts import EntryReference, ResponseJournalContext
+from src.core.journals.contracts import EntryReference, JournalEntryView, ResponseJournalContext
 from src.core.journals.errors import JournalError, JournalStorageUnavailable
 from src.core.journals.models import JournalRun, JournalTemplate
 from src.core.journals.ports import MutationReceipt, OwnerAccess
@@ -249,6 +250,63 @@ class JournalTransaction:
             query.order_by(JournalRevisionRecord.revision.desc()).limit(limit).offset(offset)
         )
         return tuple([await self.run(identifier, revision) for revision in rows]), total
+
+    async def latest_invitation(self, identifier, at):
+        return await self.session.scalar(
+            select(JournalInvitationRecord.invitation_id)
+            .join(
+                Invitation,
+                Invitation.id == JournalInvitationRecord.invitation_id,
+            )
+            .where(
+                JournalInvitationRecord.owner_id == self.owner,
+                JournalInvitationRecord.run_id == identifier,
+                Invitation.user_id == self.owner,
+                Invitation.scheduled_at <= at,
+                Invitation.expires_at > at,
+            )
+            .order_by(Invitation.scheduled_at.desc(), Invitation.id)
+            .limit(1)
+        )
+
+    async def entries(self, identifier, *, limit, offset):
+        query = select(JournalEntryRecord).where(
+            JournalEntryRecord.owner_id == self.owner,
+            JournalEntryRecord.run_id == identifier,
+        )
+        total = await self.session.scalar(select(func.count()).select_from(query.subquery()))
+        rows = await self.session.scalars(
+            query.order_by(
+                JournalEntryRecord.accepted_at.desc(),
+                JournalEntryRecord.resource_id,
+                JournalEntryRecord.resource_kind,
+            )
+            .limit(limit)
+            .offset(offset)
+        )
+        return tuple(
+            JournalEntryView(
+                resource_kind=row.resource_kind,
+                resource_id=row.resource_id,
+                reference=EntryReference(
+                    run_id=row.run_id, run_revision=row.revision, stage_id=row.stage_id
+                ),
+                accepted_at=row.accepted_at,
+            )
+            for row in rows
+        ), total
+
+    async def intention_versions(self, identifier, *, limit, offset):
+        query = select(JournalRevisionRecord.snapshot).where(
+            JournalRevisionRecord.owner_id == self.owner,
+            JournalRevisionRecord.run_id == identifier,
+            JournalRevisionRecord.snapshot["change"].astext == "intention",
+        )
+        total = await self.session.scalar(select(func.count()).select_from(query.subquery()))
+        rows = await self.session.scalars(
+            query.order_by(JournalRevisionRecord.revision.desc()).limit(limit).offset(offset)
+        )
+        return tuple(parse_stored(JournalRun, row).intention for row in rows), total
 
     async def save(self, run, *, expected_revision):
         if run.owner_id != self.owner:

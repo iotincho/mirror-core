@@ -394,3 +394,206 @@ async def test_invalid_configuration_is_not_reported_as_a_storage_outage(env):
             uuid4(),
         )
     assert await counts(env) == (1, 1, 1)
+
+
+async def test_public_api_owns_reads_intention_receipts_and_legacy_json(env):
+    import httpx
+    from fastapi import FastAPI
+
+    from src.adapters.access.api.public.origin import same_origin
+    from src.adapters.access.api.public.routes.journals import build_router
+    from src.core.auth.identity import AuthenticatedUser
+    from src.core.journals.preparation_catalog import PREPARATION_TEMPLATE_V3
+
+    await env.repo.install_template(PREPARATION_TEMPLATE_V3)
+    receipt = await env.manage.activate(env.owner, env.command, uuid4())
+    app = FastAPI()
+    app.include_router(
+        build_router(
+            lambda: AuthenticatedUser(env.owner, "journal@example.test"),
+            lambda: env.query,
+            lambda: env.manage,
+            same_origin(lambda: ["http://journal.test"]),
+        )
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://journal.test"
+    ) as client:
+        response = await client.get("/journals")
+        assert response.status_code == 200, response.text
+        assert response.json()["items"][0]["id"] == str(receipt.run_id)
+        assert "owner_id" not in response.text and "instructions" not in response.text
+        assert response.json()["items"][0]["short_description"] is None
+        active = await client.get("/journals/active")
+        assert active.json()["run"]["id"] == str(receipt.run_id)
+        assert (await client.get(f"/journals/{uuid4()}")).status_code == 404
+        path = f"/journals/{receipt.run_id}/intention"
+        key = str(uuid4())
+        body = dict(expected_revision=1, text="Una intención propia")
+        headers = {"Idempotency-Key": key, "Origin": "http://journal.test"}
+        saved = await client.put(path, json=body, headers=headers)
+        assert saved.status_code == 200, saved.text
+        assert (await client.put(path, json=body, headers=headers)).json() == saved.json()
+        assert (
+            await client.put(
+                path,
+                json={**body, "text": "Otro texto"},
+                headers={**headers, "Idempotency-Key": str(uuid4())},
+            )
+        ).status_code == 409
+        assert (
+            await client.put(path, json=body, headers={**headers, "Origin": "http://other.test"})
+        ).status_code == 403
+        assert (
+            await client.put(path, json={**body, "user_id": str(env.owners[1])}, headers=headers)
+        ).status_code == 422
+        assert (
+            await client.put(path, json={**body, "text": " "}, headers=headers)
+        ).status_code == 422
+        state = (await client.get(path)).json()
+        assert state["run_revision"] == 2 and state["intention"]["text"] == body["text"]
+        history = await client.get(path + "/versions")
+        assert history.status_code == 200, history.text
+        assert history.json()["total"] == 1
+        assert (await client.get(f"/journals/{receipt.run_id}/entries")).json()["items"] == []
+        assert (await client.get(f"/journals/{receipt.run_id}/question")).json() == {
+            "invitation_id": None
+        }
+        assert (await env.query.list(env.owners[1]))["items"] == ()
+        with pytest.raises(JournalError):
+            await env.query.public(env.owners[1], receipt.run_id)
+        env.query.enabled = False
+        assert (await client.get("/journals/active")).json()["run"] is None
+        assert (await client.get(f"/journals/{receipt.run_id}")).status_code == 200
+
+
+async def test_short_description_durable_copy_and_scoped_entry_pagination(env):
+    from src.adapters.access.api.administration.journal_schemas import Run, Template
+    from src.adapters.storage.postgres.journal_models import JournalEntryRecord
+    from src.core.journals.contracts import EditIntention
+    from src.core.journals.preparation_catalog import PREPARATION_TEMPLATE_V3
+
+    await env.repo.install_template(PREPARATION_TEMPLATE_V3)
+    await env.repo.install_template(PREPARATION_TEMPLATE)
+    receipt = await env.manage.activate(
+        env.owner, env.command.model_copy(update={"template_version": 3}), uuid4()
+    )
+    run = await env.query.public(env.owner, receipt.run_id)
+    assert run.short_description == "Dale forma a tu intención."
+    template_read = Template.model_validate(PREPARATION_TEMPLATE_V3.model_dump(mode="json"))
+    admin_read = Run.model_validate(
+        (await env.query.administrative(env.owner, run.id)).run.model_dump(
+            mode="json", exclude={"capture_reference"}
+        )
+    )
+    assert template_read.short_description == admin_read.short_description == run.short_description
+    async with env.sessions.begin() as session:
+        for kind in ("audio", "document"):
+            session.add(
+                JournalEntryRecord(
+                    owner_id=env.owner,
+                    run_id=run.id,
+                    revision=1,
+                    stage_id=run.stages[0].id,
+                    resource_kind=kind,
+                    resource_id=uuid4(),
+                    accepted_at=env.state.now,
+                )
+            )
+    first = await env.query.entries(env.owner, run.id, limit=1)
+    second = await env.query.entries(env.owner, run.id, limit=1, offset=1)
+    assert first["total"] == 2 and first["items"][0].resource_id != second["items"][0].resource_id
+    assert first["items"][0].reference.run_revision == 1
+    changed = await env.manage.edit_intention(
+        env.owner, run.id, EditIntention(expected_revision=1, text="Intento"), uuid4()
+    )
+    assert (await env.query.public(env.owner, run.id)).short_description == run.short_description
+    assert (await env.query.public(env.owner, run.id, 1)).short_description == run.short_description
+    assert changed.revision == 2
+
+
+async def test_published_question_reads_keep_the_original_context_and_owner(env):
+    import httpx
+    from fastapi import FastAPI
+
+    from src.adapters.access.api.public.invitations.routes import build_router
+    from src.adapters.access.api.public.origin import same_origin
+    from src.adapters.storage.postgres.invitation_models import Invitation
+    from src.adapters.storage.postgres.invitations import InvitationRepository
+    from src.adapters.storage.postgres.journal_entries import bind_journal_invitation
+    from src.core.auth.identity import AuthenticatedUser
+    from src.use_cases.exteriorization.configure_invitations import ConfigureInvitations
+
+    receipt = await env.manage.activate(env.owner, env.command, uuid4())
+    run = await env.query.public(env.owner, receipt.run_id)
+    reference = run.capture_reference
+    identifiers = [uuid4() for _ in range(4)]
+    async with env.sessions.begin() as session:
+        for index, identifier in enumerate(identifiers):
+            scheduled = env.state.now + timedelta(hours=index - 1)
+            session.add(
+                Invitation(
+                    id=identifier,
+                    user_id=env.owner,
+                    kind="test",
+                    local_date=scheduled.date(),
+                    timezone="UTC",
+                    scheduled_at=scheduled,
+                    expires_at=scheduled + timedelta(minutes=90),
+                    occurrence_key=f"synthetic-{identifier}",
+                    source="generic",
+                    candidate_id="synthetic",
+                    category="reflection",
+                    question="¿Qué te gustaría explorar?",
+                    engine_version="test/1",
+                    catalog_version="test/1",
+                    created_at=scheduled,
+                )
+            )
+        await session.flush()
+        for identifier in identifiers[:3]:
+            await bind_journal_invitation(session, env.owner, identifier, reference)
+
+    # The most recent published and not future package wins. A later run revision
+    # does not replace the context already accepted with the invitation.
+    await env.manage.edit_intention(
+        env.owner, run.id, EditIntention(expected_revision=1, text="Una intención propia"), uuid4()
+    )
+    assert (await env.query.latest_invitation(env.owner, run.id))["invitation_id"] == identifiers[1]
+    context = await env.query.invitation_context(env.owner, identifiers[1])
+    assert context.reference == reference
+    assert context.stage_name == run.stages[0].name
+    assert await env.query.invitation_context(env.owner, identifiers[3]) is None
+    with pytest.raises(JournalError, match="journal_reference_not_found"):
+        await env.query.invitation_context(env.owners[1], identifiers[1])
+
+    service = ConfigureInvitations(InvitationRepository(env.sessions))
+    app = FastAPI()
+    app.include_router(
+        build_router(
+            lambda: AuthenticatedUser(env.owner, "journal@example.test"),
+            lambda: service,
+            same_origin(lambda: ["http://journal.test"]),
+            lambda: env.query,
+        )
+    )
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://journal.test"
+    ) as client:
+        path = f"/exteriorization/invitations/{identifiers[1]}"
+        response = await client.get(path)
+        assert response.status_code == 200, response.text
+        assert response.json()["journal_context"]["reference"] == reference.model_dump(mode="json")
+        assert "owner_id" not in response.text and "instructions" not in response.text
+        opened = await client.post(f"{path}/opened", headers={"Origin": "http://journal.test"})
+        assert opened.status_code == 200, opened.text
+        assert opened.json()["journal_context"] == response.json()["journal_context"]
+        assert opened.json()["default_question_id"] == response.json()["default_question_id"]
+        legacy = await client.get(f"/exteriorization/invitations/{identifiers[3]}")
+        assert legacy.status_code == 200 and legacy.json()["journal_context"] is None
+
+    disabled = QueryJournals(env.repo, enabled=False, clock=lambda: env.state.now)
+    assert (await disabled.latest_invitation(env.owner, run.id))["invitation_id"] is None
+    assert (await disabled.invitation_context(env.owner, identifiers[1])).reference == reference
+    env.state.now += timedelta(days=1)
+    assert (await env.query.latest_invitation(env.owner, run.id))["invitation_id"] is None

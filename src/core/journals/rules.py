@@ -80,6 +80,7 @@ def activate(
         revision=1,
         name=template.name,
         purpose=template.purpose,
+        short_description=template.short_description,
         instructions=template.instructions,
         timezone=timezone,
         catalogs=template.catalogs,

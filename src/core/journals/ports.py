@@ -5,8 +5,15 @@ from datetime import datetime
 from typing import Literal, Protocol
 from uuid import UUID
 
-from src.core.journals.contracts import EntryReference, ResponseJournalContext
-from src.core.journals.models import Instant, JournalModel, JournalRun, JournalTemplate, Revision
+from src.core.journals.contracts import EntryReference, JournalEntryView, ResponseJournalContext
+from src.core.journals.models import (
+    Instant,
+    IntentionVersion,
+    JournalModel,
+    JournalRun,
+    JournalTemplate,
+    Revision,
+)
 
 Operation = Literal["activate", "adjust", "pause", "resume", "advance", "close", "intention"]
 
@@ -49,6 +56,13 @@ class JournalTransaction(Protocol):
     async def revisions(
         self, identifier: UUID, *, limit: int, offset: int
     ) -> tuple[tuple[JournalRun, ...], int]: ...
+    async def latest_invitation(self, identifier: UUID, at: datetime) -> UUID | None: ...
+    async def entries(
+        self, identifier: UUID, *, limit: int, offset: int
+    ) -> tuple[tuple[JournalEntryView, ...], int]: ...
+    async def intention_versions(
+        self, identifier: UUID, *, limit: int, offset: int
+    ) -> tuple[tuple[IntentionVersion, ...], int]: ...
     async def save(self, run: JournalRun, *, expected_revision: int | None) -> None: ...
     async def record_receipt(self, receipt: MutationReceipt) -> None: ...
     async def response_context(self, invitation_id: UUID) -> ResponseJournalContext: ...

@@ -8,6 +8,8 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from src.adapters.access.api.public.schemas.journals import InvitationJournalRead
+
 
 class PreferenceUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -82,6 +84,7 @@ class InvitationRead(BaseModel):
     default_question_id: UUID
     question_groups: tuple["QuestionGroupRead", ...]
     available_question_ids: tuple[UUID, ...]
+    journal_context: InvitationJournalRead | None = None
 
 
 class QuestionRead(BaseModel):

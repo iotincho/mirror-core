@@ -97,3 +97,9 @@ PREPARATION_TEMPLATE_V2 = with_catalogs(
         ),
     },
 )
+
+
+# Published versions remain unchanged; presentation metadata is additive.
+PREPARATION_TEMPLATE_V3 = PREPARATION_TEMPLATE_V2.model_copy(
+    update={"version": 3, "short_description": "Dale forma a tu intención."}
+)

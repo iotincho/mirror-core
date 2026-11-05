@@ -3,7 +3,7 @@
 from src.adapters.storage.postgres.journals import PostgresJournals
 from src.bootstrap.database import get_session_maker
 from src.bootstrap.settings import get_settings
-from src.core.journals.preparation_catalog import PREPARATION_TEMPLATE_V2
+from src.core.journals.preparation_catalog import PREPARATION_TEMPLATE_V2, PREPARATION_TEMPLATE_V3
 from src.core.journals.templates import PREPARATION_TEMPLATE
 from src.use_cases.journals.manage import ManageJournals
 from src.use_cases.journals.query import QueryJournals
@@ -27,6 +27,6 @@ async def reconcile_journals():
         return 0
     repository = build_journals()
     await InstallJournalTemplates(repository).execute(
-        (PREPARATION_TEMPLATE, PREPARATION_TEMPLATE_V2)
+        (PREPARATION_TEMPLATE, PREPARATION_TEMPLATE_V2, PREPARATION_TEMPLATE_V3)
     )
     return await ReconcileJournals(repository).execute()

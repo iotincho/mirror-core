@@ -19,6 +19,21 @@ from src.core.journals.calendar import utc
 Instant = Annotated[AwareDatetime, AfterValidator(utc)]
 Revision = Annotated[int, Field(strict=True, ge=1)]
 Days = Annotated[int, Field(strict=True, ge=1, le=365)]
+
+
+def short_description(value: str | None) -> str | None:
+    if value is not None and (
+        not value or value != value.strip() or "\n" in value or "\r" in value
+    ):
+        raise ValueError("journal_invalid_short_description")
+    return value
+
+
+ShortDescription = Annotated[
+    str | None, Field(min_length=1, max_length=160), AfterValidator(short_description)
+]
+
+
 JournalStatus = Literal["active", "paused", "completed", "closed"]
 JournalChange = Literal[
     "activation",
@@ -88,6 +103,9 @@ class JournalTemplate(JournalModel):
     version: Revision
     name: str = Field(min_length=1, max_length=120, repr=False)
     purpose: str = Field(min_length=1, max_length=2000, repr=False)
+    short_description: ShortDescription = Field(
+        default=None, repr=False, exclude_if=lambda value: value is None
+    )
     instructions: str = Field(default="", max_length=4000, repr=False)
     stages: tuple[StageDefinition, ...] = Field(min_length=1, max_length=52)
     catalogs: tuple[StageCatalog, ...] = Field(default=(), max_length=52, repr=False)
@@ -143,6 +161,9 @@ class JournalRun(JournalModel):
     revision: Revision
     name: str = Field(min_length=1, max_length=120, repr=False)
     purpose: str = Field(min_length=1, max_length=2000, repr=False)
+    short_description: ShortDescription = Field(
+        default=None, repr=False, exclude_if=lambda value: value is None
+    )
     instructions: str = Field(default="", max_length=4000, repr=False)
     timezone: str
     status: JournalStatus = "active"

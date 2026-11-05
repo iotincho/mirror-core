@@ -1,10 +1,10 @@
 # Journals · Contratos y persistencia
 
-Estado al 3 de noviembre de 2026: etapas 1–5 implementadas localmente. Núcleo,
+Estado al 4 de noviembre de 2026: etapas 1–6 implementadas localmente. Núcleo,
 aplicación, persistencia PostgreSQL, reconciliación y pregunta diaria compuestos.
 Requiere migración `20261103_25`; `JOURNALS_ENABLED=false` por defecto. Texto/audio
 conservan pertenencia histórica. API LAN de gestión y panel administrativo
-implementados; experiencia pública de Journals en PWA pendiente.
+implementados; API pública y experiencia PWA disponibles en código.
 No habilitado ni desplegado.
 Ver [diseño de producto](journals-design.md) y
 [plan de implementación](journals-implementation-plan.md).
@@ -615,22 +615,86 @@ En `mirror-admin`, pruebas del proveedor y editor, lint, tipos, build y
 upstream ficticio y gateway público aislados. El test de Compose de Journals vive
 en `mirror-deploy/tests/test_journals_admin.py`; no consulta un destino con datos.
 
-El prototipo de PWA de etapa 6 está en
-`mirror-pwa/docs/prototypes/journals/`, aprobado por el usuario el 4 de noviembre
-de 2026. La implementación de etapa 6 sigue pendiente. El diseño propone Journals
-como sección principal, un diario cotidiano («Mi diario») y el recorrido activo
-destacado con escritura directa; las entradas quedan dentro de cada diario como
-vista secundaria.
-«Mi diario» conserva las notas libres sin referencia de recorrido, sin una
-instancia o template adicional. Incluye contexto de pregunta, detalle, intención,
-captura separada y estados de continuidad/error con datos sintéticos. Su revisión
-en Chrome valida únicamente la demo; no se implementaron las rutas públicas de
-consulta/edición ni las vistas PWA de esta etapa.
-La descripción breve de la tarjeta se aprobó como parte del template y su copia
-al activar el recorrido. El campo `short_description` aún no forma parte de los
-modelos ni de las proyecciones implementadas; su incorporación compatible está
-prevista en el plan de etapa 6. Es metadato de presentación, distinto del propósito
-y de la intención personal.
-Ver el [plan de etapa 6](journals-implementation-plan.md#6-api-pública-y-experiencia-pwa).
-No hay experiencia de piloto habilitada; proveedor
-real, broker, push y dispositivos no fueron validados en esta etapa.
+## API pública y PWA · etapa 6
+
+El prototipo `mirror-pwa/docs/prototypes/journals/` fue aprobado el 4 de noviembre
+antes de implementar. Journals pasa a ser una sección principal: recorrido activo,
+«Mi diario» libre y recorridos anteriores; las entradas son una vista secundaria.
+La implementación está en `mirror-pwa/src/features/journals/` y su contrato en
+`mirror-pwa/docs/journals.md`. No activa ni configura recorridos desde el cliente público.
+
+### Rutas y autorización
+
+El router público traduce schemas propios y obtiene el propietario de la sesión;
+los casos de uso comprueban cuenta/workspace y consultan los puertos SQL de Journals.
+Las rutas internas siguientes se sirven bajo `/api` mediante el gateway existente:
+
+| Método y ruta | Resultado |
+| --- | --- |
+| `GET /journals` | `enabled`, `items`, `total`, `offset`; recorridos propios |
+| `GET /journals/active` | `enabled` y `run` activo efectivo o `null` |
+| `GET /journals/{id}?revision=N` | Detalle actual o snapshot histórico propio |
+| `GET /journals/{id}/entries` | Referencias de documentos/audios, fecha de aceptación y referencia histórica |
+| `GET /journals/{id}/question` | `invitation_id` publicado y vigente o `null`; no genera preguntas |
+| `GET /journals/{id}/intention` | `run_revision` e `intention`, leídos en la misma transacción |
+| `GET /journals/{id}/intention/versions` | Versiones anteriores, incluidas revisiones que vacían el texto |
+| `PUT /journals/{id}/intention` | Recibo de mutación idempotente con `Idempotency-Key` UUID |
+
+Los listados admiten `limit` entre 1 y 100 y `offset` entre 0 y 100000;
+default 30, salvo versiones de intención (20). Entradas y versiones incluyen
+`run_revision`. El índice devuelve identidades; la PWA carga el original con los
+servicios existentes y reúne audio/documento derivado por identidad de documento.
+No duplica notas en Journals ni realiza llamadas a proveedores al consultar.
+
+La edición recibe sólo `expected_revision` y `text` (opcional mediante `null`,
+máximo 4000 caracteres, sin blancos laterales). El servidor conserva versiones,
+control optimista y recibos. Un replay aceptado devuelve el mismo recibo aunque
+el recorrido haya cambiado; un comando nuevo debe cumplir el estado y el flag.
+Se aplica la protección de origen existente. No se acepta un propietario en el body.
+Errores de pertenencia inexistente son 404, workspace no disponible 403,
+conflictos de dominio 409 y persistencia no disponible 503, sin contenido sensible.
+
+El listado/detalle y la intención histórica siguen disponibles al deshabilitar
+Journals; activo y pregunta devuelven `null`, y no se aceptan nuevas ediciones.
+`GET` y `POST opened` de invitaciones agregan `journal_context` opcional:
+referencia, nombre del recorrido, etapa, objetivo y propósito de la revisión
+**publicada**. Los paquetes libres devuelven `null`. No expone intención personal,
+instrucciones ni propietario; no modifica pregunta, variante o identidad.
+
+### Descripción breve y compatibilidad
+
+`short_description` es metadato opcional del template y su copia al activar el
+recorrido: texto plano de 1–160 caracteres, sin blancos laterales ni saltos de
+línea. La versión 3 del template de preparación declara «Dale forma a tu intención.».
+Las versiones 1 y 2 permanecen intactas. Los snapshots posteriores conservan la
+copia original; una publicación nueva no actualiza recorridos existentes.
+
+Se guarda en los JSON existentes. Ausencia y `null` se leen como `None`, omitiendo
+el campo nulo en la serialización durable para conservar identidad e instalación
+idempotente del material legado. No hay migración SQL adicional para este atributo,
+backfill ni reescritura durante lectura. Las proyecciones públicas y administrativas,
+previews e historial propagan el valor opcional. No interviene en prompts,
+`goal_hash`, cadencia, límites o selección de preguntas.
+
+### Continuidad y verificación
+
+La PWA fija referencia de recorrido/etapa/revisión al comenzar escritura o voz y
+la conserva en borradores, fragmentos recuperables, documentos y uploads JSON o
+multipart. Una pregunta usa su contexto publicado. Avance, pausa o cierre posteriores
+no reasignan la entrada. Los originales siguen usando el lector y las acciones
+existentes. «Mi diario» agrupa únicamente entradas libres; no crea un template especial.
+
+Dexie v10 conserva copias de metadatos y borradores de intención por cuenta. La
+edición persiste texto, revisión base, cuerpo y clave antes del HTTP; ante conflicto
+compara versiones explícitamente. Sin conexión no confirma guardados remotos ni
+inventa páginas o preguntas; muestra copias ya leídas y permite conservar capturas
+locales para sincronizar después. La recuperación no activa un service worker pendiente.
+
+Validación de esta entrega: contratos/aplicación, API con sesión y PostgreSQL
+**temporal**, snapshots legados, instalación de templates, paginación, aislamiento,
+contexto publicado, replay de intención y flag deshabilitado. En PWA: regresiones
+de captura/voz/material, lint, build, verificación PWA y Chromium con API simulada
+para navegación, conflicto/respuesta perdida, captura histórica, copia offline y
+matriz visual desde 320 px. Estas comprobaciones no acreditan backend desplegado,
+proveedor real, broker/push ni dispositivo físico; corresponden a la etapa 7 y a
+habilitación del piloto por separado. No se habilitó el flag ni se desplegó.

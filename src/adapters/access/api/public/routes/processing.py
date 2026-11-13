@@ -168,11 +168,28 @@ def build_router(get_actions, get_limits):
         limits=Depends(get_limits),
         document_id: Annotated[UUID | None, Form()] = None,
         authored_at: Annotated[datetime | None, Form()] = None,
+        invitation_id: Annotated[UUID | None, Form()] = None,
+        invitation_question_id: Annotated[UUID | None, Form()] = None,
+        journal_reference: Annotated[str | None, Form()] = None,
     ):
         content = await read_upload(file, limits.document_max_upload_bytes)
         try:
+            reference = (
+                EntryReference.model_validate(
+                    JournalReference.model_validate_json(journal_reference).model_dump()
+                )
+                if journal_reference is not None
+                else None
+            )
             document, record = await actions.submit_file(
-                file.filename, content, document_id, authored_at, key
+                file.filename,
+                content,
+                document_id,
+                authored_at,
+                key,
+                invitation_id=invitation_id,
+                invitation_question_id=invitation_question_id,
+                **({"journal_reference": reference} if reference is not None else {}),
             )
         except Exception as error:
             raise http_error(error) from error

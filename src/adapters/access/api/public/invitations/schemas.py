@@ -114,6 +114,23 @@ class FeedbackRead(FeedbackInput):
     recorded_at: datetime
 
 
+class TopicPauseInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    invitation_question_id: UUID
+
+
+class TopicPauseRead(TopicPauseInput):
+    model_config = ConfigDict(extra="ignore")
+    id: UUID
+    invitation_id: UUID
+    paused_until: datetime
+
+
+class TopicPauseUndoRead(BaseModel):
+    pause_id: UUID
+    invitation_id: UUID
+
+
 class InteractionInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     event_id: UUID

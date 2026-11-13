@@ -17,6 +17,9 @@ from src.adapters.access.api.public.invitations.schemas import (
     SubscriptionCreate,
     SubscriptionRead,
     TestInvitationRequest,
+    TopicPauseInput,
+    TopicPauseRead,
+    TopicPauseUndoRead,
 )
 from src.core.auth.identity import AuthenticatedUser
 from src.core.exteriorization.models import (
@@ -158,5 +161,30 @@ def build_router(
             InvitationInteractions(**payload.model_dump()),
             key,
         )
+
+    @router.post("/invitations/{invitation_id}/topic-pause", response_model=TopicPauseRead)
+    async def pause_topic(
+        invitation_id: UUID,
+        payload: TopicPauseInput,
+        user: User,
+        service: Service,
+        key: Annotated[UUID, Header(alias="Idempotency-Key")],
+    ):
+        return await service.activity.pause_topic(
+            user.id, invitation_id, payload.invitation_question_id, key
+        )
+
+    @router.post(
+        "/invitations/{invitation_id}/topic-pause/{pause_id}/undo",
+        response_model=TopicPauseUndoRead,
+    )
+    async def undo_topic_pause(
+        invitation_id: UUID,
+        pause_id: UUID,
+        user: User,
+        service: Service,
+        key: Annotated[UUID, Header(alias="Idempotency-Key")],
+    ):
+        return await service.activity.undo_topic_pause(user.id, invitation_id, pause_id, key)
 
     return router

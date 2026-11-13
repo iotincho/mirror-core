@@ -21,7 +21,7 @@ trabajos diferidos activos.
 | Operación | Contrato |
 | --- | --- |
 | `POST /v2/documents` | JSON de documento + `Idempotency-Key`; original y procesamiento |
-| `POST /v2/documents/files` | Multipart `.md`/`.txt` UTF-8 + clave; original y procesamiento |
+| `POST /v2/documents/files` | Multipart `.md`/`.txt` UTF-8 + clave; admite `invitation_id`, `invitation_question_id` y `journal_reference` opcionales como el alta de texto; original y procesamiento |
 | `POST /v2/audio-notes` | Multipart de audio + clave; audio y procesamiento |
 | `GET /processing/{id}` | Estado completo del workflow; sólo del propietario |
 | `GET /processing?active=true&limit=50&cursor=…` | Página con `items` y `next_cursor`; orden por fecha/UUID |

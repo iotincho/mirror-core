@@ -209,8 +209,11 @@ el origen público detrás de Nginx/HTTPS. No se habilita CORS con credenciales.
 | `GET /exteriorization/invitations/{id}` | Pregunta exacta y metadatos históricos. |
 | `POST /exteriorization/invitations/{id}/opened` | Registra primera apertura una sola vez; devuelve invitación. |
 | `POST /exteriorization/invitations/{id}/feedback` | Opinión sobre una variante, con `Idempotency-Key`; no necesita que la nota ya haya subido. |
+| `POST /exteriorization/invitations/{id}/topic-pause` | `{ "invitation_question_id": "UUID" }` y `Idempotency-Key`; pausa el tema identificable con la política de la invitación y devuelve el ID de la pausa y su vencimiento. |
+| `POST /exteriorization/invitations/{id}/topic-pause/{pause_id}/undo` | `Idempotency-Key`; restaura el estado anterior de esa pausa si no fue reemplazada por otra decisión. |
 | `POST /exteriorization/invitations/{id}/interactions` | Batch idempotente de hasta 32 observaciones/navegaciones. |
 | `POST /v2/documents` | `invitation_id` e `invitation_question_id` opcionales, con su `Idempotency-Key` habitual. |
+| `POST /v2/documents/files` | Multipart de texto con las mismas referencias opcionales de invitación y journal que el alta de documentos. |
 
 La invitación pública incluye `id`, `question`, `candidate_id`, `category`, `source`,
 `engine_version`, `catalog_version`, `kind`, `local_date`, `timezone`, `scheduled_at`,
@@ -274,6 +277,12 @@ conservan su identidad: un replay no agrega metadatos al original ni recalcula s
 hash con el formato nuevo. Elegir otra variante con la misma clave es conflicto.
 El feedback se conserva aparte del documento y restringe las futuras propuestas
 del tema; no impide responder voluntariamente una invitación histórica.
+La pausa explícita usa la misma política y registra el feedback `not_now`. Su recibo
+guarda el estado anterior para permitir deshacer sin conocer el ID interno del tema.
+Deshacer es idempotente y devuelve 409 si otra decisión cambió el tema después;
+no elimina restricciones más recientes ni modifica otro propietario. Si antes ya
+existía una pausa, deshacer restaura esa pausa. Se necesita conexión para confirmar
+ambas acciones y la aplicación conserva la clave al reintentar una respuesta perdida.
 
 ## Actualización y rollback de v2
 

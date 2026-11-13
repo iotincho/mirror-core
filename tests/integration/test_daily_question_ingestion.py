@@ -271,7 +271,7 @@ async def test_v1_audio_receipt_can_replay_with_explicit_default(ingestion, invi
     )
 
 
-@pytest.mark.parametrize("kind", ["text", "audio"])
+@pytest.mark.parametrize("kind", ["text", "file", "audio"])
 async def test_http_selected_variant_and_invalid_membership(ingestion, invitation, kind):
     env = ingestion
     question, _ = invitation
@@ -293,6 +293,13 @@ async def test_http_selected_variant_and_invalid_membership(ingestion, invitatio
                     json={**reference, "content": "Respuesta ficticia HTTP."},
                     headers={"Idempotency-Key": str(uuid4())},
                 )
+            if kind == "file":
+                return await client.post(
+                    "/v2/documents/files",
+                    data=reference,
+                    files={"file": ("note.txt", b"Respuesta ficticia HTTP.", "text/plain")},
+                    headers={"Idempotency-Key": str(uuid4())},
+                )
             return await client.post(
                 "/v2/audio-notes",
                 data=reference,
@@ -305,7 +312,7 @@ async def test_http_selected_variant_and_invalid_membership(ingestion, invitatio
         result = await request(question.id, variant.id)
         assert result.status_code == 202, result.text
         body = result.json()
-        if kind == "text":
+        if kind in {"text", "file"}:
             assert body["document"]["metadata"]["invitation_question_id"] == str(variant.id)
         else:
             assert body["audio_note"]["invitation_question_id"] == str(variant.id)

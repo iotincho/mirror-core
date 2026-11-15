@@ -158,6 +158,31 @@ async def publish(env):
     return count, row
 
 
+async def test_weekday_preference_also_controls_journal_questions(journal_env):
+    env = journal_env
+    day = env.due.isoweekday()
+    async with env.repo.sessions.begin() as session:
+        preference = await session.get(InvitationPreference, env.owner)
+        preference.weekdays = [day % 7 + 1]
+        preference.next_due_at = env.due
+    assert (await publish(env))[0] == 0
+    async with env.repo.sessions.begin() as session:
+        preference = await session.get(InvitationPreference, env.owner)
+        preference.weekdays = [day]
+        preference.next_due_at = env.due
+    count, invitation = await publish(env)
+    assert count == 1
+    async with env.repo.sessions() as session:
+        assert (
+            await session.scalar(
+                select(JournalInvitationRecord.invitation_id).where(
+                    JournalInvitationRecord.invitation_id == invitation.id
+                )
+            )
+            == invitation.id
+        )
+
+
 async def test_first_day_without_entries_uses_curated_journal_and_never_invokes_provider(
     journal_env,
 ):

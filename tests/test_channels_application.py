@@ -19,6 +19,7 @@ from src.core.exteriorization.models import (
 )
 from src.use_cases.administration.query import Administration, AdministrationError
 from src.use_cases.administration.sync_inventory import SyncInventory
+from src.use_cases.exteriorization.configure_invitations import ConfigureInvitations
 from src.use_cases.exteriorization.schedule_invitations import ScheduleInvitations
 from src.use_cases.exteriorization.send_invitation import SendInvitation
 from src.use_cases.notifications.center import NotificationCenter
@@ -73,6 +74,119 @@ async def test_daily_generation_keeps_inbox_without_push_or_new_occurrences_on_r
     assert persisted[0][1].candidate_id == "daily_01"
     assert preference.next_due_at == now.replace(day=24, hour=20, minute=30)
     state.enqueue_push.assert_not_awaited()
+
+
+@pytest.mark.anyio
+async def test_weekday_change_recalculates_due_and_old_clients_preserve_the_selection():
+    owner = uuid4()
+    now = datetime(2026, 11, 9, 10, tzinfo=UTC)  # Monday
+    preference = InvitationPreference(owner)
+    state = SimpleNamespace(
+        preference=AsyncMock(return_value=preference),
+        now=AsyncMock(return_value=now),
+        cancel_deliveries=AsyncMock(),
+    )
+    service = ConfigureInvitations(repository(state))
+    saved = await service.configure(owner, True, "09:00", "UTC", [5, 1, 3])
+    assert saved.weekdays == [1, 3, 5]
+    assert saved.next_due_at == datetime(2026, 11, 11, 9, tzinfo=UTC)
+    saved = await service.configure(owner, True, "08:30", "UTC")
+    assert saved.weekdays == [1, 3, 5]
+    assert saved.next_due_at == datetime(2026, 11, 11, 8, 30, tzinfo=UTC)
+    with pytest.raises(ValueError):
+        await service.configure(owner, True, "08:30", "UTC", [])
+    assert preference.weekdays == [1, 3, 5]
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize("today,expected", [(10, 0), (11, 1)])
+async def test_missed_occurrence_only_catches_up_on_a_selected_weekday(today, expected):
+    owner = uuid4()
+    preference = InvitationPreference(
+        owner,
+        True,
+        "09:00",
+        "UTC",
+        datetime(2026, 11, 9, 9, tzinfo=UTC),
+        weekdays=[1, 3, 5],
+    )
+    saved = []
+
+    async def add(invitation, *, topic_bindings=()):
+        saved.append(invitation)
+
+    state = SimpleNamespace(
+        reconcile_deliveries=AsyncMock(),
+        due_preferences=AsyncMock(return_value=[preference]),
+        workspace_active=AsyncMock(return_value=True),
+        active_subscriptions=AsyncMock(return_value=[]),
+        scheduled_exists=AsyncMock(return_value=False),
+        history=AsyncMock(return_value=()),
+        catalog_state=AsyncMock(return_value=()),
+        add_invitation=add,
+        notify=AsyncMock(),
+        enqueue_push=AsyncMock(),
+    )
+    now = datetime(2026, 11, today, 9, 30, tzinfo=UTC)
+    assert await ScheduleInvitations(repository(state)).execute(now) == expected
+    assert preference.next_due_at == datetime(2026, 11, 11 if today == 10 else 13, 9, tzinfo=UTC)
+    assert len(saved) == expected
+    if saved:
+        assert saved[0].local_date == now.date()
+
+
+@pytest.mark.anyio
+async def test_pending_scheduled_push_is_cancelled_when_its_weekday_is_removed():
+    now = datetime(2026, 11, 10, 9, 15, tzinfo=UTC)  # Tuesday
+    owner, subscription_id, invitation_id, job_id, delivery_id = [uuid4() for _ in range(5)]
+    invitation = Invitation(
+        invitation_id,
+        owner,
+        "scheduled",
+        now.date(),
+        "UTC",
+        now,
+        now + timedelta(hours=1),
+        "synthetic",
+        None,
+        None,
+        "generic",
+        "daily_01",
+        "general",
+        "Synthetic question",
+        "generic-v1",
+        "1",
+        now,
+    )
+    delivery = InvitationDelivery(
+        user_id=owner,
+        id=delivery_id,
+        invitation_id=invitation_id,
+        subscription_id=subscription_id,
+        processing_id=job_id,
+    )
+    subscription = PushSubscription(
+        subscription_id,
+        owner,
+        "https://push.example.test/opaque",
+        "public",
+        "auth",
+        uuid4(),
+        "session",
+    )
+    preference = InvitationPreference(owner, enabled=True, weekdays=[1, 3, 5])
+    state = SimpleNamespace(
+        delivery_context=AsyncMock(return_value=(preference, delivery, subscription)),
+        invitation=AsyncMock(return_value=invitation),
+        now=AsyncMock(return_value=now),
+    )
+    transport = SimpleNamespace(send=AsyncMock())
+    context = SimpleNamespace(
+        record=SimpleNamespace(user_id=owner, id=job_id, resource_id=delivery_id)
+    )
+    await SendInvitation(repository(state), transport).execute(context)
+    assert delivery.status == "cancelled"
+    transport.send.assert_not_awaited()
 
 
 @pytest.mark.anyio

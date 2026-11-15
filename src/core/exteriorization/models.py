@@ -30,6 +30,7 @@ class InvitationPreference:
     next_due_at: datetime | None = None
     last_test_at: datetime | None = None
     updated_at: datetime | None = None
+    weekdays: list[int] = field(default_factory=lambda: [1, 2, 3, 4, 5, 6, 7])
 
 
 @dataclass

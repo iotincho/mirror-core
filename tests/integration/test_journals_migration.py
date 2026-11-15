@@ -173,6 +173,30 @@ async def test_upgrade_keeps_legacy_accounts_sessions_and_preferences_and_downgr
                     text("SELECT enabled,local_time,timezone FROM invitation_preferences")
                 )
             ).one() == (False, "17:00", "UTC")
+            assert (
+                await connection.scalar(text("SELECT weekdays_mask FROM invitation_preferences"))
+            ) == 127
+        async with engine.begin() as connection:
+            await connection.execute(text("UPDATE invitation_preferences SET weekdays_mask=21"))
+        await migrate("downgrade", "20261103_25")
+        async with engine.connect() as connection:
+            assert (
+                await connection.scalar(
+                    text(
+                        "SELECT count(*) FROM information_schema.columns "
+                        "WHERE table_name='invitation_preferences' AND column_name='weekdays_mask'"
+                    )
+                )
+                == 0
+            )
+            assert (
+                await connection.scalar(text("SELECT local_time FROM invitation_preferences"))
+            ) == "17:00"
+        await migrate("upgrade", "head")
+        async with engine.connect() as connection:
+            assert (
+                await connection.scalar(text("SELECT weekdays_mask FROM invitation_preferences"))
+            ) == 127
         async with repository.transaction(owner) as transaction:
             assert await transaction.run(old_run.id, 1) == old_run
         await repository.install_template(PREPARATION_TEMPLATE)

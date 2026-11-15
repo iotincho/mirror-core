@@ -88,6 +88,39 @@ def test_dst_gap_uses_first_valid_minute_and_fold_uses_first_occurrence():
     )
 
 
+def test_weekly_occurrences_use_local_weekdays_and_skip_unselected_days():
+    weekdays = [1, 3, 5]
+    assert next_occurrence(
+        datetime(2026, 11, 9, 11, tzinfo=UTC), "09:00", "America/Argentina/Buenos_Aires", weekdays
+    ) == datetime(2026, 11, 9, 12, tzinfo=UTC)
+    assert next_occurrence(
+        datetime(2026, 11, 9, 12, tzinfo=UTC), "09:00", "America/Argentina/Buenos_Aires", weekdays
+    ) == datetime(2026, 11, 11, 12, tzinfo=UTC)
+    assert next_occurrence(datetime(2026, 11, 13, 13, tzinfo=UTC), "09:00", "UTC", weekdays) == (
+        datetime(2026, 11, 16, 9, tzinfo=UTC)
+    )
+
+
+def test_weekly_schedule_keeps_dst_policy_and_skips_a_missing_calendar_date():
+    assert next_occurrence(
+        datetime(2026, 3, 7, 18, tzinfo=UTC), "02:30", "America/New_York", [7]
+    ) == datetime(2026, 3, 8, 7, tzinfo=UTC)
+    assert next_occurrence(
+        datetime(2011, 12, 29, 12, tzinfo=UTC), "09:00", "Pacific/Apia", [5]
+    ) == datetime(2012, 1, 5, 19, tzinfo=UTC)
+
+
+@pytest.mark.parametrize("days", [[], [0], [8], [1, 1], [True], ["1"], [1] * 8])
+def test_configuration_rejects_invalid_weekdays(days):
+    with pytest.raises(ValidationError):
+        PreferenceUpdate(enabled=True, timezone="UTC", weekdays=days)
+
+
+def test_configuration_sorts_weekdays_and_omission_is_distinct_from_every_day():
+    assert PreferenceUpdate(enabled=True, timezone="UTC", weekdays=[7, 1, 3]).weekdays == [1, 3, 7]
+    assert PreferenceUpdate(enabled=True, timezone="UTC").weekdays is None
+
+
 @pytest.mark.parametrize(
     "time,zone", [("24:30", "UTC"), ("1:00", "UTC"), ("20:30", "missing/zone")]
 )

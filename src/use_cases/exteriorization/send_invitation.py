@@ -38,7 +38,13 @@ class SendInvitation:
                 subscription is None
                 or not subscription.active
                 or preference is None
-                or (invitation.kind == "scheduled" and not preference.enabled)
+                or (
+                    invitation.kind == "scheduled"
+                    and (
+                        not preference.enabled
+                        or invitation.local_date.isoweekday() not in preference.weekdays
+                    )
+                )
             ):
                 delivery.status, delivery.next_attempt_at = "cancelled", None
                 return

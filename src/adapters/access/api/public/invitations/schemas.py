@@ -2,13 +2,16 @@
 
 import re
 from datetime import date, datetime
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from src.adapters.access.api.public.schemas.journals import InvitationJournalRead
+from src.core.exteriorization.scheduling import normalize_weekdays
+
+Weekday = Annotated[int, Field(strict=True, ge=1, le=7)]
 
 
 class PreferenceUpdate(BaseModel):
@@ -16,6 +19,12 @@ class PreferenceUpdate(BaseModel):
     enabled: bool
     local_time: str = "20:30"
     timezone: str
+    weekdays: list[Weekday] | None = Field(default=None, min_length=1, max_length=7)
+
+    @field_validator("weekdays")
+    @classmethod
+    def valid_weekdays(cls, value: list[int] | None) -> list[int] | None:
+        return None if value is None else normalize_weekdays(value)
 
     @field_validator("local_time")
     @classmethod
@@ -36,6 +45,7 @@ class PreferenceUpdate(BaseModel):
 
 class PreferenceRead(PreferenceUpdate):
     model_config = ConfigDict(from_attributes=True)
+    weekdays: list[Weekday] = Field(min_length=1, max_length=7)
     next_due_at: datetime | None
 
 

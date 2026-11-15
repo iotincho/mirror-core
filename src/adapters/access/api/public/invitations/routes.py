@@ -77,7 +77,7 @@ def build_router(
         service: Service,
     ) -> InvitationPreference:
         return await service.configure(
-            user.id, payload.enabled, payload.local_time, payload.timezone
+            user.id, payload.enabled, payload.local_time, payload.timezone, payload.weekdays
         )
 
     @router.get("/push/public-key")

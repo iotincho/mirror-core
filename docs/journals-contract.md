@@ -632,6 +632,7 @@ Las rutas internas siguientes se sirven bajo `/api` mediante el gateway existent
 | Método y ruta | Resultado |
 | --- | --- |
 | `GET /journals` | `enabled`, `items`, `total`, `offset`; recorridos propios |
+| `GET /journals/summary` | Totales de originales únicos: `diary`, `runs` por UUID y `observed_at`; sin contenido |
 | `GET /journals/active` | `enabled` y `run` activo efectivo o `null` |
 | `GET /journals/{id}?revision=N` | Detalle actual o snapshot histórico propio |
 | `GET /journals/{id}/entries` | Referencias de documentos/audios, fecha de aceptación y referencia histórica |
@@ -698,3 +699,26 @@ para navegación, conflicto/respuesta perdida, captura histórica, copia offline
 matriz visual desde 320 px. Estas comprobaciones no acreditan backend desplegado,
 proveedor real, broker/push ni dispositivo físico; corresponden a la etapa 7 y a
 habilitación del piloto por separado. No se habilitó el flag ni se desplegó.
+
+### Contadores de originales · Rediseño PWA, etapa 2
+
+`GET /journals/summary` resuelve al propietario desde la sesión y comprueba cuenta
+y workspace con las mismas reglas que el listado. `QueryJournals.summary` cierra
+la transacción de autorización antes de leer metadatos mediante `JournalInventory`.
+La composición utiliza `FileJournalInventory` sobre el directorio configurado de
+workspaces. No usa ArcadeDB, proveedores ni archivos binarios de audio.
+
+El resultado cuenta originales durables disponibles en el servidor. Un audio y
+sus documentos derivados constituyen una entrada por identidad, incluso después
+de reprocesar. Los audios con transcripción pendiente o fallida también cuentan;
+el total no certifica procesamiento terminado. Los documentos de texto libres
+cuentan en `diary`; las referencias de recorrido se agrupan en `runs`.
+Se lee un JSON por vez, conservando únicamente identidades y acumuladores, sin
+acumular notas ni transcripciones. Es una lectura del inventario de originales,
+no el total bruto del índice paginado de recursos de un recorrido.
+
+Un workspace ausente, metadatos inválidos, referencia malformada o enlace
+simbólico produce `503 journal_storage_unavailable`, sin devolver un cero falso.
+La PWA conserva el último total por cuenta e identifica una copia cuando no puede
+actualizarla. Los borradores y envíos locales pendientes se presentan aparte.
+La implementación no requiere migraciones ni cambios de datos.

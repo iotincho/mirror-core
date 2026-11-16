@@ -1,7 +1,7 @@
 """Owner-scoped projections and context resolution without notes or graph access."""
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from uuid import UUID
 
 from src.core.journals.calendar import utc
@@ -14,7 +14,8 @@ from src.core.journals.contracts import (
     question_context,
     validate_entry_reference,
 )
-from src.core.journals.errors import JournalError
+from src.core.journals.errors import JournalError, JournalStorageUnavailable
+from src.core.journals.inventory import JournalInventory
 from src.core.journals.ports import Journals
 from src.use_cases.journals.manage import require_access
 
@@ -26,8 +27,21 @@ class QueryJournals:
         *,
         enabled: bool = False,
         clock: Callable[[], datetime] | None = None,
+        inventory: JournalInventory | None = None,
     ):
         self.repository, self.enabled, self.clock = repository, enabled, clock
+        self.inventory = inventory
+
+    async def summary(self, owner: UUID):
+        async with self.repository.transaction(owner) as transaction:
+            await require_access(transaction)
+        if self.inventory is None:
+            raise JournalStorageUnavailable()
+        counts = await self.inventory.counts(owner)
+        return dict(
+            **counts.model_dump(),
+            observed_at=utc(self.clock()) if self.clock else datetime.now(UTC),
+        )
 
     async def _view(self, owner, identifier, revision, administrative):
         async with self.repository.transaction(owner) as transaction:

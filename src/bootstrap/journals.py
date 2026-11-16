@@ -1,5 +1,6 @@
 """Journal application composition; no new process or provider lifecycle."""
 
+from src.adapters.storage.filesystem.journal_inventory import FileJournalInventory
 from src.adapters.storage.postgres.journals import PostgresJournals
 from src.bootstrap.database import get_session_maker
 from src.bootstrap.settings import get_settings
@@ -19,7 +20,9 @@ def build_journal_management(sessions=None):
 
 
 def build_journal_queries(sessions=None):
-    return QueryJournals(build_journals(sessions), enabled=get_settings().journals_enabled)
+    settings = get_settings()
+    return QueryJournals(build_journals(sessions), enabled=settings.journals_enabled,
+                         inventory=FileJournalInventory(settings.workspaces_path))
 
 
 async def reconcile_journals():

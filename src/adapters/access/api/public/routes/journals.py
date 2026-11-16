@@ -45,6 +45,10 @@ def build_router(get_user, get_queries, get_management, require_same_origin):
     async def active(user: User, service: Queries):
         return await invoke(service.active(user.id))
 
+    @router.get("/summary", response_model=http.EntrySummary)
+    async def summary(user: User, service: Queries):
+        return await invoke(service.summary(user.id))
+
     @router.get("/{run_id}", response_model=http.RunRead)
     async def detail(
         run_id: UUID,

@@ -118,3 +118,9 @@ class InvitationJournalRead(JournalRead):
 
 class CurrentQuestion(JournalRead):
     invitation_id: UUID | None
+
+
+class EntrySummary(JournalRead):
+    diary: int = Field(ge=0)
+    runs: dict[UUID, int]
+    observed_at: datetime

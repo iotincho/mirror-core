@@ -132,7 +132,7 @@ async def test_audio_answer_receipt_recovers_question_after_interrupted_accept(
 
 async def test_audio_answer_rejects_foreign_question_before_reserving(ingestion, question):
     env = ingestion
-    runtime = SimpleNamespace(context=SimpleNamespace(user_id=uuid4()))
+    runtime = SimpleNamespace(context=SimpleNamespace(user_id=uuid4()), graph_store=env.graph)
     key = uuid4()
     with pytest.raises(InvitationError, match="invitation_not_found"):
         await SubmitAudioNote(env.submissions, runtime, 1024).execute(

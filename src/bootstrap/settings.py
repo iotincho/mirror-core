@@ -128,6 +128,7 @@ class Settings(BaseSettings):
         default=30, ge=1, le=120, validation_alias="DAILY_QUESTION_LEAD_MINUTES"
     )
     personal_axes_enabled: bool = Field(default=False, validation_alias="PERSONAL_AXES_ENABLED")
+    journals_enabled: bool = Field(default=False, validation_alias="JOURNALS_ENABLED")
     personal_axes_preview_hours: int = Field(
         default=72, ge=1, le=720, validation_alias="PERSONAL_AXES_PREVIEW_HOURS"
     )

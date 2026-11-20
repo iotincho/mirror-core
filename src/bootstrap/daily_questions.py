@@ -13,9 +13,13 @@ from src.adapters.storage.postgres.question_metrics import PostgresQuestionMetri
 from src.adapters.storage.postgres.question_preparations import PostgresQuestionPreparations
 from src.bootstrap.database import get_session_maker
 from src.bootstrap.settings import get_settings
-from src.core.exteriorization.personalization import PreparationConfiguration
+from src.core.exteriorization.personalization import (
+    PreparationConfiguration,
+    ProposalProviderConfiguration,
+)
 from src.core.exteriorization.question_policy import QuestionPolicy
 from src.core.processing.errors import WorkflowFailure
+from src.use_cases.exteriorization.prepare_journal_questions import PrepareJournalQuestions
 from src.use_cases.exteriorization.prepare_questions import PrepareQuestions
 from src.use_cases.exteriorization.select_prepared_questions import (
     SelectPreparedQuestions,
@@ -77,15 +81,23 @@ _providers = []
 
 
 def proposal_provider(configuration):
-    instance = provider(configuration)
+    technical = ProposalProviderConfiguration.model_validate(
+        configuration.model_dump(
+            include=set(ProposalProviderConfiguration.model_fields),
+        )
+    )
+    instance = provider(technical)
     if instance not in _providers:
         _providers.append(instance)
     return instance
 
 
-def build_question_preparation():
-    return PrepareQuestions(
-        PostgresQuestionPreparations(get_session_maker()),
+def build_question_preparation(version=1):
+    case = PrepareJournalQuestions if version == 2 else PrepareQuestions
+    return case(
+        PostgresQuestionPreparations(
+            get_session_maker(), journals_enabled=get_settings().journals_enabled
+        ),
         FileOwnerOriginals(get_settings().workspaces_path),
         artifacts,
         proposal_provider,
@@ -105,7 +117,9 @@ def prepared_question_selector():
 
 async def prepare_daily_questions():
     settings = get_settings()
-    repository = PostgresQuestionPreparations(get_session_maker())
+    repository = PostgresQuestionPreparations(
+        get_session_maker(), journals_enabled=settings.journals_enabled
+    )
     now = datetime.now(UTC)
     await PostgresQuestionMetrics(get_session_maker()).cleanup()
     for owner, identifier in await repository.expired(now):

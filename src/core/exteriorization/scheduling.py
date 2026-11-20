@@ -3,6 +3,17 @@
 from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
+EVERY_DAY = (1, 2, 3, 4, 5, 6, 7)
+
+
+def normalize_weekdays(days) -> list[int]:
+    values = list(days)
+    if not values or any(type(day) is not int or day not in EVERY_DAY for day in values):
+        raise ValueError("weekdays must contain ISO weekdays from 1 to 7")
+    if len(values) != len(set(values)):
+        raise ValueError("weekdays must not contain duplicates")
+    return sorted(values)
+
 
 def scheduled_at(day: date, local_time: str, timezone: str) -> datetime:
     zone = ZoneInfo(timezone)
@@ -16,12 +27,19 @@ def scheduled_at(day: date, local_time: str, timezone: str) -> datetime:
     raise ValueError("unresolvable_local_date")
 
 
-def next_occurrence(now: datetime, local_time: str, timezone: str) -> datetime:
-    day = now.astimezone(ZoneInfo(timezone)).date()
-    candidate = scheduled_at(day, local_time, timezone)
-    if candidate <= now:
-        candidate = scheduled_at(day + timedelta(days=1), local_time, timezone)
-    return candidate
+def next_occurrence(now: datetime, local_time: str, timezone: str, weekdays=EVERY_DAY) -> datetime:
+    allowed = normalize_weekdays(weekdays)
+    zone = ZoneInfo(timezone)
+    today = now.astimezone(zone).date()
+    # Two weeks cover a skipped local calendar date (for example, a timezone shift).
+    for offset in range(15):
+        day = today + timedelta(days=offset)
+        if day.isoweekday() not in allowed:
+            continue
+        candidate = scheduled_at(day, local_time, timezone)
+        if candidate > now and candidate.astimezone(zone).date() == day:
+            return candidate
+    raise ValueError("unresolvable_weekly_schedule")
 
 
 def expires_at(due: datetime, timezone: str) -> datetime:

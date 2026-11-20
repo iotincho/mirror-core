@@ -12,6 +12,7 @@ from uuid import uuid4
 import httpx
 import pytest
 from sqlalchemy import delete, func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from src.adapters.storage.filesystem.documents import FileDocumentStore
@@ -472,6 +473,81 @@ async def test_http_contract_ownership_and_csrf(store, monkeypatch):
         ).status_code == 404
 
 
+async def test_weekdays_http_round_trip_preserves_legacy_updates_and_owner_isolation(store):
+    repo, owners = store
+    service = ConfigureInvitations(repo)
+    app.dependency_overrides[require_authenticated] = lambda: SimpleNamespace(id=owners[0])
+    app.dependency_overrides[get_invitations] = lambda: service
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app), base_url="https://test"
+    ) as client:
+        response = await client.get("/exteriorization/preferences")
+        assert response.json()["weekdays"] == [1, 2, 3, 4, 5, 6, 7]
+        payload = {"enabled": True, "local_time": "09:00", "timezone": "UTC", "weekdays": [5, 1, 3]}
+        response = await client.put("/exteriorization/preferences", json=payload)
+        assert response.status_code == 200 and response.json()["weekdays"] == [1, 3, 5]
+        for invalid in ([], [1, 1], [0], [8], [True]):
+            response = await client.put(
+                "/exteriorization/preferences", json={**payload, "weekdays": invalid}
+            )
+            assert response.status_code == 422
+        response = await client.put(
+            "/exteriorization/preferences",
+            json={"enabled": True, "local_time": "08:30", "timezone": "UTC"},
+        )
+        assert response.status_code == 200 and response.json()["weekdays"] == [1, 3, 5]
+        app.dependency_overrides[require_authenticated] = lambda: SimpleNamespace(id=owners[1])
+        response = await client.get("/exteriorization/preferences")
+        assert response.json()["weekdays"] == list(range(1, 8))
+    assert (await service.preferences(owners[0])).weekdays == [1, 3, 5]
+
+
+async def test_weekly_schedule_recovers_only_selected_day_and_serializes_replay(store):
+    repo, owners = store
+    owner = owners[0]
+    service = ConfigureInvitations(repo)
+    await service.configure(owner, True, "09:00", "UTC", [1, 3, 5])
+    async with repo.sessions.begin() as session:
+        (await session.get(InvitationPreference, owner)).next_due_at = datetime(
+            2026, 11, 9, 9, tzinfo=UTC
+        )
+    tuesday = datetime(2026, 11, 10, 9, 30, tzinfo=UTC)
+    assert await ScheduleInvitations(repo).execute(tuesday) == 0
+    assert (await service.preferences(owner)).next_due_at == datetime(2026, 11, 11, 9, tzinfo=UTC)
+    wednesday = datetime(2026, 11, 11, 9, 30, tzinfo=UTC)
+    counts = await asyncio.gather(*[ScheduleInvitations(repo).execute(wednesday) for _ in range(4)])
+    assert sum(counts) == 1
+    assert (await rows(repo, Invitation, owner))[0].local_date == wednesday.date()
+    assert (await service.preferences(owner)).next_due_at == datetime(2026, 11, 13, 9, tzinfo=UTC)
+
+
+async def test_weekday_storage_rejects_an_empty_mask_and_keeps_saved_days(store):
+    repo, owners = store
+    service = ConfigureInvitations(repo)
+    await service.configure(owners[0], True, "09:00", "UTC", [1, 3, 5])
+    with pytest.raises(IntegrityError):
+        async with repo.sessions.begin() as session:
+            (await session.get(InvitationPreference, owners[0])).weekdays_mask = 0
+    assert (await service.preferences(owners[0])).weekdays == [1, 3, 5]
+
+
+async def test_removed_weekday_cancels_pending_push_but_not_a_manual_test(store):
+    repo, owner, service, subscriptions = await setup(store)
+    now = await due_now(repo, owner)
+    assert await ScheduleInvitations(repo).execute(now) == 1
+    scheduled = (await rows(repo, Invitation, owner))[0]
+    days = [day for day in range(1, 8) if day != scheduled.local_date.isoweekday()]
+    await service.configure(owner, True, "20:30", "UTC", days)
+    transport = Transport()
+    await run_jobs(repo, owner, transport)
+    assert (await rows(repo, InvitationDelivery, owner))[0].status == "cancelled"
+    assert transport.payloads == []
+    manual = await service.test(owner, "session-0", subscriptions[0].id, uuid4())
+    await run_jobs(repo, owner, transport)
+    assert len(transport.payloads) == 1
+    assert transport.payloads[0][1]["invitation_id"] == str(manual.id)
+
+
 async def test_long_outage_recovers_today_without_replaying_yesterday(store):
     repo, owner, _, _ = await setup(store)
     now = datetime(2026, 10, 13, 21, tzinfo=UTC)
@@ -715,6 +791,7 @@ async def test_http_document_upload_preserves_typed_invitation_contract(
     app.dependency_overrides[get_workspace_runtime] = lambda: runtime
     monkeypatch.setattr("src.bootstrap.invitations.get_invitation_repository", lambda: repo)
     from src.bootstrap.processing import get_repository
+
     app.dependency_overrides[get_repository] = lambda: ProcessingRepository(repo.sessions)
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app), base_url="https://test"

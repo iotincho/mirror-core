@@ -18,12 +18,13 @@ como contexto. Las guías describen código implementado; no acreditan despliegu
 | Tema | Referencia principal | Complemento |
 | --- | --- | --- |
 | Runtime durable | [processing-runtime](processing-runtime.md) | [Eventos PWA/SSE](processing-pwa-events.md) |
-| Ingestión diferida | [deferred-ingestion](deferred-ingestion.md) | [Reprocesamiento](reprocess-notes.md) |
+| Ingestión diferida | [deferred-ingestion](deferred-ingestion.md) | [Disparadores de entradas](entry-trigger-design.md), [reprocesamiento](reprocess-notes.md) |
 | Extractores independientes | [extractor-jobs](extractor-jobs.md) | [Migraciones de datos](data-migrations.md) |
 | Emociones | [emotion-extractor](emotion-extractor.md) | [Navegación y grafo](graph-navigation.md) |
 | Embeddings | [document-embeddings](document-embeddings.md) | La búsqueda HTTP anterior sigue retirada |
 | Títulos | [document-title-extractor](document-title-extractor.md) | Generación independiente y títulos al leer |
 | Laboratorio / ejes | [personal-axes-api](personal-axes-api.md) | Versiones, pruebas, resultados e historial |
+| Journals | [journals-contract](journals-contract.md) | Etapas 1–6 locales: recorridos, pertenencia, pregunta diaria, gestión LAN y PWA |
 | Originales / respaldos | [document-archives](document-archives.md) | [Recuperación de audio](audio-transcription-recovery.md) |
 | Registro / workspace | [signup](signup.md) | [Recuperación de contraseña](password-recovery.md) |
 | Invitaciones / push | [exteriorization-notifications](exteriorization-notifications.md) | [Respuestas de voz](audio-invitation-replies.md) |
@@ -37,6 +38,13 @@ cada capacidad, su contrato. Ante contradicción contrastar código y pruebas y
 actualizar la referencia afectada, sin inferir estado de producción.
 
 ## Trabajo diferido
+
+[Journals · Definición de producto](journals-design.md): diseño de templates,
+recorridos personales y etapas con avance automático y ajustes opcionales desde
+administración. Primer caso: preparación e intención para una experiencia
+psicodélica. Referencia de producto; etapas 1–6 implementadas localmente.
+[Plan de implementación de Journals](journals-implementation-plan.md): fronteras,
+contratos a cerrar, entregas, compatibilidad y validaciones por repositorio.
 
 [Plan de pregunta diaria personal](daily-question-v2-plan.md): implementación
 gradual del diseño validado. [Contratos v2](daily-question-v2-contract.md): paquetes,

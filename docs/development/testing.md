@@ -24,6 +24,7 @@ git diff --check
 | Audio / emociones / embeddings / respaldos | `tests/test_stage3_application.py` y suite de la capacidad | Replay sin proveedor, transacciones reales de capas y navegación; [comandos](architecture-checks.md#regresión-de-audio-extractores-grafo-y-respaldos) |
 | Grafo | Test de proyección/navegación afectado | Integración ArcadeDB con esquema y transacciones reales |
 | Invitaciones / bandeja / administración | `tests/test_channels_application.py`, `tests/test_exteriorization.py`, `tests/test_notifications.py`, `tests/test_administration_api.py` | SQL, revocación y sincronizador; [comandos](architecture-checks.md#regresión-de-invitaciones-bandeja-y-administración) |
+| Journals | `tests/test_journals_contracts.py`, `tests/test_journals_application.py`, `tests/test_journal_entries.py`, `tests/test_journal_questions.py` | `tests/integration/test_journals_postgres.py`, `tests/integration/test_journals_migration.py`, `tests/integration/test_journal_ingestion.py`, `tests/integration/test_journal_question_preparation.py` y `tests/integration/test_administrative_journals.py` con PostgreSQL desechable; [contrato](../journals-contract.md) |
 | Migración | Revisión de head + integración de migración | Upgrade/recuperación con base aislada |
 | Docker / publicación | `tests/test_local_deploy.py`, configuración Compose | Build o smoke aislado si cambia comportamiento del contenedor |
 
@@ -53,6 +54,9 @@ skips; no significa que la integración haya pasado.
 - Recuperación: `RECOVERY_TEST_DATABASE_URL`, base desechable con prefijo `recovery_test`.
 - Provisión real: `WORKSPACE_TEST_DATABASE_URL` con prefijo `workspace_test`,
   `WORKSPACE_TEST_ARCADEDB_URL` y `WORKSPACE_TEST_ARCADEDB_PASSWORD` desechables.
+- Journals: `JOURNALS_TEST_DATABASE_URL`, base desechable con prefijo `journals_test`.
+  La prueba de migración crea y elimina otra base con ese prefijo; necesita ese
+  permiso sólo dentro de la instancia de pruebas.
 - Otras familias pueden requerir variables adicionales: leer el encabezado y
   fixtures del test seleccionado antes de ejecutarlo.
 

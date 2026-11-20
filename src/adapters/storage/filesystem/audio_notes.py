@@ -33,6 +33,14 @@ class FileAudioNoteStore:
     async def save(self, note: AudioNote) -> None:
         return await asyncio.to_thread(self._save, note)
 
+    async def delete(self, note: AudioNote) -> None:
+        def remove():
+            # Keep the metadata until the original is gone so a retry can find it.
+            self.audio_path(note).unlink(missing_ok=True)
+            self._metadata_path(note.id).unlink(missing_ok=True)
+
+        await asyncio.to_thread(remove)
+
     async def restore_metadata(self, note: AudioNote) -> None:
         """Complete a reserved upload whose raw file survived before metadata."""
 

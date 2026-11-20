@@ -103,13 +103,17 @@ en servidor; los modelos de entrada rechazan campos adicionales.
 
 | Acción visible | Valor | Efecto en el tema |
 | --- | --- | --- |
-| Me sirvió | `helpful` | Señal de calidad; conserva límites existentes. |
-| No conectó conmigo | `unrelated` | Señal de pertinencia; no supone cierre. |
-| Hoy no era el momento | `not_now` | Pausa temporal. |
-| Por ahora está cerrado | `closed` | No volver a proponer hasta nueva intención válida. |
-| No quiero hablar de esto | `do_not_prompt` | Límite explícito; no vence por tiempo. |
+| Mucho | `helpful` | Señal de calidad que conserva los límites existentes. |
+| Un poco | `somewhat_helpful` | Señal intermedia de pertinencia que conserva los límites existentes. |
+| No mucho | `unrelated` | Señal de pertinencia que conserva los límites existentes. |
+| Opción histórica | `not_now` | Pausa temporal. |
+| Opción histórica | `closed` | Deja de proponer el tema hasta que exista nueva intención válida. |
+| Opción histórica | `do_not_prompt` | Límite explícito sin vencimiento por tiempo. |
 
-Cerrar el modal, «En otro momento» y «Hoy paso» no crean estos eventos.
+Cerrar el panel sin seleccionar y «Hoy paso» no crean estos eventos.
+Aplicar `20261120_27` antes de servir la PWA con la opción intermedia.
+La migración conserva las opiniones previas. PostgreSQL rechaza el downgrade
+mientras existan opiniones con `somewhat_helpful`.
 La nota no necesita haber llegado al servidor para registrar feedback. El evento
 apunta a la pregunta persistida, no a la última nota ni a la selección mutable
 del cliente. La secuencia de recepción del servidor ordena sus efectos.
@@ -281,6 +285,11 @@ repitió la integración conjunta PostgreSQL/RabbitMQ; dispositivo, push, micró
 y teclado virtual reales siguen pendientes. La implementación personalizada se detalla a continuación.
 
 ## Preparación personalizada de la entrega 4
+
+El contrato siguiente describe el modo libre y `question_preparation/1`.
+La integración de Journals añade `question_preparation/2`, registrado en el mismo
+runtime, sin modificar configuraciones aceptadas v1. Ver
+[contrato de Journals](journals-contract.md#pregunta-diaria-contextualizada-etapa-4).
 
 `PrepareQuestions` coordina por puertos el workflow interno `question_preparation/1`.
 Bootstrap lo registra en el registro compartido; no agrega scheduler, extractor

@@ -7,6 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.adapters.access.api.public.schemas.documents import DocumentResponse
 from src.core.documents.ports import DocumentNotFoundError
+from src.core.graph.ports import GraphPersistenceError
+from src.core.processing.errors import StorageUnavailable
 from src.use_cases.documents.delete_document import DeleteDocument
 from src.use_cases.documents.list_documents import ListDocuments
 
@@ -31,5 +33,7 @@ def build_router(get_delete_document, get_list_documents):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
         except ValueError as error:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+        except (StorageUnavailable, GraphPersistenceError, OSError) as error:
+            raise HTTPException(503, "Unable to delete entry") from error
 
     return router

@@ -6,7 +6,7 @@ import asyncio
 import os
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
@@ -90,6 +90,31 @@ async def test_packages_are_persisted_and_public_read_keeps_push_question(store)
         assert "topic_id" not in str(body) and "user_id" not in body
     repeated = await service.get_invitation(owner, invitation.id)
     assert repeated.question_set == invitation.question_set
+
+
+async def test_public_feedback_persists_the_intermediate_rating(store, monkeypatch):
+    repo, owner, service, invitation, _ = await published(store)
+    question_id = invitation.questions.default_question_id
+    monkeypatch.setitem(
+        app.dependency_overrides, require_authenticated, lambda: SimpleNamespace(id=owner)
+    )
+    monkeypatch.setitem(app.dependency_overrides, get_invitations, lambda: service)
+    headers = {"Idempotency-Key": str(uuid4())}
+    body = {"invitation_question_id": str(question_id), "value": "somewhat_helpful"}
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app), base_url="https://test"
+    ) as client:
+        path = f"/exteriorization/invitations/{invitation.id}/feedback"
+        result = await client.post(path, json=body, headers=headers)
+        repeated = await client.post(path, json=body, headers=headers)
+
+    assert result.status_code == repeated.status_code == 200
+    assert result.json() == repeated.json()
+    assert result.json()["value"] == "somewhat_helpful"
+    stored = await rows(repo, InvitationFeedback, owner)
+    assert [(item.question_id, item.value) for item in stored] == [
+        (question_id, "somewhat_helpful")
+    ]
 
 
 async def test_concurrent_feedback_replays_once_and_closes_all_depths_of_topic(store):
@@ -329,3 +354,37 @@ async def test_feedback_uses_the_policy_frozen_when_invitation_was_created(store
         assert paused.paused_until - datetime.fromisoformat(receipt["recorded_at"]) == timedelta(
             days=2
         )
+
+
+async def test_explicit_pause_and_undo_replay_without_erasing_newer_restrictions(store):
+    repo, owner, service, invitation, _ = await published(store)
+    question = invitation.questions.question_groups[0].questions[1]
+    key = uuid4()
+    pause = await service.activity.pause_topic(owner, invitation.id, question.id, key)
+    assert await service.activity.pause_topic(owner, invitation.id, question.id, key) == pause
+    async with repo.sessions() as session:
+        paused = await session.scalar(
+            select(InvitationTopic).where(
+                InvitationTopic.user_id == owner, InvitationTopic.status == "paused"
+            )
+        )
+        assert paused is not None
+    undo_key = uuid4()
+    result = await service.activity.undo_topic_pause(
+        owner, invitation.id, UUID(pause["id"]), undo_key
+    )
+    assert (
+        await service.activity.undo_topic_pause(owner, invitation.id, UUID(pause["id"]), undo_key)
+        == result
+    )
+    pause = await service.activity.pause_topic(owner, invitation.id, question.id, uuid4())
+    await service.activity.feedback(owner, invitation.id, feedback(question, "closed"), uuid4())
+    with pytest.raises(InvitationError, match="topic_pause_superseded"):
+        await service.activity.undo_topic_pause(owner, invitation.id, UUID(pause["id"]), uuid4())
+    async with repo.sessions() as session:
+        closed = await session.scalar(
+            select(InvitationTopic).where(
+                InvitationTopic.user_id == owner, InvitationTopic.status == "closed"
+            )
+        )
+        assert closed is not None

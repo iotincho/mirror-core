@@ -4,7 +4,12 @@ from starlette.responses import JSONResponse
 
 
 def invitation_status(code):
-    if code in {"invitation_not_found", "subscription_not_found", "invitation_question_not_found"}:
+    if code in {
+        "invitation_not_found",
+        "subscription_not_found",
+        "invitation_question_not_found",
+        "topic_pause_not_found",
+    }:
         return 404
     if code in {
         "subscription_account_conflict",
@@ -12,6 +17,9 @@ def invitation_status(code):
         "active_subscription_required",
         "workspace_unavailable",
         "invitation_question_unavailable",
+        "invitation_topic_unavailable",
+        "invitation_topic_restricted",
+        "topic_pause_superseded",
     }:
         return 409
     if code == "test_rate_limited":

@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from src.adapters.storage.filesystem.durable_files import sync_published
 from src.core.documents.ports import DocumentAlreadyExistsError, DocumentNotFoundError
@@ -32,6 +32,20 @@ class FileDocumentStore:
 
     async def get(self, document_id: object) -> Document:
         return await asyncio.to_thread(self._get, document_id)
+
+    async def audio_document_ids(self, audio_id: UUID) -> set[UUID]:
+        def find():
+            identifiers = set()
+            for path in self._directory.glob("*.json"):
+                try:
+                    document = self._get(path.stem)
+                except (DocumentNotFoundError, FileNotFoundError):
+                    continue
+                if document.metadata.get("audio_note_id") == str(audio_id):
+                    identifiers.add(document.id)
+            return identifiers
+
+        return await asyncio.to_thread(find)
 
     def _save(self, document: Document) -> None:
         self._directory.mkdir(parents=True, exist_ok=True)

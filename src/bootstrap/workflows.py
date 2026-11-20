@@ -212,10 +212,19 @@ def register_workflows(registry):
         if get_settings().daily_question_mode == "personalized":
             await build_question_preparation().execute(context)
 
+    async def prepare_journal_questions(context):
+        if get_settings().daily_question_mode == "personalized" and get_settings().journals_enabled:
+            await build_question_preparation(2).execute(context)
+
     registry.register(
         "question_preparation",
         1,
         WorkflowDefinition(prepare_questions, PrepareQuestions.transitions),
+    )
+    registry.register(
+        "question_preparation",
+        2,
+        WorkflowDefinition(prepare_journal_questions, PrepareQuestions.transitions),
     )
     registry.register("document", 1, WorkflowDefinition(retired_extraction, frozenset()))
     registry.register("document", 2, ProcessDocument(worker_runtime).definition)

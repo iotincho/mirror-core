@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from src.core.documents.ports import DocumentAlreadyExistsError
 from src.core.domain.documents import NewDocument, build_document
+from src.core.domain.entry_triggers import emotion_trigger_metadata
+from src.core.journals.entries import reference_metadata
 from src.core.processing.artifacts import artifact_digest
 from src.core.processing.errors import (
     LeaseLost,
@@ -115,6 +117,8 @@ class ProcessAudioNote:
                             source="pwa_audio",
                             authored_at=note.authored_at,
                             metadata={
+                                **reference_metadata(note.journal_reference),
+                                **emotion_trigger_metadata(note.entry_trigger),
                                 "audio_note_id": str(note.id),
                                 "filename": note.filename,
                                 "media_type": note.media_type,

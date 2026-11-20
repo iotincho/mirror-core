@@ -52,6 +52,17 @@ class PreparationConfiguration(FrozenQuestionModel):
     policy: QuestionPolicy = Field(default_factory=QuestionPolicy)
 
 
+class ProposalProviderConfiguration(FrozenQuestionModel):
+    """Technical client-cache identity, independent of private journey references."""
+
+    model: str
+    prompt_version: Literal["daily-proposals-v1", "journal-proposals-v1"]
+    max_input_tokens: int
+    max_output_tokens: int
+    timeout_seconds: int
+    concurrency: int
+
+
 class SourceReference(FrozenQuestionModel):
     document_id: UUID
     sha256: str = Field(pattern=r"^[a-f0-9]{64}$")

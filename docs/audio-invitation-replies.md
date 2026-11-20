@@ -37,6 +37,15 @@ los metadatos existentes. Los audios históricos sin variante se leen con ese ca
 en `null`; los recibos v1 conservan su hash y admiten replay de la pregunta inicial.
 Actualizar API/worker/dispatcher antes de habilitar el envío de variantes en PWA.
 
+Journals agrega el campo multipart opcional `journal_reference` como JSON y lo
+expone como objeto o `null` en la lectura del audio. La referencia queda fijada en
+manifiesto/metadata, y se propaga al documento derivado. El índice del audio se
+confirma al aceptar el upload; el del documento se confirma con el handoff al hijo,
+tomando la asociación del audio aceptado. Una respuesta a invitación usa el contexto
+persistido de esa invitación; no permite sustituirlo por otro journal. Ver
+[contrato de Journals](journals-contract.md#pertenencia-durable-de-originales-etapa-3).
+Requiere `20261103_24`; no añade transcripción ni retries al recuperar SQL.
+
 ## Validación local
 
 Con una base PostgreSQL aislada y migrada, ejecutar:

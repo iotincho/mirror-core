@@ -458,6 +458,15 @@ class ProcessingRepository:
                 self.schedule(session, child)
                 current.child_processing_id = child.id
             current.document_id = document_id
+            from src.adapters.storage.postgres.journal_entries import bind_derived_journal_entry
+
+            await bind_derived_journal_entry(
+                session,
+                current.user_id,
+                current.resource_id,
+                document_id,
+                now,
+            )
             current.status = "waiting"
             current.stage = "document_processing"
             current.stage_attempts = 0
@@ -624,6 +633,14 @@ class ProcessingRepository:
                 delete(InvitationResponse).where(
                     InvitationResponse.user_id == user_id,
                     InvitationResponse.document_id == resource_id,
+                )
+            )
+            from src.adapters.storage.postgres.journal_models import JournalEntryRecord
+
+            await session.execute(
+                delete(JournalEntryRecord).where(
+                    JournalEntryRecord.owner_id == user_id,
+                    JournalEntryRecord.resource_id == resource_id,
                 )
             )
 

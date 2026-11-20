@@ -55,22 +55,26 @@ workspace activo; un workspace suspendido no genera ni envía invitaciones.
 
 ## Horarios y reintentos
 
-- Habilitación inicial: desactivada. Hora sugerida: `20:30`; la PWA debe proponer
-  la zona del dispositivo y permitir corregirla. El servidor nunca la cambia por viajes.
+- Habilitación inicial: desactivada. Hora sugerida: `20:30`; la PWA detecta la zona
+  del dispositivo al activar o guardar el horario. El servidor nunca la cambia por viajes.
+- Se eligen uno o más días locales de la semana; por defecto son los siete. La misma
+  programación se aplica tanto a Mi diario como a las preguntas de recorridos.
 - Hora inexistente por cambio de verano: primer minuto local válido posterior.
 - Hora repetida: primera ocurrencia. No se vuelve a enviar durante la segunda.
-- Activación/cambio horario: siguiente ocurrencia futura; no hay envío retroactivo.
+- Activación o cambio de días, hora o zona: siguiente ocurrencia futura seleccionada;
+  no hay envío retroactivo.
 - Ventana: hasta dos horas después del horario, limitada por medianoche local.
 - Tras una caída prolongada se omiten días anteriores y se considera la ocurrencia
-  de hoy solamente si su horario pasó y sigue dentro de la ventana.
-- Cambiar horario/zona no reabre una fecha local ya reservada.
+  de hoy solamente si está seleccionada, su horario pasó y sigue dentro de la ventana.
+- Cambiar días, horario o zona no reabre una fecha local ya reservada.
 - Sin suscripciones vigentes se genera igualmente la invitación y su aviso en la bandeja;
   no se crean trabajos de envío push.
 - Hasta cuatro intentos por dispositivo, con demoras 10/30/120 segundos y sin
   sobrepasar vencimiento ni los límites de recuperación del runtime.
 - 404/410 invalidan esa suscripción. 408/429/5xx y fallos de transporte admiten retry.
   Los demás rechazos son definitivos; los errores se guardan como códigos sanitizados.
-- Cada intento revalida preferencia, suscripción, propietario y vencimiento.
+- Cada intento revalida preferencia, suscripción, propietario y vencimiento. Si se
+  quitó el día local de una invitación programada, sus envíos aún pendientes se cancelan.
 - Desactivar cancela envíos pendientes/reintentables, incluidas pruebas ya pendientes.
   Puede pedirse una nueva prueba manual estando desactivada la programación.
 - La prueba tiene cinco minutos de vigencia, se dirige al dispositivo actual,
@@ -200,8 +204,8 @@ el origen público detrás de Nginx/HTTPS. No se habilita CORS con credenciales.
 
 | Método/ruta interna | Entrada/salida |
 | --- | --- |
-| `GET /exteriorization/preferences` | `enabled`, `local_time`, `timezone`, `next_due_at`. |
-| `PUT /exteriorization/preferences` | JSON completo `{ "enabled": true, "local_time": "20:30", "timezone": "America/Argentina/Buenos_Aires" }`. Habilitar no requiere suscripción ni VAPID. |
+| `GET /exteriorization/preferences` | `enabled`, `local_time`, `timezone`, `weekdays`, `next_due_at`. |
+| `PUT /exteriorization/preferences` | `{ "enabled": true, "local_time": "20:30", "timezone": "America/Argentina/Buenos_Aires", "weekdays": [1, 3, 5] }`. Habilitar no requiere suscripción ni VAPID. |
 | `GET /exteriorization/push/public-key` | `{ "public_key": "…" }`. |
 | `POST /exteriorization/push/subscriptions` | Objeto PushSubscription `{ "endpoint": "…", "keys": { "p256dh": "…", "auth": "…" }, "expirationTime": null }`; devuelve solo `{ "id": "UUID", "active": true, "binding_id": "UUID" }`. |
 | `DELETE /exteriorization/push/subscriptions/{id}` | 204 idempotente, solo propietario y sesión actuales. |
@@ -209,8 +213,11 @@ el origen público detrás de Nginx/HTTPS. No se habilita CORS con credenciales.
 | `GET /exteriorization/invitations/{id}` | Pregunta exacta y metadatos históricos. |
 | `POST /exteriorization/invitations/{id}/opened` | Registra primera apertura una sola vez; devuelve invitación. |
 | `POST /exteriorization/invitations/{id}/feedback` | Opinión sobre una variante, con `Idempotency-Key`; no necesita que la nota ya haya subido. |
+| `POST /exteriorization/invitations/{id}/topic-pause` | `{ "invitation_question_id": "UUID" }` y `Idempotency-Key`; pausa el tema identificable con la política de la invitación y devuelve el ID de la pausa y su vencimiento. |
+| `POST /exteriorization/invitations/{id}/topic-pause/{pause_id}/undo` | `Idempotency-Key`; restaura el estado anterior de esa pausa si no fue reemplazada por otra decisión. |
 | `POST /exteriorization/invitations/{id}/interactions` | Batch idempotente de hasta 32 observaciones/navegaciones. |
 | `POST /v2/documents` | `invitation_id` e `invitation_question_id` opcionales, con su `Idempotency-Key` habitual. |
+| `POST /v2/documents/files` | Multipart de texto con las mismas referencias opcionales de invitación y journal que el alta de documentos. |
 
 La invitación pública incluye `id`, `question`, `candidate_id`, `category`, `source`,
 `engine_version`, `catalog_version`, `kind`, `local_date`, `timezone`, `scheduled_at`,
@@ -222,6 +229,21 @@ no se reescribe y una respuesta voluntaria a una variante histórica sigue siend
 Propiedad incorrecta o recurso inexistente devuelve 404. Conflictos de cuenta,
 idempotencia o falta de suscripción activa devuelven 409; límite de prueba 429 con
 `Retry-After: 60`; fecha/zona/keys inválidas 422. El 202 no acredita entrega push.
+
+`weekdays` usa números ISO: lunes 1 a domingo 7. Acepta entre uno y siete valores
+enteros sin repetir y devuelve la selección ordenada. Omitirlo o enviar `null`
+conserva los días guardados, para que clientes anteriores no los reemplacen al
+guardar la hora. La selección vacía es inválida: para detener las preguntas se
+desactiva `enabled`. Las pruebas manuales no dependen de los días elegidos.
+
+La revisión SQL `20261114_26` agrega una máscara de siete bits con valor inicial
+127: las preferencias existentes continúan todos los días. Para actualizar un
+entorno existente, detener los escritores y el dispatcher anteriores, migrar y
+actualizar API, workers y dispatcher antes de habilitar el selector en la PWA. Un
+dispatcher anterior ignora la selección si se mantiene ejecutando. El downgrade
+elimina la selección y conserva la próxima fecha ya calculada; desde esa ocurrencia,
+el código anterior vuelve a programar diariamente. Al actualizar de nuevo se
+restablecen los siete días. No se modifican las invitaciones históricas.
 
 Alta de suscripción idempotente por endpoint. No se transfiere un endpoint entre
 cuentas: 409 `subscription_account_conflict` exige reconciliar, desuscribir y crear
@@ -274,6 +296,12 @@ conservan su identidad: un replay no agrega metadatos al original ni recalcula s
 hash con el formato nuevo. Elegir otra variante con la misma clave es conflicto.
 El feedback se conserva aparte del documento y restringe las futuras propuestas
 del tema; no impide responder voluntariamente una invitación histórica.
+La pausa explícita usa la misma política y registra el feedback `not_now`. Su recibo
+guarda el estado anterior para permitir deshacer sin conocer el ID interno del tema.
+Deshacer es idempotente y devuelve 409 si otra decisión cambió el tema después;
+no elimina restricciones más recientes ni modifica otro propietario. Si antes ya
+existía una pausa, deshacer restaura esa pausa. Se necesita conexión para confirmar
+ambas acciones y la aplicación conserva la clave al reintentar una respuesta perdida.
 
 ## Actualización y rollback de v2
 
@@ -349,6 +377,20 @@ el binding persistido localmente antes de mostrar el push. Así puede notificar
 sin una cookie vigente o sin conexión HTTP, y descartar un push demorado de otra
 sesión/cuenta. No habilita acceso a APIs: consultar o responder sigue requiriendo
 autenticación y propiedad. Aplicar `20261013_09` antes de usar esta PWA.
+
+## Traspaso: programación semanal
+
+La revisión `20261114_26`, el cálculo en `core/exteriorization/scheduling.py` y los
+casos de uso de configuración, programación y envío comparten los días para ambos
+contextos. La API acepta clientes anteriores sin perder la selección guardada.
+
+Se verificaron las reglas y el contrato con `tests/test_exteriorization.py`,
+`tests/test_channels_application.py` y `tests/test_openapi_docs.py`; la suite de
+transporte push no se repitió en esta etapa. En PostgreSQL 16 descartable se probaron
+upgrade/downgrade, preservación de datos, restricciones, concurrencia y preguntas de
+recorridos. La integración que requiere RabbitMQ quedó omitida; no se validó entrega
+push real. Para la próxima entrega, seguir el orden de actualización indicado arriba
+y comprobar el recorrido completo en un dispositivo físico.
 
 ## Validaciones abiertas
 

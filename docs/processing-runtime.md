@@ -14,12 +14,15 @@ persistencia y feed en `src/adapters/storage/postgres/`. Taskiq recibe/valida/AC
 `src/bootstrap/` compone procesos, versiones, extractores y opciones aceptadas.
 Todos los comandos de ejecución usan `src.bootstrap`; no se conservan aliases anteriores.
 
-`question_preparation/1` reutiliza este runtime para preparar invitaciones en segundo
-plano, con etapas `question_context` → `question_proposals` → `question_selection`
+`question_preparation/1` (libre) y `/2` (Journals) reutilizan este runtime para preparar
+invitaciones en segundo plano, con etapas `question_context` → `question_proposals` → `question_selection`
 → `done`. Sus jobs y eventos quedan fuera del feed y retry público de documentos,
 igual que push y previews. Propuestas/selección se recuperan de artefactos inmutables;
 la publicación de la invitación pertenece al programador, no al worker de preparación.
 Ver [contrato de pregunta diaria](daily-question-v2-contract.md#preparación-personalizada-de-la-entrega-4).
+La versión 2 fija recorrido/etapa/revisión, reconstruye el contexto histórico y
+acota las fuentes al recorrido; conserva transiciones y artefactos del workflow
+original. Ver [contrato de Journals](journals-contract.md#pregunta-diaria-contextualizada-etapa-4).
 
 - `ProcessingRepository`: PostgreSQL guarda registros, historial de eventos y
   outbox. La creación del trabajo, su evento inicial y la intención de envío se

@@ -40,7 +40,9 @@ protected_router.include_router(
 protected_router.include_router(
     documents.build_router(deps.get_delete_document, deps.get_list_documents)
 )
-protected_router.include_router(audio_notes.build_router(deps.get_audio_note_store))
+protected_router.include_router(
+    audio_notes.build_router(deps.get_audio_note_store, deps.get_delete_audio_entry)
+)
 protected_router.include_router(
     processing.build_router(deps.get_public_processing, deps.get_upload_limits)
 )

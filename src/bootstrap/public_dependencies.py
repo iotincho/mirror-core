@@ -6,12 +6,16 @@ from fastapi import Depends
 
 from src.adapters.storage.filesystem.audio_notes import FileAudioNoteStore
 from src.adapters.storage.filesystem.documents import FileDocumentStore
+from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
+from src.adapters.storage.filesystem.processing_artifacts import ProcessingArtifacts
+from src.bootstrap.archives import build_delete_document
 from src.bootstrap.auth import get_authenticated_user
 from src.bootstrap.database import get_async_session
-from src.bootstrap.processing import get_repository
+from src.bootstrap.processing import get_repository, requests_store
 from src.bootstrap.workspaces import get_workspace_runtime
 from src.core.graph.ports import GraphBackend
 from src.core.workspaces.context import WorkspaceRuntime
+from src.use_cases.audio.delete_audio_entry import DeleteAudioEntry
 
 
 async def get_document_store(
@@ -36,17 +40,39 @@ async def get_delete_document(
     document_store: Annotated[FileDocumentStore, Depends(get_document_store)],
     graph_store: Annotated[GraphBackend, Depends(get_graph_store)],
     runtime: Annotated[WorkspaceRuntime, Depends(get_workspace_runtime)],
+    repository=Depends(get_repository),
 ):
-    from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
-    from src.bootstrap.archives import build_delete_document as DeleteDocument
-    from src.bootstrap.processing import get_repository
-
-    return DeleteDocument(
+    return build_delete_document(
         document_store,
         graph_store,
-        get_repository(),
+        repository,
         runtime.context.user_id,
         layer_artifacts=LayerArtifacts(runtime.context.filesystem_root / "layers"),
+        delete_processing_artifacts=processing_artifact_deleter(runtime),
+    )
+
+
+def processing_artifact_deleter(runtime):
+    directory = runtime.context.filesystem_root / "processing"
+
+    async def delete(job_id):
+        await ProcessingArtifacts(directory / str(job_id)).delete()
+
+    return delete
+
+
+async def get_delete_audio_entry(
+    runtime: Annotated[WorkspaceRuntime, Depends(get_workspace_runtime)],
+    delete_document=Depends(get_delete_document),
+    repository=Depends(get_repository),
+):
+    return DeleteAudioEntry(
+        runtime.context.user_id,
+        runtime.audio_note_store,
+        runtime.document_store,
+        delete_document,
+        requests_store(repository),
+        processing_artifact_deleter(runtime),
     )
 
 

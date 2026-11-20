@@ -112,6 +112,12 @@ Un recurso marcado como eliminado rechaza replay con `resource_deleted` y no
 recrea su asociación, incluso si quedó un original pendiente de limpieza.
 Requiere migración aditiva `20261103_24` antes de iniciar los nuevos procesos.
 
+Texto, adjuntos y audio admiten además el [disparador opcional de la entrada](entry-trigger-design.md).
+La variante de invitación conserva la identidad de recibos anteriores. La de
+emoción se valida en el workspace autenticado y se fija en el manifiesto y
+el original. Su transcripción hereda esos metadatos. El disparador se expone
+como `entry_trigger` al leer el original y no cambia el destino en Journals.
+
 RabbitMQ no participa en la aceptación HTTP. Si cae después del commit, el job
 queda queued y su intención de entrega en SQL. Los uploads de texto tienen un
 límite `DOCUMENT_MAX_UPLOAD_BYTES` de 5 MiB por defecto; el audio conserva su
@@ -178,6 +184,15 @@ retry. La marca se registra antes del borrado externo: si ese borrado falla, se
 puede repetir la operación de borrado, pero no reactivar el procesamiento sobre
 un grafo posiblemente eliminado en parte. Los originales no se borran por fallos
 de extracción, embeddings, transcripción o entrega.
+
+`DELETE /v2/audio-notes/{audio_note_id}` elimina la entrada de audio completa
+del workspace autenticado. El borrado incluye sus documentos asociados, las
+proyecciones del grafo, los artefactos de extracción y transcripción, y el
+original con sus metadatos. La grabación y sus metadatos se eliminan al final
+para que se pueda reintentar el borrado si falla una limpieza anterior.
+Con `by_upload_key=true` el identificador se toma del recibo del envío de audio
+de ese workspace. Esto permite borrar un audio aceptado aunque se haya perdido
+la respuesta original. Un envío o procesamiento en curso devuelve `409`.
 
 ## Arranque y validación
 

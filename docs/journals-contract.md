@@ -539,8 +539,10 @@ una etapa ya terminada. Los snapshots de historial son sólo lectura.
 
 ### Operación y frontera de despliegue
 
-No requiere una migración nueva: el head sigue siendo `20261103_25`. Aplicar ese
-esquema antes de arrancar las versiones nuevas. Compartir `JOURNALS_ENABLED` entre
+Journals requiere las revisiones hasta `20261103_25`. Para este release, aplicar
+`alembic upgrade head` antes de arrancar las versiones nuevas. El head
+`20261114_26` incorpora los días elegidos para la pregunta diaria.
+Compartir `JOURNALS_ENABLED` entre
 API pública, worker, dispatcher y admin-api; ambos Compose lo pasan explícitamente
 al proceso administrativo sin añadirle originales o claves de proveedores.
 Los templates se instalan por la reconciliación existente del dispatcher, no

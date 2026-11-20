@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from src.adapters.access.api.public.schemas.journals import InvitationJournalRead
+from src.core.exteriorization.question_contracts import FeedbackValue
 from src.core.exteriorization.scheduling import normalize_weekdays
 
 Weekday = Annotated[int, Field(strict=True, ge=1, le=7)]
@@ -115,7 +116,7 @@ class QuestionGroupRead(BaseModel):
 class FeedbackInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     invitation_question_id: UUID
-    value: Literal["helpful", "unrelated", "not_now", "closed", "do_not_prompt"]
+    value: FeedbackValue
 
 
 class FeedbackRead(FeedbackInput):

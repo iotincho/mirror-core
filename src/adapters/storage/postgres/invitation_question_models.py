@@ -93,7 +93,8 @@ class InvitationFeedback(Base):
             ondelete="CASCADE",
         ),
         CheckConstraint(
-            "value IN ('helpful','unrelated','not_now','closed','do_not_prompt')",
+            "value IN ('helpful','somewhat_helpful','unrelated',"
+            "'not_now','closed','do_not_prompt')",
             name="ck_invitation_feedback_value",
         ),
     )

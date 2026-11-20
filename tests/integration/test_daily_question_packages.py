@@ -92,6 +92,31 @@ async def test_packages_are_persisted_and_public_read_keeps_push_question(store)
     assert repeated.question_set == invitation.question_set
 
 
+async def test_public_feedback_persists_the_intermediate_rating(store, monkeypatch):
+    repo, owner, service, invitation, _ = await published(store)
+    question_id = invitation.questions.default_question_id
+    monkeypatch.setitem(
+        app.dependency_overrides, require_authenticated, lambda: SimpleNamespace(id=owner)
+    )
+    monkeypatch.setitem(app.dependency_overrides, get_invitations, lambda: service)
+    headers = {"Idempotency-Key": str(uuid4())}
+    body = {"invitation_question_id": str(question_id), "value": "somewhat_helpful"}
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app), base_url="https://test"
+    ) as client:
+        path = f"/exteriorization/invitations/{invitation.id}/feedback"
+        result = await client.post(path, json=body, headers=headers)
+        repeated = await client.post(path, json=body, headers=headers)
+
+    assert result.status_code == repeated.status_code == 200
+    assert result.json() == repeated.json()
+    assert result.json()["value"] == "somewhat_helpful"
+    stored = await rows(repo, InvitationFeedback, owner)
+    assert [(item.question_id, item.value) for item in stored] == [
+        (question_id, "somewhat_helpful")
+    ]
+
+
 async def test_concurrent_feedback_replays_once_and_closes_all_depths_of_topic(store):
     repo, owner, service, invitation, now = await published(store)
     question = invitation.questions.question_groups[0].questions[2]

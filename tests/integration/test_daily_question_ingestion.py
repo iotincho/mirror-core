@@ -13,6 +13,7 @@ from test_deferred_ingestion import ingestion, run_current  # noqa: F401
 from test_exteriorization_postgres import due_now
 from test_processing_postgres import anyio_backend, store  # noqa: F401
 
+from src.adapters.access.api.public.schemas.documents import DocumentResponse
 from src.adapters.storage.postgres.invitation_models import Invitation, InvitationResponse
 from src.adapters.storage.postgres.invitations import InvitationRepository
 from src.bootstrap.acceptance import (
@@ -28,6 +29,7 @@ from src.bootstrap.processing import get_repository
 from src.bootstrap.public_api import app
 from src.bootstrap.workspaces import get_workspace_runtime
 from src.core.domain.documents import Document, NewDocument
+from src.core.domain.entry_triggers import InvitationTrigger
 from src.core.exteriorization.question_contracts import InvitationFeedbackChoice
 from src.core.processing.submissions import SubmissionConflict, fingerprint
 from src.use_cases.exteriorization.configure_invitations import ConfigureInvitations
@@ -118,6 +120,23 @@ async def test_omitted_and_explicit_default_have_the_same_new_request_identity(
         invitation_question_id=question.default_question_id,
     )
     assert repeated == first and same.id == job.id
+    from_typed, typed_job = await case.execute(
+        document, key, entry_trigger=InvitationTrigger(kind="invitation", invitation_id=question.id)
+    )
+    assert from_typed == first and typed_job.id == job.id
+    snapshot = DocumentResponse(**from_typed.model_dump())
+    assert snapshot.entry_trigger.question_id == question.default_question_id
+    with pytest.raises(SubmissionConflict, match="entry_trigger_conflict"):
+        await case.execute(
+            document,
+            key,
+            invitation_id=question.id,
+            entry_trigger=InvitationTrigger(
+                kind="invitation",
+                invitation_id=question.id,
+                question_id=question.questions.question_groups[0].questions[2].id,
+            ),
+        )
     receipt = await env.submissions.get(env.owner, "upload_document", key)
     assert receipt.manifest["invitation_question_id"] == str(question.default_question_id)
 
@@ -169,6 +188,17 @@ async def test_v1_document_receipt_keeps_original_hash_and_supports_default_repl
     current = await env.submissions.get(env.owner, "upload_document", key)
     assert current.request_hash == old_hash
     assert current.manifest == {"invitation_id": str(question.id)}
+    typed_original, typed_job = await case.execute(
+        document,
+        key,
+        entry_trigger=InvitationTrigger(
+            kind="invitation", invitation_id=question.id, question_id=question.default_question_id
+        ),
+    )
+    assert typed_original == original and typed_job.id == job.id
+    snapshot = DocumentResponse(**typed_original.model_dump())
+    assert snapshot.entry_trigger.invitation_id == question.id
+    assert snapshot.entry_trigger.question_id is None
     if accepted:
         alias, same = await case.execute(document, uuid4(), invitation_id=question.id)
         assert alias == original and same.id == job.id

@@ -50,6 +50,9 @@ class GraphNode(BaseModel):
     quote: str | None = None
     profile_id: str | None = None
     document_count: int | None = None
+    entry_count: int | None = None
+    document_ids: list[str] | None = None
+    audio_note_id: str | None = None
 
 
 class GraphEvidenceSource(BaseModel):
@@ -91,6 +94,7 @@ class EmotionCatalogItem(BaseModel):
     key: str
     label: str
     document_count: int
+    entry_count: int | None = None
 
 
 class EmotionCatalog(BaseModel):

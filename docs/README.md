@@ -18,7 +18,7 @@ como contexto. Las guías describen código implementado; no acreditan despliegu
 | Tema | Referencia principal | Complemento |
 | --- | --- | --- |
 | Runtime durable | [processing-runtime](processing-runtime.md) | [Eventos PWA/SSE](processing-pwa-events.md) |
-| Ingestión diferida | [deferred-ingestion](deferred-ingestion.md) | [Reprocesamiento](reprocess-notes.md) |
+| Ingestión diferida | [deferred-ingestion](deferred-ingestion.md) | [Disparadores de entradas](entry-trigger-design.md), [reprocesamiento](reprocess-notes.md) |
 | Extractores independientes | [extractor-jobs](extractor-jobs.md) | [Migraciones de datos](data-migrations.md) |
 | Emociones | [emotion-extractor](emotion-extractor.md) | [Navegación y grafo](graph-navigation.md) |
 | Embeddings | [document-embeddings](document-embeddings.md) | La búsqueda HTTP anterior sigue retirada |

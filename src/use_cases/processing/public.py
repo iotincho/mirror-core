@@ -32,6 +32,7 @@ class PublicProcessing:
         invitation_id=None,
         invitation_question_id=None,
         journal_reference=None,
+        entry_trigger=None,
     ):
         return await self.submissions.execute(
             original,
@@ -39,6 +40,7 @@ class PublicProcessing:
             invitation_id=invitation_id,
             invitation_question_id=invitation_question_id,
             **({"journal_reference": journal_reference} if journal_reference is not None else {}),
+            **({"entry_trigger": entry_trigger} if entry_trigger is not None else {}),
         )
 
     async def submit_file(
@@ -52,6 +54,7 @@ class PublicProcessing:
         invitation_id=None,
         invitation_question_id=None,
         journal_reference=None,
+        entry_trigger=None,
     ):
         original = IngestDocumentFile(self.runtime.document_store).build_new_document(
             filename, content, document_id, authored_at
@@ -62,6 +65,7 @@ class PublicProcessing:
             invitation_id=invitation_id,
             invitation_question_id=invitation_question_id,
             journal_reference=journal_reference,
+            **({"entry_trigger": entry_trigger} if entry_trigger is not None else {}),
         )
 
     async def submit_audio(
@@ -74,6 +78,7 @@ class PublicProcessing:
         invitation_id,
         invitation_question_id=None,
         journal_reference=None,
+        entry_trigger=None,
     ):
         return await self.audio.execute(
             filename,
@@ -84,6 +89,7 @@ class PublicProcessing:
             invitation_id=invitation_id,
             invitation_question_id=invitation_question_id,
             **({"journal_reference": journal_reference} if journal_reference is not None else {}),
+            **({"entry_trigger": entry_trigger} if entry_trigger is not None else {}),
         )
 
     async def list(self, *, active, cursor, limit):

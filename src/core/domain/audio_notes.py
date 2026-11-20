@@ -7,6 +7,7 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from src.core.domain.entry_triggers import AcceptedEmotionTrigger
 from src.core.journals.contracts import EntryReference
 
 AudioNoteStatus = Literal["queued", "transcribing", "completed", "failed"]
@@ -27,6 +28,7 @@ class AudioNote(BaseModel):
     invitation_id: UUID | None = None
     invitation_question_id: UUID | None = None
     journal_reference: EntryReference | None = None
+    entry_trigger: AcceptedEmotionTrigger | None = None
     status: AudioNoteStatus
     transcript: str | None = None
     transcription_provider: str | None = None

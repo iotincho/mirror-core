@@ -56,6 +56,7 @@ def SubmitDocument(submissions, runtime):
         runtime,
         workflow_config=workflow_config,
         journal_capture=build_capture_resolver(submissions.sessions),
+        emotion_lookup=runtime.graph_store,
     )
 
 
@@ -68,6 +69,7 @@ def SubmitAudioNote(submissions, runtime, max_bytes):
         max_bytes,
         workflow_config=workflow_config,
         journal_capture=build_capture_resolver(submissions.sessions),
+        emotion_lookup=runtime.graph_store,
     )
 
 

@@ -69,12 +69,12 @@ async def test_catalog_and_exploration_forward_only_bound_workspace_parameters(a
     client, graph = api
     response = await client.get("/graph/emotions?offset=5&limit=20")
     assert response.status_code == 200 and response.json()["total"] == 0
-    graph.list_emotions.assert_awaited_once_with(offset=5, limit=20)
+    graph.list_emotions.assert_awaited_once_with(offset=5, limit=20, group_audio=False)
     response = await client.get(
         "/graph/emotions/explore", params={"emotion": "miedo", "depth": 2, "limit": 100}
     )
     assert response.status_code == 200 and response.json()["depth"] == 2
-    graph.explore_emotion.assert_awaited_once_with("miedo", depth=2, limit=100)
+    graph.explore_emotion.assert_awaited_once_with("miedo", depth=2, limit=100, group_audio=False)
 
 
 @pytest.mark.anyio
@@ -140,7 +140,9 @@ async def test_document_neighborhood_checks_original_and_forwards_limit(api):
     assert response.status_code == 200
     assert response.json()["root_id"] == f"Document:{graph.document.id}"
     graph.documents.get.assert_awaited_once_with(graph.document.id)
-    graph.explore_document_emotions.assert_awaited_once_with(str(graph.document.id), limit=20)
+    graph.explore_document_emotions.assert_awaited_once_with(
+        str(graph.document.id), limit=20, group_audio=False
+    )
 
 
 @pytest.mark.anyio
@@ -158,3 +160,20 @@ async def test_document_neighborhood_storage_failure_is_explicit(api):
     graph.explore_document_emotions.side_effect = GraphPersistenceError("truncated")
     response = await client.get(f"/documents/{graph.document.id}/emotions/graph")
     assert response.status_code == 502
+
+
+@pytest.mark.anyio
+async def test_audio_grouping_is_opt_in_on_all_emotion_reads(api):
+    client, graph = api
+    assert (await client.get("/graph/emotions?group_audio=true")).status_code == 200
+    graph.list_emotions.assert_awaited_once_with(offset=0, limit=100, group_audio=True)
+    assert (
+        await client.get("/graph/emotions/explore?emotion=miedo&group_audio=true")
+    ).status_code == 200
+    graph.explore_emotion.assert_awaited_once_with("miedo", depth=1, limit=100, group_audio=True)
+    assert (
+        await client.get(f"/documents/{graph.document.id}/emotions/graph?group_audio=true")
+    ).status_code == 200
+    graph.explore_document_emotions.assert_awaited_once_with(
+        str(graph.document.id), limit=100, group_audio=True
+    )

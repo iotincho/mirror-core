@@ -6,10 +6,18 @@ from src.adapters.storage.postgres.transactions import PostgresProcessingRequest
 
 
 class PostgresSubmissions:
-    def __init__(self, repository, *, config_factory, invitation_validator, submissions=None):
+    def __init__(
+        self,
+        repository,
+        *,
+        config_factory,
+        invitation_validator,
+        submissions=None,
+    ):
         self._submissions = submissions or SubmissionRepository(repository)
         self._invitation_validator = invitation_validator
         self._config_factory = config_factory
+        self.sessions = self._submissions.sessions
         self.processing = PostgresProcessingRequests(repository, config_factory=config_factory)
 
     async def get(self, owner, operation, key, *, resource_id=None):

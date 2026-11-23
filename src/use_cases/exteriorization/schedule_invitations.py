@@ -8,9 +8,11 @@ from src.use_cases.exteriorization.generate_invitation import GenerateInvitation
 
 
 class ScheduleInvitations:
-    def __init__(self, repository: Invitations, personalization=None, policy=None):
+    def __init__(
+        self, repository: Invitations, personalization=None, policy=None, journal_contexts=None
+    ):
         self.repository = repository
-        self.generator = GenerateInvitation(personalization, policy)
+        self.generator = GenerateInvitation(personalization, policy, journal_contexts)
 
     async def execute(self, now=None):
         async with self.repository.transaction() as transaction:
@@ -22,14 +24,19 @@ class ScheduleInvitations:
                 due = preference.next_due_at
                 preference_version = preference.updated_at
                 preference.next_due_at = next_occurrence(
-                    now, preference.local_time, preference.timezone
+                    now, preference.local_time, preference.timezone, preference.weekdays
                 )
                 preference.updated_at = now
                 today = now.astimezone(ZoneInfo(preference.timezone)).date()
                 if due.astimezone(ZoneInfo(preference.timezone)).date() < today:
+                    if today.isoweekday() not in preference.weekdays:
+                        continue
                     due = scheduled_at(today, preference.local_time, preference.timezone)
                     if due > now:
                         continue
+                due_day = due.astimezone(ZoneInfo(preference.timezone)).date()
+                if due_day.isoweekday() not in preference.weekdays:
+                    continue
                 if now >= expires_at(due, preference.timezone):
                     continue
                 if not await transaction.workspace_active(preference.user_id):

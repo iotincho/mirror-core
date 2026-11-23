@@ -5,17 +5,23 @@ from uuid import UUID, uuid4
 
 from src.core.exteriorization.models import InvitationError
 from src.core.exteriorization.ports import Invitations, PushRegistration
-from src.core.exteriorization.scheduling import next_occurrence
+from src.core.exteriorization.scheduling import next_occurrence, normalize_weekdays
 from src.use_cases.exteriorization.generate_invitation import GenerateInvitation
 from src.use_cases.exteriorization.record_activity import RecordInvitationActivity
 
 
 class ConfigureInvitations:
     def __init__(
-        self, repository: Invitations, *, push: PushRegistration | None = None, policy=None
+        self,
+        repository: Invitations,
+        *,
+        push: PushRegistration | None = None,
+        policy=None,
+        journal_contexts=None,
     ):
         self.repository, self.push = repository, push
         self.policy = policy
+        self.journal_contexts = journal_contexts
         self.activity = RecordInvitationActivity(repository)
 
     def public_key(self):
@@ -31,25 +37,36 @@ class ConfigureInvitations:
         async with self.repository.transaction() as transaction:
             return await transaction.preference(user_id)
 
-    async def configure(self, user_id: UUID, enabled: bool, local_time: str, timezone: str):
+    async def configure(
+        self, user_id: UUID, enabled: bool, local_time: str, timezone: str, weekdays=None
+    ):
         async with self.repository.transaction() as transaction:
             preference = await transaction.preference(user_id)
             now = await transaction.now()
-            changed = (preference.enabled, preference.local_time, preference.timezone) != (
+            days = normalize_weekdays(preference.weekdays if weekdays is None else weekdays)
+            before = (
+                preference.enabled,
+                preference.local_time,
+                preference.timezone,
+                preference.weekdays,
+            )
+            changed = before != (
                 enabled,
                 local_time,
                 timezone,
+                days,
             )
             preference.enabled, preference.local_time, preference.timezone = (
                 enabled,
                 local_time,
                 timezone,
             )
+            preference.weekdays = days
             if not enabled:
                 preference.next_due_at = None
                 await transaction.cancel_deliveries(user_id)
             elif changed or preference.next_due_at is None:
-                preference.next_due_at = next_occurrence(now, local_time, timezone)
+                preference.next_due_at = next_occurrence(now, local_time, timezone, days)
             preference.updated_at = now
             return preference
 
@@ -108,7 +125,9 @@ class ConfigureInvitations:
             if preference.last_test_at and now < preference.last_test_at + timedelta(minutes=1):
                 raise InvitationError("test_rate_limited")
             preference.last_test_at = now
-            invitation = await GenerateInvitation(policy=self.policy).execute(
+            invitation = await GenerateInvitation(
+                policy=self.policy, journal_contexts=self.journal_contexts
+            ).execute(
                 transaction,
                 preference,
                 now,

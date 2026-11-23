@@ -12,6 +12,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     Integer,
+    SmallInteger,
     String,
     Text,
     UniqueConstraint,
@@ -22,20 +23,34 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.adapters.storage.postgres.accounts import Base
+from src.core.exteriorization.scheduling import normalize_weekdays
 
 
 class InvitationPreference(Base):
     __tablename__ = "invitation_preferences"
-    __table_args__ = (Index("ix_invitation_due", "enabled", "next_due_at"),)
+    __table_args__ = (
+        Index("ix_invitation_due", "enabled", "next_due_at"),
+        CheckConstraint("weekdays_mask BETWEEN 1 AND 127", name="ck_invitation_weekdays_mask"),
+    )
     user_id: Mapped[UUID] = mapped_column(
         ForeignKey("user.id", ondelete="CASCADE"), primary_key=True
     )
     enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     local_time: Mapped[str] = mapped_column(String(5), default="20:30")
     timezone: Mapped[str] = mapped_column(String(100), default="UTC")
+    weekdays_mask: Mapped[int] = mapped_column(SmallInteger, default=127, server_default="127")
     next_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_test_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=func.now())
+
+    @property
+    def weekdays(self) -> list[int]:
+        mask = self.weekdays_mask if self.weekdays_mask is not None else 127
+        return [day for day in range(1, 8) if mask & (1 << (day - 1))]
+
+    @weekdays.setter
+    def weekdays(self, days: list[int]) -> None:
+        self.weekdays_mask = sum(1 << (day - 1) for day in normalize_weekdays(days))
 
 
 class PushSubscription(Base):

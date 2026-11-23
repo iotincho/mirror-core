@@ -56,6 +56,7 @@ src/                              # Backend; organización por responsabilidades
 │   ├── workspaces/               # Identidad, alcance y disponibilidad del espacio
 │   ├── auth/                     # Identidad, contraseñas, sesiones y recuperación
 │   ├── exteriorization/          # Invitaciones, horarios y consentimiento
+│   ├── journals/                 # Templates, recorridos y reglas puras de etapas
 │   ├── administration/           # Contratos de inventario, métricas y permisos
 │   └── maintenance/              # Hechos y puertos de migraciones operativas
 ├── use_cases/                    # Acciones de aplicación y coordinación por puertos
@@ -69,6 +70,7 @@ src/                              # Backend; organización por responsabilidades
 │   ├── workspaces/               # Preparar, resolver y reconciliar espacios
 │   ├── auth/                     # Login, recuperación y revocación de sesiones
 │   ├── exteriorization/          # Configurar, programar y enviar invitaciones
+│   ├── journals/                 # Recorridos, ajustes, consultas y reconciliación
 │   ├── administration/           # Consultar inventario y administrar permisos
 │   └── maintenance/              # Coordinar backups, cutover y recuperación
 ├── adapters/                     # Entrada/salida y tecnologías concretas
@@ -204,6 +206,41 @@ el alcance ya resuelto y bootstrap construye clientes acotados y gestiona su cie
 La API pública y administrativa se ensamblan por separado. Compartir núcleo y
 casos de uso no registra automáticamente rutas administrativas en el proceso público.
 Las observaciones técnicas se correlacionan sin volcar notas, audio o credenciales.
+
+### Journals y contexto de preguntas
+
+`core/journals` posee templates versionados, snapshots de recorridos, etapas y
+reglas temporales. Su ciclo de vida justifica una capacidad independiente de
+exteriorización. Los casos de uso de `use_cases/journals` coordinan activación,
+ajustes, consultas y reconciliación por puertos acotados al propietario. PostgreSQL
+conserva versiones de template, snapshots de recorridos, índices de etapas y recibos
+en una unidad de trabajo. El lock de preferencias existente serializa mutaciones
+con la publicación de invitaciones; el índice parcial garantiza un activo por cuenta.
+Bootstrap compone la capacidad y su reconciliación en el dispatcher existente,
+controlada por `JOURNALS_ENABLED`, deshabilitado por defecto. La gestión LAN usa
+`AdministerJournals` y rutas propias en la aplicación administrativa, con su pool
+SQL y sin contenido personal. Las previsualizaciones llaman las reglas puras;
+las mutaciones reutilizan `ManageJournals` y sus recibos. El panel administra
+configuración e historia. La API pública usa `QueryJournals` para consultas
+propias/paginadas e historia, y `ManageJournals` para intención idempotente.
+El adaptador de invitaciones agrega contexto público de la revisión publicada;
+no consulta la etapa actual para reconstruir una pregunta anterior. La ingestión
+resuelve referencias históricas por un colaborador de aplicación inyectado;
+texto/audio propagan la misma identidad por originales, recibos y recuperación.
+El índice de entradas pertenece a Journals y se escribe en la transacción de
+aceptación de texto/audio o handoff al documento hijo. La derivación obtiene su
+pertenencia del audio aceptado. Ningún adaptador de salida llama casos de uso
+para decidir la asociación, ni se consulta la etapa actual al recuperar persistencia.
+No duplica `Document`, no genera invitaciones y no importa exteriorización.
+Sus contratos distinguen el contexto público, la configuración administrativa y
+el contexto interno de generación con intención personal. Exteriorización consume
+el puerto de contexto por inyección antes de construir candidatos. Journals posee
+el catálogo editorial por etapa y su aprobación respecto del objetivo;
+exteriorización aplica rotación, límites y selección. `question_preparation/2`
+reutiliza el runtime existente con referencia a la revisión histórica y fuentes
+del recorrido; `/1` conserva el contrato libre. La publicación confirma contexto
+histórico, procedencia, invitación, bandeja y outbox en la misma transacción.
+Ver [contratos de Journals](docs/journals-contract.md).
 
 ## Criterios para agregar módulos y funcionalidades
 

@@ -21,15 +21,21 @@ class GraphStore(DocumentProjection, Protocol):
     async def delete_document(self, document_id: str) -> None: ...
 
 
-class GraphBackend(GraphStore, Protocol):
-    async def list_emotions(self, *, offset: int = 0, limit: int = 100) -> EmotionCatalog: ...
+class EmotionLookup(Protocol):
+    async def resolve_emotion_label(self, key: str) -> str: ...
+
+
+class GraphBackend(GraphStore, EmotionLookup, Protocol):
+    async def list_emotions(
+        self, *, offset: int = 0, limit: int = 100, group_audio: bool = False
+    ) -> EmotionCatalog: ...
 
     async def explore_emotion(
-        self, emotion: str, *, depth: int = 1, limit: int = 100
+        self, emotion: str, *, depth: int = 1, limit: int = 100, group_audio: bool = False
     ) -> EmotionExploration: ...
 
     async def explore_document_emotions(
-        self, document_id: str, *, limit: int = 100
+        self, document_id: str, *, limit: int = 100, group_audio: bool = False
     ) -> EmotionExploration: ...
 
     async def get_extraction_graph(

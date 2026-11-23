@@ -17,11 +17,33 @@ from src.core.documents.ports import (
 )
 from src.core.domain.audio_notes import AudioNote
 from src.core.domain.documents import Document, NewDocument
+from src.core.domain.entry_triggers import (
+    ENTRY_TRIGGER_KEY,
+    EntryTriggerInput,
+    emotion_trigger_manifest,
+    emotion_trigger_metadata,
+    manifest_emotion_trigger,
+)
+from src.core.graph.ports import EmotionLookup
+from src.core.journals.contracts import EntryReference
+from src.core.journals.entries import (
+    IDENTITY_KEY,
+    REFERENCE_KEY,
+    manifest_reference,
+    metadata_reference,
+    reference_manifest,
+)
+from src.core.journals.errors import JournalStorageUnavailable
+from src.core.journals.ports import CaptureReferences
 from src.core.processing.acceptance import Submissions
 from src.core.processing.errors import WorkflowFailure
 from src.core.processing.ports import ProcessingWorkspace
 from src.core.processing.submissions import SubmissionConflict, fingerprint
 from src.core.workspaces.errors import WorkspaceSecretError
+from src.use_cases.processing.resolve_entry_trigger import (
+    invitation_fields,
+    resolve_emotion_trigger,
+)
 
 
 def document_identity(document):
@@ -67,6 +89,8 @@ def audio_metadata(receipt):
         authored_at=manifest["authored_at"],
         invitation_id=manifest.get("invitation_id"),
         invitation_question_id=manifest.get("invitation_question_id"),
+        journal_reference=manifest_reference(manifest),
+        entry_trigger=manifest_emotion_trigger(manifest),
         status="queued",
     )
 
@@ -78,8 +102,10 @@ async def invitation_manifest(
         if question_id is not None:
             raise ValueError("question_requires_invitation")
         return {}
-    resolved = await submissions.validate_invitation(owner, invitation_id, question_id)
     previous = await submissions.get(owner, operation, key, resource_id=resource_id)
+    if previous is not None and ENTRY_TRIGGER_KEY in previous.manifest:
+        raise SubmissionConflict("idempotency_conflict")
+    resolved = await submissions.validate_invitation(owner, invitation_id, question_id)
     if previous is not None and "invitation_question_id" not in previous.manifest:
         # Preserve hashes and originals accepted by v1, including resource-ID aliases.
         if previous.manifest.get("invitation_id") != str(invitation_id):
@@ -91,10 +117,43 @@ async def invitation_manifest(
     return {"invitation_id": str(invitation_id), "invitation_question_id": str(resolved)}
 
 
+async def journal_manifest(
+    submissions,
+    resolver,
+    owner,
+    operation,
+    key,
+    supplied,
+    invitation_id,
+    *,
+    resource_id=None,
+):
+    if supplied is None and invitation_id is None:
+        return {}
+    if resolver is None:
+        raise JournalStorageUnavailable()
+    reference = await resolver.resolve(owner, supplied, invitation_id=invitation_id)
+    previous = await submissions.get(owner, operation, key, resource_id=resource_id)
+    if previous is not None and IDENTITY_KEY not in previous.manifest and reference is not None:
+        # A new association must never reinterpret a previously accepted legacy identity.
+        raise SubmissionConflict("idempotency_conflict")
+    return reference_manifest(reference)
+
+
 class SubmitDocument:
-    def __init__(self, submissions: Submissions, runtime: ProcessingWorkspace, *, workflow_config):
+    def __init__(
+        self,
+        submissions: Submissions,
+        runtime: ProcessingWorkspace,
+        *,
+        workflow_config,
+        journal_capture: CaptureReferences | None = None,
+        emotion_lookup: EmotionLookup | None = None,
+    ):
         self.workflow_config = workflow_config
         self.submissions, self.runtime = submissions, runtime
+        self.journal_capture = journal_capture
+        self.emotion_lookup = emotion_lookup
 
     async def execute(
         self,
@@ -103,7 +162,16 @@ class SubmitDocument:
         *,
         invitation_id: UUID | None = None,
         invitation_question_id: UUID | None = None,
+        journal_reference: EntryReference | None = None,
+        entry_trigger: EntryTriggerInput | None = None,
     ):
+        if ENTRY_TRIGGER_KEY in document.metadata:
+            raise ValueError("entry_trigger_requires_typed_field")
+        embedded = metadata_reference(document.metadata)
+        if embedded is not None:
+            if journal_reference is not None and embedded != journal_reference:
+                raise SubmissionConflict("journal_reference_conflict")
+            journal_reference = embedded
         if "invitation_id" in document.metadata:
             supplied = UUID(document.metadata["invitation_id"])
             if invitation_id is not None and invitation_id != supplied:
@@ -114,6 +182,19 @@ class SubmitDocument:
             if invitation_question_id is not None and invitation_question_id != supplied:
                 raise SubmissionConflict("invitation_metadata_conflict")
             invitation_question_id = supplied
+        owner = self.runtime.context.user_id
+        invitation_id, invitation_question_id = await invitation_fields(
+            self.submissions, owner, entry_trigger, invitation_id, invitation_question_id
+        )
+        accepted_trigger = await resolve_emotion_trigger(
+            self.submissions,
+            self.emotion_lookup,
+            owner,
+            "upload_document",
+            key,
+            entry_trigger,
+            resource_id=document.id,
+        )
         association = await invitation_manifest(
             self.submissions,
             self.runtime.context.user_id,
@@ -123,16 +204,28 @@ class SubmitDocument:
             invitation_question_id,
             resource_id=document.id,
         )
-        if association:
+        journal = await journal_manifest(
+            self.submissions,
+            self.journal_capture,
+            self.runtime.context.user_id,
+            "upload_document",
+            key,
+            journal_reference,
+            invitation_id,
+            resource_id=document.id,
+        )
+        association.update(journal)
+        if association or accepted_trigger is not None:
             document = document.model_copy(
                 update={
                     "metadata": {
                         **{
                             k: v
                             for k, v in document.metadata.items()
-                            if k not in {"invitation_id", "invitation_question_id"}
+                            if k not in {"invitation_id", "invitation_question_id", REFERENCE_KEY}
                         },
-                        **association,
+                        **{k: v for k, v in association.items() if k != IDENTITY_KEY},
+                        **emotion_trigger_metadata(accepted_trigger),
                     },
                 }
             )
@@ -144,7 +237,10 @@ class SubmitDocument:
             resource_kind="document",
             resource_id=document.id,
             config=self.workflow_config(),
-            manifest=association,
+            manifest={
+                **association,
+                **(emotion_trigger_manifest(accepted_trigger) if accepted_trigger else {}),
+            },
         )
         if receipt.accepted_at:
             return (
@@ -193,9 +289,13 @@ class SubmitAudioNote:
         max_bytes: int,
         *,
         workflow_config,
+        journal_capture: CaptureReferences | None = None,
+        emotion_lookup: EmotionLookup | None = None,
     ):
         self.workflow_config = workflow_config
         self.submissions, self.runtime, self.max_bytes = submissions, runtime, max_bytes
+        self.journal_capture = journal_capture
+        self.emotion_lookup = emotion_lookup
 
     async def execute(
         self,
@@ -207,12 +307,23 @@ class SubmitAudioNote:
         *,
         invitation_id: UUID | None = None,
         invitation_question_id: UUID | None = None,
+        journal_reference: EntryReference | None = None,
+        entry_trigger: EntryTriggerInput | None = None,
     ):
         filename, media_type = validate_audio_upload(filename, media_type, content, self.max_bytes)
         # Validate dates before making a SQL reservation.
         if authored_at is not None and authored_at.tzinfo is None:
             raise ValueError("authored_at must include a timezone")
+        owner = self.runtime.context.user_id
+        invitation_id, invitation_question_id = await invitation_fields(
+            self.submissions, owner, entry_trigger, invitation_id, invitation_question_id
+        )
+        accepted_trigger = await resolve_emotion_trigger(
+            self.submissions, self.emotion_lookup, owner, "upload_audio", key, entry_trigger
+        )
         manifest = audio_manifest(filename, media_type, content, authored_at)
+        if accepted_trigger is not None:
+            manifest.update(emotion_trigger_manifest(accepted_trigger))
         manifest.update(
             await invitation_manifest(
                 self.submissions,
@@ -221,6 +332,17 @@ class SubmitAudioNote:
                 key,
                 invitation_id,
                 invitation_question_id,
+            )
+        )
+        manifest.update(
+            await journal_manifest(
+                self.submissions,
+                self.journal_capture,
+                self.runtime.context.user_id,
+                "upload_audio",
+                key,
+                journal_reference,
+                invitation_id,
             )
         )
         receipt = await self.submissions.reserve(

@@ -17,6 +17,9 @@ from src.adapters.access.api.public.invitations.schemas import (
     SubscriptionCreate,
     SubscriptionRead,
     TestInvitationRequest,
+    TopicPauseInput,
+    TopicPauseRead,
+    TopicPauseUndoRead,
 )
 from src.core.auth.identity import AuthenticatedUser
 from src.core.exteriorization.models import (
@@ -39,7 +42,9 @@ def fingerprint(request: Request) -> str:
     return session_fingerprint(token)
 
 
-def build_router(get_authenticated_user, get_invitations, require_same_origin):
+def build_router(
+    get_authenticated_user, get_invitations, require_same_origin, get_journal_queries=None
+):
     router = APIRouter(
         prefix="/exteriorization",
         tags=["exteriorization"],
@@ -47,6 +52,19 @@ def build_router(get_authenticated_user, get_invitations, require_same_origin):
     )
     User = Annotated[AuthenticatedUser, Depends(get_authenticated_user)]
     Service = Annotated[ConfigureInvitations, Depends(get_invitations)]
+
+    async def enrich(value, owner, queries):
+        if queries is None:
+            return value
+        from src.adapters.access.api.public.routes.journals import invoke
+
+        context = await invoke(queries.invitation_context(owner, value.id))
+        return {**InvitationRead.model_validate(value).model_dump(), "journal_context": context}
+
+    def absent_queries():
+        return None
+
+    Journals = Annotated[object, Depends(get_journal_queries or absent_queries)]
 
     @router.get("/preferences", response_model=PreferenceRead)
     async def preferences(user: User, service: Service) -> InvitationPreference:
@@ -59,7 +77,7 @@ def build_router(get_authenticated_user, get_invitations, require_same_origin):
         service: Service,
     ) -> InvitationPreference:
         return await service.configure(
-            user.id, payload.enabled, payload.local_time, payload.timezone
+            user.id, payload.enabled, payload.local_time, payload.timezone, payload.weekdays
         )
 
     @router.get("/push/public-key")
@@ -107,12 +125,12 @@ def build_router(get_authenticated_user, get_invitations, require_same_origin):
         return await service.test(user.id, fingerprint(request), payload.subscription_id, key)
 
     @router.get("/invitations/{invitation_id}", response_model=InvitationRead)
-    async def invitation(invitation_id: UUID, user: User, service: Service) -> Invitation:
-        return await service.get_invitation(user.id, invitation_id)
+    async def invitation(invitation_id: UUID, user: User, service: Service, queries: Journals):
+        return await enrich(await service.get_invitation(user.id, invitation_id), user.id, queries)
 
     @router.post("/invitations/{invitation_id}/opened", response_model=InvitationRead)
-    async def opened(invitation_id: UUID, user: User, service: Service) -> Invitation:
-        return await service.open_invitation(user.id, invitation_id)
+    async def opened(invitation_id: UUID, user: User, service: Service, queries: Journals):
+        return await enrich(await service.open_invitation(user.id, invitation_id), user.id, queries)
 
     @router.post("/invitations/{invitation_id}/feedback", response_model=FeedbackRead)
     async def feedback(
@@ -143,5 +161,30 @@ def build_router(get_authenticated_user, get_invitations, require_same_origin):
             InvitationInteractions(**payload.model_dump()),
             key,
         )
+
+    @router.post("/invitations/{invitation_id}/topic-pause", response_model=TopicPauseRead)
+    async def pause_topic(
+        invitation_id: UUID,
+        payload: TopicPauseInput,
+        user: User,
+        service: Service,
+        key: Annotated[UUID, Header(alias="Idempotency-Key")],
+    ):
+        return await service.activity.pause_topic(
+            user.id, invitation_id, payload.invitation_question_id, key
+        )
+
+    @router.post(
+        "/invitations/{invitation_id}/topic-pause/{pause_id}/undo",
+        response_model=TopicPauseUndoRead,
+    )
+    async def undo_topic_pause(
+        invitation_id: UUID,
+        pause_id: UUID,
+        user: User,
+        service: Service,
+        key: Annotated[UUID, Header(alias="Idempotency-Key")],
+    ):
+        return await service.activity.undo_topic_pause(user.id, invitation_id, pause_id, key)
 
     return router

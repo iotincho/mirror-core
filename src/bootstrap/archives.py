@@ -7,6 +7,7 @@ from src.bootstrap.processing import requests_store
 from src.core.documents.archive import ArchiveConflict as ArchiveConflict
 from src.core.documents.archive import ArchivedDocument as ArchivedDocument
 from src.core.documents.archive import DocumentArchive as DocumentArchive
+from src.use_cases.documents.delete_document import DeleteDocument
 
 
 def DocumentArchiveTransfer(
@@ -14,6 +15,7 @@ def DocumentArchiveTransfer(
 ):
     from src.adapters.storage.postgres.submission_port import PostgresSubmissions
     from src.adapters.storage.postgres.submissions import SubmissionRepository as SQLSubmissions
+    from src.bootstrap.acceptance import build_capture_resolver
     from src.use_cases.documents.archive import DocumentArchiveTransfer as Case
 
     if submissions is None and processing is not None:
@@ -29,13 +31,35 @@ def DocumentArchiveTransfer(
     if isinstance(processing, ProcessingRepository):
         processing = requests_store(processing)
     return Case(
-        documents, processing, user_id, submissions, graph=graph, workflow_config=workflow_config
+        documents,
+        processing,
+        user_id,
+        submissions,
+        graph=graph,
+        workflow_config=workflow_config,
+        journal_capture=(
+            build_capture_resolver(submissions.sessions)
+            if isinstance(submissions, PostgresSubmissions)
+            else None
+        ),
     )
 
 
-def build_delete_document(documents, graph, processing=None, user_id=None, layer_artifacts=None):
-    from src.use_cases.documents.delete_document import DeleteDocument
-
+def build_delete_document(
+    documents,
+    graph,
+    processing=None,
+    user_id=None,
+    layer_artifacts=None,
+    delete_processing_artifacts=None,
+):
     if isinstance(processing, ProcessingRepository):
         processing = requests_store(processing)
-    return DeleteDocument(documents, graph, processing, user_id, layer_artifacts)
+    return DeleteDocument(
+        documents,
+        graph,
+        processing=processing,
+        user_id=user_id,
+        layer_artifacts=layer_artifacts,
+        delete_processing_artifacts=delete_processing_artifacts,
+    )

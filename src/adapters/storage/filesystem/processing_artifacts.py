@@ -3,6 +3,8 @@
 import asyncio
 import json
 import os
+import shutil
+from contextlib import suppress
 from pathlib import Path
 from uuid import uuid4
 
@@ -27,6 +29,10 @@ class ProcessingArtifacts:
         return await asyncio.to_thread(read)
 
     digest = staticmethod(artifact_digest)
+
+    async def delete(self) -> None:
+        with suppress(FileNotFoundError):
+            await asyncio.to_thread(shutil.rmtree, self.directory)
 
     async def write(self, name: str, identity: str, payload):
         def write():

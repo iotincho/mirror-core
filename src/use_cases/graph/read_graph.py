@@ -35,12 +35,16 @@ class ReadGraph:
             }
         )
 
-    async def emotion_catalog(self, *, offset=0, limit=100):
-        return await self.graph.list_emotions(offset=offset, limit=limit)
+    async def emotion_catalog(self, *, offset=0, limit=100, group_audio=False):
+        return await self.graph.list_emotions(offset=offset, limit=limit, group_audio=group_audio)
 
-    async def emotion_exploration(self, emotion, *, depth=1, limit=100):
-        return await self.graph.explore_emotion(emotion, depth=depth, limit=limit)
+    async def emotion_exploration(self, emotion, *, depth=1, limit=100, group_audio=False):
+        return await self.graph.explore_emotion(
+            emotion, depth=depth, limit=limit, group_audio=group_audio
+        )
 
-    async def document_emotions(self, document_id, *, limit=100):
+    async def document_emotions(self, document_id, *, limit=100, group_audio=False):
         await self.documents.get(document_id)
-        return await self.graph.explore_document_emotions(str(document_id), limit=limit)
+        return await self.graph.explore_document_emotions(
+            str(document_id), limit=limit, group_audio=group_audio
+        )

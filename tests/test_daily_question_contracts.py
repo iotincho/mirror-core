@@ -154,7 +154,7 @@ def feedback(subject, value, sequence=1):
     )
 
 
-@pytest.mark.parametrize("value", ["helpful", "unrelated", "not_now", "closed"])
+@pytest.mark.parametrize("value", ["helpful", "somewhat_helpful", "unrelated", "not_now", "closed"])
 def test_positive_or_weaker_feedback_never_removes_explicit_rejection(value):
     subject = topic()
     rejected = apply_topic_feedback(subject, feedback(subject, "do_not_prompt"), POLICY)

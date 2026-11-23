@@ -93,6 +93,29 @@ Las dos rutas requieren sesión y usan sólo la base del workspace autenticado.
 No crean esquema, nodos globales ni relaciones de equivalencia persistidas.
 Funcionan con las extracciones existentes. Una emoción inexistente devuelve 404.
 
+### Entradas de audio en Constelaciones
+
+El catálogo y los dos endpoints de vecindario admiten `group_audio=true`.
+Con esa opción, las transcripciones que declaran el mismo `audio_note_id`
+ocupan un nodo `AudioNote:<uuid>`. El nodo mantiene `type: Document`,
+`audio_note_id`, los `document_ids` incluidos y un `document_id` de lectura
+general. Se elige el UUID del audio cuando también es un documento disponible,
+o el menor UUID de los documentos incluidos. Una cita siempre indica el
+documento exacto y sus posiciones, aunque el representante sea otro.
+
+El nuevo `entry_count` en catálogo y emociones cuenta entradas lógicas, y
+ordena el catálogo agrupado. `document_count` conserva su significado de
+documentos distintos. Los límites y el truncamiento del vecindario agrupado
+se aplican a nodos lógicos, incluida la raíz. Una conexión por audio y emoción
+reúne las citas de los documentos correspondientes. Los documentos sin
+identidad explícita de audio se proyectan por su UUID, aunque su texto coincida.
+Sin el parámetro se conservan nodos, aristas y conteos anteriores.
+
+La ingestión de un [disparador de emoción](entry-trigger-design.md) usa una
+lectura paginada de etiquetas con pertenencia en el workspace autenticado.
+Esta consulta comparte la normalización del catálogo, sin hidratar documentos
+ni citas.
+
 ## Validación
 
 Las pruebas de navegación cubren el contrato HTTP y el adaptador. Las integraciones

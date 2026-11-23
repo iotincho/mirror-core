@@ -20,6 +20,7 @@ class AdministrationSettings(BaseSettings):
         default=300, ge=30, validation_alias="ADMIN_INVENTORY_MAX_AGE_SECONDS"
     )
     personal_axes_enabled: bool = Field(default=False, validation_alias="PERSONAL_AXES_ENABLED")
+    journals_enabled: bool = Field(default=False, validation_alias="JOURNALS_ENABLED")
 
 
 @lru_cache

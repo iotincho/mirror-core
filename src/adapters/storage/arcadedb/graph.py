@@ -214,31 +214,46 @@ class ArcadeDBGraphStore(GraphBackend):
         except Exception as error:
             raise GraphPersistenceError("ArcadeDB extraction graph retrieval failed") from error
 
-    async def list_emotions(self, *, offset=0, limit=100):
-        from src.adapters.storage.arcadedb.emotion_projection import EmotionProjection
-
-        try:
-            return await EmotionProjection(self._client, self._rows).catalog(offset, limit)
-        except Exception as error:
-            raise GraphPersistenceError("ArcadeDB emotion catalog retrieval failed") from error
-
-    async def explore_emotion(self, emotion, *, depth=1, limit=100):
+    async def resolve_emotion_label(self, key):
         from src.adapters.storage.arcadedb.emotion_projection import EmotionProjection
         from src.core.graph.ports import EmotionNotFoundError
 
         try:
-            return await EmotionProjection(self._client, self._rows).explore(emotion, depth, limit)
+            return await EmotionProjection(self._client, self._rows).resolve_label(key)
+        except EmotionNotFoundError:
+            raise
+        except Exception as error:
+            raise GraphPersistenceError("ArcadeDB emotion lookup failed") from error
+
+    async def list_emotions(self, *, offset=0, limit=100, group_audio=False):
+        from src.adapters.storage.arcadedb.emotion_projection import EmotionProjection
+
+        try:
+            return await EmotionProjection(self._client, self._rows).catalog(
+                offset, limit, group_audio=group_audio
+            )
+        except Exception as error:
+            raise GraphPersistenceError("ArcadeDB emotion catalog retrieval failed") from error
+
+    async def explore_emotion(self, emotion, *, depth=1, limit=100, group_audio=False):
+        from src.adapters.storage.arcadedb.emotion_projection import EmotionProjection
+        from src.core.graph.ports import EmotionNotFoundError
+
+        try:
+            return await EmotionProjection(self._client, self._rows).explore(
+                emotion, depth, limit, group_audio=group_audio
+            )
         except EmotionNotFoundError:
             raise
         except Exception as error:
             raise GraphPersistenceError("ArcadeDB emotion exploration failed") from error
 
-    async def explore_document_emotions(self, document_id, *, limit=100):
+    async def explore_document_emotions(self, document_id, *, limit=100, group_audio=False):
         from src.adapters.storage.arcadedb.emotion_projection import EmotionProjection
 
         try:
             return await EmotionProjection(self._client, self._rows).document_neighborhood(
-                document_id, limit
+                document_id, limit, group_audio=group_audio
             )
         except Exception as error:
             raise GraphPersistenceError("ArcadeDB document emotions retrieval failed") from error

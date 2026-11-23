@@ -11,6 +11,7 @@ from sqlalchemy import (
     Index,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -22,7 +23,11 @@ class QuestionPreparation(Base):
     __tablename__ = "question_preparations"
     __table_args__ = (
         UniqueConstraint(
-            "user_id", "due_at", "preference_version", name="uq_question_preparation_occurrence"
+            "user_id",
+            "due_at",
+            "preference_version",
+            "context_key",
+            name="uq_question_preparation_context",
         ),
         CheckConstraint(
             "status IN ('pending','ready','obsolete','consumed')",
@@ -35,6 +40,9 @@ class QuestionPreparation(Base):
     processing_id: Mapped[UUID] = mapped_column(ForeignKey("processing_records.id"))
     due_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     preference_version: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    context_key: Mapped[str] = mapped_column(
+        String(200), default="free", server_default=text("'free'")
+    )
     status: Mapped[str] = mapped_column(String(12), default="pending")
     configuration: Mapped[dict] = mapped_column(JSONB)
     snapshot: Mapped[dict | None] = mapped_column(JSONB)

@@ -26,14 +26,29 @@ from src.core.processing.errors import LeaseLost, StorageUnavailable, WorkflowFa
 from src.core.processing.workflows import WorkflowDefinition
 
 
-async def build_snapshot(repository, originals, owner, now, configuration):
-    inventory, history, topics = await repository.inventory(owner, now)
+async def build_snapshot(
+    repository,
+    originals,
+    owner,
+    now,
+    configuration,
+    *,
+    inventory=None,
+    snapshot=None,
+    journal_context=None,
+    max_age_days=30,
+):
+    inventory, history, topics = (
+        inventory if inventory is not None else await repository.inventory(owner, now)
+    )
     if len(topics) > 64:
         raise WorkflowFailure("question_topic_inventory_limit")
-    snapshot = PreparationSnapshot(
+    snapshot = snapshot or PreparationSnapshot(
         captured_at=now, sources=(), history=tuple(history), topics=tuple(topics)
     )
     data = snapshot.model_dump(mode="json")
+    if journal_context is not None:
+        data["journal_context"] = journal_context
     data["sources"] = []
     # UTF-8 bytes conservatively bound text tokens, reserving instructions/schema overhead.
     budget = configuration.max_input_tokens - 7000
@@ -44,7 +59,9 @@ async def build_snapshot(repository, originals, owner, now, configuration):
         except DocumentNotFoundError:
             continue
         authored = document.authored_at or document.created_at
-        if not now - timedelta(days=30) <= authored <= now:
+        if authored > now or (
+            max_age_days is not None and authored < now - timedelta(days=max_age_days)
+        ):
             continue
         source = SourceReference(
             document_id=document.id,
@@ -92,6 +109,8 @@ async def restore_input(snapshot, originals):
 
 
 class PrepareQuestions:
+    configuration_type = PreparationConfiguration
+    snapshot_type = PreparationSnapshot
     transitions = frozenset(
         {
             ("question_context", "question_proposals"),
@@ -121,31 +140,37 @@ class PrepareQuestions:
     def definition(self):
         return WorkflowDefinition(self.execute, self.transitions)
 
+    async def build_snapshot(self, originals, owner, now, configuration):
+        return await build_snapshot(self.repository, originals, owner, now, configuration)
+
+    async def restore_input(self, snapshot, originals, owner):
+        return await restore_input(snapshot, originals)
+
     async def execute(self, context):
         try:
             owner, identifier = context.record.user_id, context.record.resource_id
             live = await self.repository.live(owner, identifier)
             if live is None:
                 return
-            configuration = PreparationConfiguration.model_validate(context.record.config)
+            configuration = self.configuration_type.model_validate(context.record.config)
             store = self.artifact_factory(owner, identifier)
             originals = await self.originals.documents(owner)
             identity = str(identifier)
             if context.record.stage == "question_context":
                 saved = await store.read("context", identity)
                 if saved is None:
-                    snapshot, _ = await build_snapshot(
-                        self.repository, originals, owner, live["now"], configuration
+                    snapshot, _ = await self.build_snapshot(
+                        originals, owner, live["now"], configuration
                     )
                     await context.assert_lease()
                     await store.write("context", identity, snapshot.model_dump(mode="json"))
                 await context.advance("question_proposals")
-            snapshot = PreparationSnapshot.model_validate(await store.read("context", identity))
+            snapshot = self.snapshot_type.model_validate(await store.read("context", identity))
             if context.record.stage == "question_proposals":
                 saved = await store.read("proposals", identity)
                 if saved is None:
                     if snapshot.sources:
-                        data = await restore_input(snapshot, originals)
+                        data = await self.restore_input(snapshot, originals, owner)
                         provider = self.provider_factory(configuration)
                         await context.assert_lease()
                         live = await self.repository.live(owner, identifier)
@@ -182,7 +207,7 @@ class PrepareQuestions:
                 saved = await store.read("proposals", identity)
                 proposals = validate_proposals(saved["result"], snapshot)
                 # Sources are revalidated again before final publication.
-                await restore_input(snapshot, originals)
+                await self.restore_input(snapshot, originals, owner)
                 selection = await store.read("selection", identity)
                 if selection is None:
                     selection = self.select(identifier, owner, snapshot, proposals)

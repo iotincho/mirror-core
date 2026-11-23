@@ -183,3 +183,69 @@ async def test_levels_group_labels_deduplicate_runs_and_preserve_evidence(layer_
     after = await graph.explore_emotion("miedo")
     assert len(after.nodes) == 2 and len(after.edges) == 1
     assert next(node for node in after.nodes if node.type == "EmotionGroup").document_count == 1
+
+
+async def test_grouped_audio_counts_once_and_keeps_each_source_range(layer_database):
+    extractor, _, _, provider, graph = layer_database
+    audio = uuid4()
+
+    async def add(text, emotions, *, identifier=None, audio_link=None):
+        original = build_document(
+            NewDocument(
+                id=identifier,
+                content=text,
+                metadata={"audio_note_id": str(audio_link)} if audio_link else {},
+            )
+        )
+        await extractor.documents.save(original)
+        await graph.persist_document(original)
+        provider.payload = EmotionResponse(emotions=emotions)
+        await extractor.extract(original, dry_run=False)
+        return original
+
+    first_text = "😀 Me sentí en calma."
+    first = await add(
+        first_text,
+        [{"label": "Calma", "quotes": ["Me sentí en calma."]}],
+        identifier=audio,
+        audio_link=audio,
+    )
+    second = await add(
+        "Ahora tengo calma. Antes tuve miedo.",
+        [
+            {"label": "calma", "quotes": ["Ahora tengo calma."]},
+            {"label": "miedo", "quotes": ["Antes tuve miedo."]},
+        ],
+        audio_link=audio,
+    )
+    independent = await add(first_text, [{"label": "calma", "quotes": ["Me sentí en calma."]}])
+
+    assert await graph.resolve_emotion_label("calma") == "calma"
+    with pytest.raises(EmotionNotFoundError):
+        await graph.resolve_emotion_label("alegría")
+    grouped = await graph.list_emotions(group_audio=True)
+    assert (grouped.emotions[0].document_count, grouped.emotions[0].entry_count) == (3, 2)
+
+    result = await graph.explore_emotion("calma", limit=3, group_audio=True)
+    assert not result.truncated
+    entries = {node.id: node for node in result.nodes if node.type == "Document"}
+    assert set(entries) == {f"AudioNote:{audio}", f"Document:{independent.id}"}
+    audio_node = entries[f"AudioNote:{audio}"]
+    assert audio_node.document_id == str(first.id)
+    assert set(audio_node.document_ids) == {str(first.id), str(second.id)}
+    edge = next(edge for edge in result.edges if edge.source == audio_node.id)
+    assert {
+        (citation.document_id, citation.start_char, citation.quote) for citation in edge.evidence
+    } == {
+        (str(first.id), 2, "Me sentí en calma."),
+        (str(second.id), 0, "Ahora tengo calma."),
+    }
+
+    centered = await graph.explore_document_emotions(str(second.id), group_audio=True)
+    assert centered.root_id == audio_node.id
+    assert {node.label for node in centered.nodes if node.type == "EmotionGroup"} == {
+        "calma",
+        "miedo",
+    }
+    legacy = await graph.explore_emotion("calma", limit=3)
+    assert legacy.truncated and legacy.next_limit == 6

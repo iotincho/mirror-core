@@ -1,0 +1,155 @@
+{
+  "template": {
+    "id": "91d604b1-b88e-4877-b9bc-a9cfae550001",
+    "version": 1,
+    "name": "Preparación e intención",
+    "purpose": "Acompañar la exploración de una intención personal.",
+    "instructions": "Preguntar sin anticipar una conclusión. Respetar límites y dudas.",
+    "stages": [
+      {
+        "key": "explore",
+        "name": "Qué quiero explorar",
+        "objective": "Identificar un propósito primario provisional.",
+        "instructions": "Permitir que la inquietud todavía sea imprecisa.",
+        "duration_days": 7
+      },
+      {
+        "key": "meaning",
+        "name": "Qué significa para mí",
+        "objective": "Explorar los deseos y expectativas en las palabras elegidas.",
+        "instructions": "No atribuir causas ni sugerir recuerdos.",
+        "duration_days": 7
+      },
+      {
+        "key": "daily-life",
+        "name": "Cómo aparece en mi vida",
+        "objective": "Reconocer situaciones cotidianas relacionadas con el propósito.",
+        "instructions": "Invitar a nombrar ejemplos concretos sin exigir profundizar.",
+        "duration_days": 7
+      },
+      {
+        "key": "intention",
+        "name": "Qué intención quiero llevar",
+        "objective": "Revisar lo escrito y formular una intención propia y flexible.",
+        "instructions": "Dar lugar a dudas, apoyos y la decisión de posponer o cerrar.",
+        "duration_days": 7
+      }
+    ],
+    "catalogs": []
+  },
+  "activation": {
+    "run_id": "91d604b1-b88e-4877-b9bc-a9cfae550002",
+    "owner": "91d604b1-b88e-4877-b9bc-a9cfae550003",
+    "timezone": "America/Argentina/Buenos_Aires",
+    "now": "2026-11-02T15:00:00Z"
+  },
+  "boundaries": [
+    "2026-11-09T03:00:00Z",
+    "2026-11-16T03:00:00Z",
+    "2026-11-23T03:00:00Z",
+    "2026-11-30T03:00:00Z"
+  ],
+  "lifecycle_request": {
+    "expected_revision": 1,
+    "action": "pause"
+  },
+  "intention_request": {
+    "expected_revision": 1,
+    "text": "Comprender mis expectativas."
+  },
+  "legacy_reference": null,
+  "public_view": {
+    "id": "91d604b1-b88e-4877-b9bc-a9cfae550002",
+    "template_id": "91d604b1-b88e-4877-b9bc-a9cfae550001",
+    "template_version": 1,
+    "revision": 1,
+    "name": "Preparación e intención",
+    "purpose": "Acompañar la exploración de una intención personal.",
+    "timezone": "America/Argentina/Buenos_Aires",
+    "status": "active",
+    "stages": [
+      {
+        "id": "5bdae116-3a17-58f5-8c70-c211d12db68b",
+        "name": "Qué quiero explorar",
+        "objective": "Identificar un propósito primario provisional.",
+        "duration_days": 7,
+        "starts_at": "2026-11-02T15:00:00Z",
+        "ends_at": "2026-11-09T03:00:00Z"
+      },
+      {
+        "id": "20b85c20-f443-5d9f-83fe-0ae98760bbe2",
+        "name": "Qué significa para mí",
+        "objective": "Explorar los deseos y expectativas en las palabras elegidas.",
+        "duration_days": 7,
+        "starts_at": "2026-11-09T03:00:00Z",
+        "ends_at": "2026-11-16T03:00:00Z"
+      },
+      {
+        "id": "eeca2a08-35cd-5f39-bc45-529204216cea",
+        "name": "Cómo aparece en mi vida",
+        "objective": "Reconocer situaciones cotidianas relacionadas con el propósito.",
+        "duration_days": 7,
+        "starts_at": "2026-11-16T03:00:00Z",
+        "ends_at": "2026-11-23T03:00:00Z"
+      },
+      {
+        "id": "2c89c78a-ad8f-5c56-b86c-f1e91b496f3a",
+        "name": "Qué intención quiero llevar",
+        "objective": "Revisar lo escrito y formular una intención propia y flexible.",
+        "duration_days": 7,
+        "starts_at": "2026-11-23T03:00:00Z",
+        "ends_at": "2026-11-30T03:00:00Z"
+      }
+    ],
+    "current_stage_id": "5bdae116-3a17-58f5-8c70-c211d12db68b",
+    "capture_reference": {
+      "schema_version": "1",
+      "run_id": "91d604b1-b88e-4877-b9bc-a9cfae550002",
+      "stage_id": "5bdae116-3a17-58f5-8c70-c211d12db68b",
+      "run_revision": 1
+    }
+  },
+  "activation_request": {
+    "template_id": "91d604b1-b88e-4877-b9bc-a9cfae550001",
+    "template_version": 1,
+    "timezone": "America/Argentina/Buenos_Aires"
+  },
+  "legacy_adjust": {
+    "command": {
+      "expected_revision": 1,
+      "remaining_stages": [
+        {
+          "key": "explore",
+          "name": "Qué quiero explorar",
+          "objective": "Identificar un propósito primario provisional.",
+          "instructions": "Permitir que la inquietud todavía sea imprecisa.",
+          "duration_days": 7
+        },
+        {
+          "key": "meaning",
+          "name": "Qué significa para mí",
+          "objective": "Explorar los deseos y expectativas en las palabras elegidas.",
+          "instructions": "No atribuir causas ni sugerir recuerdos.",
+          "duration_days": 7
+        },
+        {
+          "key": "daily-life",
+          "name": "Cómo aparece en mi vida",
+          "objective": "Reconocer situaciones cotidianas relacionadas con el propósito.",
+          "instructions": "Invitar a nombrar ejemplos concretos sin exigir profundizar.",
+          "duration_days": 7
+        },
+        {
+          "key": "intention",
+          "name": "Qué intención quiero llevar",
+          "objective": "Revisar lo escrito y formular una intención propia y flexible.",
+          "instructions": "Dar lugar a dudas, apoyos y la decisión de posponer o cerrar.",
+          "duration_days": 7
+        }
+      ],
+      "purpose": null,
+      "instructions": "Foco de prueba"
+    },
+    "request_hash": "00323bdfd48a6804b7153df43df5d72aa01416a2819daa2822c29c2ed560d31f"
+  }
+}

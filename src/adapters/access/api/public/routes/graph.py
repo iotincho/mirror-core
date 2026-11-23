@@ -60,9 +60,12 @@ def build_router(get_document_store, get_graph_store):
         graph: Annotated[GraphBackend, Depends(get_graph_store)],
         offset: int = Query(default=0, ge=0),
         limit: int = Query(default=100, ge=1, le=200),
+        group_audio: bool = False,
     ):
         try:
-            return await ReadGraph(graph).emotion_catalog(offset=offset, limit=limit)
+            return await ReadGraph(graph).emotion_catalog(
+                offset=offset, limit=limit, group_audio=group_audio
+            )
         except GraphPersistenceError as error:
             raise HTTPException(502, "Emotion catalog is unavailable") from error
 
@@ -72,11 +75,14 @@ def build_router(get_document_store, get_graph_store):
         emotion: str = Query(min_length=1, max_length=240),
         depth: int = Query(default=1, ge=1, le=3),
         limit: int = Query(default=100, ge=2, le=500),
+        group_audio: bool = False,
     ):
         if not emotion.strip():
             raise HTTPException(422, "Emotion must not be blank")
         try:
-            return await ReadGraph(graph).emotion_exploration(emotion, depth=depth, limit=limit)
+            return await ReadGraph(graph).emotion_exploration(
+                emotion, depth=depth, limit=limit, group_audio=group_audio
+            )
         except EmotionNotFoundError as error:
             raise HTTPException(404, "Emotion not found") from error
         except GraphPersistenceError as error:
@@ -88,9 +94,12 @@ def build_router(get_document_store, get_graph_store):
         documents: Annotated[DocumentStore, Depends(get_document_store)],
         graph: Annotated[GraphBackend, Depends(get_graph_store)],
         limit: int = Query(default=100, ge=2, le=500),
+        group_audio: bool = False,
     ):
         try:
-            return await ReadGraph(graph, documents).document_emotions(document_id, limit=limit)
+            return await ReadGraph(graph, documents).document_emotions(
+                document_id, limit=limit, group_audio=group_audio
+            )
         except DocumentNotFoundError as error:
             raise HTTPException(404, "Document not found") from error
         except GraphPersistenceError as error:

@@ -60,6 +60,20 @@ En el gateway productivo las URLs tienen prefijo `/api`. Exportar no requiere
 un grafo operativo ni un workspace activo; usa los archivos originales y verifica
 la pertenencia a la instancia configurada. Importar requiere un workspace activo.
 
+## Documentos vinculados a Journals
+
+El respaldo conserva `metadata.journal_reference`, pero no incluye templates,
+recorridos ni sus revisiones SQL. Importar un documento vinculado requiere que
+su revisión de journal exista y pertenezca a la cuenta destino. Se comprueban
+todas las referencias antes de escribir el primer documento. Una referencia
+ajena o no disponible rechaza el archivo; no se elimina la asociación ni se
+reasigna a un recorrido nuevo silenciosamente.
+
+Un respaldo de documentos no basta por sí solo para restaurar esas notas después
+de recrear los datos de Journals o cambiar de cuenta. La restauración integral de
+recorridos queda pendiente. Un import válido conserva originales e identidad y
+confirma la pertenencia con su aceptación SQL. Ver [contrato de Journals](journals-contract.md#pertenencia-durable-de-originales-etapa-3).
+
 ## Exportación administrativa antes de recrear bases
 
 Si no se puede iniciar la API por una migración fallida, el script

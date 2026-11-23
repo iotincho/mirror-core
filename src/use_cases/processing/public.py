@@ -25,20 +25,48 @@ class PublicProcessing:
         return self.requests.changed
 
     async def submit_document(
-        self, original, key, *, invitation_id=None, invitation_question_id=None
+        self,
+        original,
+        key,
+        *,
+        invitation_id=None,
+        invitation_question_id=None,
+        journal_reference=None,
+        entry_trigger=None,
     ):
         return await self.submissions.execute(
             original,
             key,
             invitation_id=invitation_id,
             invitation_question_id=invitation_question_id,
+            **({"journal_reference": journal_reference} if journal_reference is not None else {}),
+            **({"entry_trigger": entry_trigger} if entry_trigger is not None else {}),
         )
 
-    async def submit_file(self, filename, content, document_id, authored_at, key):
+    async def submit_file(
+        self,
+        filename,
+        content,
+        document_id,
+        authored_at,
+        key,
+        *,
+        invitation_id=None,
+        invitation_question_id=None,
+        journal_reference=None,
+        entry_trigger=None,
+    ):
         original = IngestDocumentFile(self.runtime.document_store).build_new_document(
             filename, content, document_id, authored_at
         )
-        return await self.submit_document(original, key)
+        return await self.submit_document(
+            original,
+            key,
+            invitation_id=invitation_id,
+            invitation_question_id=invitation_question_id,
+            journal_reference=journal_reference,
+            **({"entry_trigger": entry_trigger} if entry_trigger is not None else {}),
+        )
 
     async def submit_audio(
         self,
@@ -49,6 +77,8 @@ class PublicProcessing:
         key,
         invitation_id,
         invitation_question_id=None,
+        journal_reference=None,
+        entry_trigger=None,
     ):
         return await self.audio.execute(
             filename,
@@ -58,6 +88,8 @@ class PublicProcessing:
             key,
             invitation_id=invitation_id,
             invitation_question_id=invitation_question_id,
+            **({"journal_reference": journal_reference} if journal_reference is not None else {}),
+            **({"entry_trigger": entry_trigger} if entry_trigger is not None else {}),
         )
 
     async def list(self, *, active, cursor, limit):

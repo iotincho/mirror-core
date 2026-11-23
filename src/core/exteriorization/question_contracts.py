@@ -6,7 +6,9 @@ from uuid import UUID, uuid5
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 Depth = Literal["gentle", "middle", "deep"]
-FeedbackValue = Literal["helpful", "unrelated", "not_now", "closed", "do_not_prompt"]
+FeedbackValue = Literal[
+    "helpful", "somewhat_helpful", "unrelated", "not_now", "closed", "do_not_prompt"
+]
 
 
 class FrozenQuestionModel(BaseModel):

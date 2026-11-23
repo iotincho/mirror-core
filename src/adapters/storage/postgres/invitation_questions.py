@@ -257,6 +257,16 @@ class QuestionTransaction:
         )
         await self.session.flush()
 
+    async def activity_receipt_by_id(self, owner, operation, identifier):
+        row = await self.session.scalar(
+            select(InvitationActivityReceipt).where(
+                InvitationActivityReceipt.id == identifier,
+                InvitationActivityReceipt.user_id == owner,
+                InvitationActivityReceipt.operation == operation,
+            )
+        )
+        return row.response if row else None
+
     async def feedback_topic(self, owner, invitation_id, question_id):
         question = await ensure_question(self.session, owner, invitation_id, question_id)
         if question.topic_id is None:

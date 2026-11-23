@@ -23,6 +23,8 @@ async def test_openapi_schema_declares_the_public_api_prefix() -> None:
     assert response.status_code == 200
     assert response.json()["openapi"].startswith("3.")
     assert response.json()["servers"] == [{"url": "/api"}]
+    audio = response.json()["paths"]["/v2/audio-notes/{audio_note_id}"]
+    assert "204" in audio["delete"]["responses"]
 
 
 @pytest.fixture

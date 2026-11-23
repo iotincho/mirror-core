@@ -3,8 +3,9 @@
 from datetime import timedelta
 from uuid import uuid4, uuid5
 
-from sqlalchemy import func, select, update
+from sqlalchemy import case, func, or_, select, update
 
+from src.adapters.storage.postgres.accounts import User
 from src.adapters.storage.postgres.invitation_models import (
     Invitation,
     InvitationPreference,
@@ -16,6 +17,13 @@ from src.adapters.storage.postgres.invitation_question_models import (
     InvitationTopic,
 )
 from src.adapters.storage.postgres.invitation_questions import topic_snapshot
+from src.adapters.storage.postgres.journal_models import JournalEntryRecord, JournalInvitationRecord
+from src.adapters.storage.postgres.journal_question_context import (
+    archived_question_context,
+    current_question_context,
+    journal_source_ids,
+    journal_source_query,
+)
 from src.adapters.storage.postgres.models import ProcessingRecord
 from src.adapters.storage.postgres.question_metric_models import QuestionPreparationMetric
 from src.adapters.storage.postgres.question_metrics import ensure_metric
@@ -26,14 +34,37 @@ from src.adapters.storage.postgres.question_preparation_models import (
 from src.adapters.storage.postgres.repository import ProcessingRepository
 from src.adapters.storage.postgres.state import database_errors
 from src.adapters.storage.postgres.workspace_models import UserWorkspace
+from src.core.exteriorization.journal_questions import (
+    JournalPreparationConfiguration,
+    context_hash,
+    context_key,
+)
 from src.core.exteriorization.personalization import TopicDescription
 from src.core.exteriorization.question_contracts import InvitationQuestionSet, legacy_question_set
+from src.core.journals.contracts import JournalQuestionContext
 from src.core.processing.errors import LeaseLost
 
 
 class PostgresQuestionPreparations:
-    def __init__(self, sessions):
+    def __init__(self, sessions, *, journals_enabled=False):
         self.sessions = sessions
+        self.journals_enabled = journals_enabled
+
+    async def scope(self, session, owner, due):
+        scope = await current_question_context(session, owner, due)
+        if isinstance(scope, JournalQuestionContext) and (
+            not self.journals_enabled or scope.catalog is None
+        ):
+            return None
+        return scope
+
+    async def journal_context(self, owner, reference):
+        async with database_errors(), self.sessions() as session:
+            return await archived_question_context(session, owner, reference)
+
+    async def journal_sources(self, owner, reference, identifiers):
+        async with database_errors(), self.sessions() as session:
+            return await journal_source_ids(session, owner, reference, identifiers)
 
     async def schedule(self, configuration, now=None):
         async with database_errors(), self.sessions.begin() as session:
@@ -65,9 +96,11 @@ class PostgresQuestionPreparations:
                         UserWorkspace,
                         UserWorkspace.user_id == InvitationPreference.user_id,
                     )
+                    .join(User, User.id == InvitationPreference.user_id)
                     .where(
                         InvitationPreference.enabled.is_(True),
                         UserWorkspace.status == "active",
+                        User.is_active.is_(True),
                         InvitationPreference.next_due_at > now,
                         InvitationPreference.next_due_at
                         <= now + timedelta(minutes=configuration.lead_minutes),
@@ -79,9 +112,15 @@ class PostgresQuestionPreparations:
             )
             accepted = 0
             for preference in preferences:
+                scope = await self.scope(session, preference.user_id, preference.next_due_at)
+                if scope is None:
+                    continue
+                reference = scope.reference if isinstance(scope, JournalQuestionContext) else None
+                key = context_key(reference)
                 identifier = uuid5(
                     preference.user_id,
-                    f"daily-prepare-v1:{preference.next_due_at.isoformat()}:{preference.updated_at.isoformat()}",
+                    f"daily-prepare-v1:{preference.next_due_at.isoformat()}:{preference.updated_at.isoformat()}"
+                    + (f":{key}" if reference else ""),
                 )
                 if await session.get(QuestionPreparation, identifier):
                     continue
@@ -94,11 +133,20 @@ class PostgresQuestionPreparations:
                     .values(status="obsolete")
                 )
                 config = configuration.model_dump(mode="json")
+                if reference:
+                    config = JournalPreparationConfiguration.model_validate(
+                        {
+                            **config,
+                            "version": "daily-preparation-v2",
+                            "prompt_version": "journal-proposals-v1",
+                            "journal_reference": reference.model_dump(mode="json"),
+                        }
+                    ).model_dump(mode="json")
                 job = ProcessingRecord(
                     id=uuid4(),
                     user_id=preference.user_id,
                     workflow="question_preparation",
-                    workflow_version=1,
+                    workflow_version=2 if reference else 1,
                     resource_kind="question_preparation",
                     resource_id=identifier,
                     stage="question_context",
@@ -115,6 +163,7 @@ class PostgresQuestionPreparations:
                         processing_id=job.id,
                         due_at=preference.next_due_at,
                         preference_version=preference.updated_at,
+                        context_key=key,
                         configuration=config,
                         created_at=now,
                         expires_at=preference.next_due_at + timedelta(hours=36),
@@ -136,7 +185,14 @@ class PostgresQuestionPreparations:
             )
             preference = await session.get(InvitationPreference, owner)
             workspace = await session.get(UserWorkspace, owner)
-            if not preparation or not preference or not workspace or workspace.status != "active":
+            active = await session.scalar(select(User.is_active).where(User.id == owner))
+            if (
+                not active
+                or not preparation
+                or not preference
+                or not workspace
+                or workspace.status != "active"
+            ):
                 return None
             if (
                 not preference.enabled
@@ -149,9 +205,13 @@ class PostgresQuestionPreparations:
                 or preference.updated_at != preparation.preference_version
             ):
                 return None
+            scope = await self.scope(session, owner, preparation.due_at)
+            reference = scope.reference if isinstance(scope, JournalQuestionContext) else None
+            if scope is None or context_key(reference) != preparation.context_key:
+                return None
             return {"now": now, "due_at": preparation.due_at}
 
-    async def inventory(self, owner, now):
+    async def inventory(self, owner, now, *, journal_reference=None):
         async with database_errors(), self.sessions() as session:
             sources = (
                 select(
@@ -173,16 +233,43 @@ class PostgresQuestionPreparations:
                     func.min(ProcessingRecord.created_at).desc(), ProcessingRecord.resource_id
                 )
             )
-            rows = list((await session.execute(sources.limit(20))).all())
+            rows = (
+                list((await session.execute(sources.limit(20))).all())
+                if journal_reference is None
+                else []
+            )
+            if journal_reference is not None:
+                entries = JournalEntryRecord
+                rows = list(
+                    (
+                        await session.execute(
+                            journal_source_query(owner, journal_reference)
+                            .where(entries.accepted_at <= now)
+                            .order_by(
+                                case((entries.stage_id == journal_reference.stage_id, 0), else_=1),
+                                entries.accepted_at.desc(),
+                                entries.resource_id,
+                            )
+                            .limit(20)
+                        )
+                    ).all()
+                )
+            history_query = select(Invitation).where(
+                Invitation.user_id == owner,
+                Invitation.kind == "scheduled",
+            )
+            if journal_reference is not None:
+                history_query = history_query.join(
+                    JournalInvitationRecord, JournalInvitationRecord.invitation_id == Invitation.id
+                ).where(
+                    JournalInvitationRecord.owner_id == owner,
+                    JournalInvitationRecord.run_id == journal_reference.run_id,
+                )
             invitations = list(
                 await session.scalars(
-                    select(Invitation)
-                    .where(
-                        Invitation.user_id == owner,
-                        Invitation.kind == "scheduled",
-                    )
-                    .order_by(Invitation.created_at.desc(), Invitation.id.desc())
-                    .limit(14)
+                    history_query.order_by(
+                        Invitation.created_at.desc(), Invitation.id.desc()
+                    ).limit(14)
                 )
             )
             responses = list(
@@ -203,7 +290,7 @@ class PostgresQuestionPreparations:
                 ).all()
             )
             response_ids = {row.document_id for row in responses}
-            if response_ids:
+            if response_ids and journal_reference is None:
                 replies = list(
                     (
                         await session.execute(
@@ -213,9 +300,13 @@ class PostgresQuestionPreparations:
                 )
                 rows = list({row.resource_id: row for row in [*replies, *rows]}.values())
             # Relevant replies first, then recent notes; never load an unbounded directory.
-            rows.sort(
-                key=lambda row: (row.resource_id not in response_ids, -row.accepted_at.timestamp())
-            )
+            if journal_reference is None:
+                rows.sort(
+                    key=lambda row: (
+                        row.resource_id not in response_ids,
+                        -row.accepted_at.timestamp(),
+                    )
+                )
             rows = rows[:20]
             invitation_ids = [item.id for item in invitations]
             shows = list(
@@ -250,19 +341,28 @@ class PostgresQuestionPreparations:
                 )
             )
             history = [invitation_history(item, responses, shows, feedback) for item in invitations]
-            topics = list(
-                (
-                    await session.execute(
-                        select(InvitationTopic, PersonalTopicDescription.label)
-                        .join(
-                            PersonalTopicDescription,
-                            PersonalTopicDescription.topic_id == InvitationTopic.id,
-                        )
-                        .where(InvitationTopic.user_id == owner)
-                        .order_by(InvitationTopic.id)
-                        .limit(65)
+            topic_query = (
+                select(InvitationTopic, PersonalTopicDescription.label)
+                .join(
+                    PersonalTopicDescription,
+                    PersonalTopicDescription.topic_id == InvitationTopic.id,
+                )
+                .where(InvitationTopic.user_id == owner)
+            )
+            if journal_reference is not None:
+                topic_query = topic_query.where(
+                    or_(
+                        InvitationTopic.status != "open",
+                        *(
+                            PersonalTopicDescription.evidence.contains(
+                                [{"document_id": str(row.resource_id)}]
+                            )
+                            for row in rows
+                        ),
                     )
-                ).all()
+                )
+            topics = list(
+                (await session.execute(topic_query.order_by(InvitationTopic.id).limit(65))).all()
             )
             return (
                 [(row.resource_id, row.accepted_at) for row in rows],
@@ -304,8 +404,12 @@ class PostgresQuestionPreparations:
             ):
                 raise LeaseLost()
             workspace = await session.get(UserWorkspace, context.record.user_id)
+            active = await session.scalar(
+                select(User.is_active).where(User.id == context.record.user_id)
+            )
             if (
-                not row
+                not active
+                or not row
                 or not preference
                 or not preference.enabled
                 or not workspace
@@ -316,6 +420,19 @@ class PostgresQuestionPreparations:
                 or preference.updated_at != row.preference_version
             ):
                 return False
+            scope = await self.scope(session, context.record.user_id, row.due_at)
+            reference = scope.reference if isinstance(scope, JournalQuestionContext) else None
+            if scope is None or context_key(reference) != row.context_key:
+                return False
+            if reference is not None and (
+                getattr(snapshot, "journal_reference", None) != reference
+                or getattr(snapshot, "context_hash", None) != context_hash(scope)
+            ):
+                return False
+            if reference is not None:
+                sources = {source.document_id for source in snapshot.sources}
+                if await journal_source_ids(session, row.user_id, reference, sources) != sources:
+                    return False
             if row.status == "pending":
                 await ensure_metric(session, job)
                 metric = await session.get(QuestionPreparationMetric, job.id)

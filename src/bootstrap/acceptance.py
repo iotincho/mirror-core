@@ -51,13 +51,33 @@ def adapt_submissions(submissions):
 def SubmitDocument(submissions, runtime):
     from src.use_cases.processing.submit_processing import SubmitDocument as Case
 
-    return Case(adapt_submissions(submissions), runtime, workflow_config=workflow_config)
+    return Case(
+        adapt_submissions(submissions),
+        runtime,
+        workflow_config=workflow_config,
+        journal_capture=build_capture_resolver(submissions.sessions),
+        emotion_lookup=runtime.graph_store,
+    )
 
 
 def SubmitAudioNote(submissions, runtime, max_bytes):
     from src.use_cases.processing.submit_processing import SubmitAudioNote as Case
 
-    return Case(adapt_submissions(submissions), runtime, max_bytes, workflow_config=workflow_config)
+    return Case(
+        adapt_submissions(submissions),
+        runtime,
+        max_bytes,
+        workflow_config=workflow_config,
+        journal_capture=build_capture_resolver(submissions.sessions),
+        emotion_lookup=runtime.graph_store,
+    )
+
+
+def build_capture_resolver(sessions):
+    from src.adapters.storage.postgres.journals import PostgresJournals
+    from src.use_cases.journals.resolve_capture import ResolveJournalCapture
+
+    return ResolveJournalCapture(PostgresJournals(sessions))
 
 
 async def recover_submissions(submissions, runtime_factory):

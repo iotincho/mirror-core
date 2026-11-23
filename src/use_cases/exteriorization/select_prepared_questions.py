@@ -5,6 +5,7 @@ from uuid import UUID
 from src.core.documents.original_access import OriginalStorageUnavailable
 from src.core.documents.ports import DocumentNotFoundError
 from src.core.exteriorization.contracts import Trigger
+from src.core.exteriorization.journal_questions import JournalPreparationSnapshot, context_hash
 from src.core.exteriorization.personalization import (
     PreparationSnapshot,
     PreparedQuestions,
@@ -40,14 +41,36 @@ class SelectPreparedQuestions:
         self.originals = originals
 
     async def execute(
-        self, transaction, preference, due, now, curated, policy, *, preference_version
+        self,
+        transaction,
+        preference,
+        due,
+        now,
+        curated,
+        policy,
+        *,
+        preference_version,
+        journal_context=None,
     ):
-        prepared = await transaction.prepared_questions(preference.user_id, due, preference_version)
+        scope = (
+            {"journal_reference": journal_context.reference} if journal_context is not None else {}
+        )
+        prepared = await transaction.prepared_questions(
+            preference.user_id, due, preference_version, **scope
+        )
         if prepared is None:
             return curated
         identifier, raw_snapshot, raw_proposals, selection, configuration = prepared
         try:
-            snapshot = PreparationSnapshot.model_validate(raw_snapshot)
+            snapshot_type = (
+                JournalPreparationSnapshot if journal_context is not None else PreparationSnapshot
+            )
+            snapshot = snapshot_type.model_validate(raw_snapshot)
+            if journal_context is not None and (
+                snapshot.journal_reference != journal_context.reference
+                or snapshot.context_hash != context_hash(journal_context)
+            ):
+                raise ValueError("question_journal_context_changed")
             proposals = validate_proposals(raw_proposals, snapshot)
         except ValueError:
             await transaction.record_question_decision(identifier, "invalid_artifact")
@@ -63,10 +86,15 @@ class SelectPreparedQuestions:
             await transaction.record_question_decision(identifier, "original_storage_unavailable")
             return curated
         valid = set()
+        members = (
+            await transaction.journal_sources(preference.user_id, journal_context.reference, ids)
+            if journal_context is not None
+            else set(ids)
+        )
         for source in snapshot.sources:
             try:
                 document = await originals.get(source.document_id)
-                if content_hash(document) == source.sha256:
+                if source.document_id in members and content_hash(document) == source.sha256:
                     valid.add(source.document_id)
             except (DocumentNotFoundError, OSError, ValueError):
                 pass
@@ -149,7 +177,8 @@ class SelectPreparedQuestions:
                 user_id=preference.user_id,
                 now=now,
                 consecutive_personalized_initials=await transaction.personalized_initials(
-                    preference.user_id
+                    preference.user_id,
+                    **scope,
                 ),
             ),
             tuple(candidates),
@@ -170,8 +199,10 @@ class SelectPreparedQuestions:
                 candidate_id=f"personal:{bindings[initial.id]}",
                 category="personal",
                 question=initial.questions[1].text,
-                engine_version="personal-v1",
-                catalog_version="2",
+                engine_version="journal-personal-v1"
+                if journal_context is not None
+                else "personal-v1",
+                catalog_version="journal-catalog-v1" if journal_context is not None else "2",
             )
         await transaction.record_question_decision(
             identifier,

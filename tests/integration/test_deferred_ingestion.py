@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 from contextlib import asynccontextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
@@ -36,7 +37,8 @@ from src.bootstrap.public_dependencies import get_upload_limits
 from src.bootstrap.settings import get_settings
 from src.bootstrap.workspaces import get_workspace_runtime
 from src.core.domain.documents import NewDocument
-from src.core.graph.ports import GraphPersistenceError
+from src.core.domain.entry_triggers import EmotionTrigger
+from src.core.graph.ports import EmotionNotFoundError, GraphPersistenceError
 from src.core.processing.submissions import SubmissionConflict
 from src.core.processing.workflows import WorkflowRegistry
 
@@ -968,3 +970,131 @@ async def test_archive_pending_receipt_recovers_after_accept_failure(ingestion, 
     assert records[0].resource_id == original.id
     assert await transfer.import_archive(archive) == {"imported": 0, "existing": 1, "total": 1}
     assert len(await env.repo.list_for_owner(env.owner)) == 1
+
+
+async def test_emotion_upload_routes_replay_context_and_transcription(ingestion):
+    env = ingestion
+    trigger = {"kind": "emotion", "emotion_key": "  CALMA  "}
+    expected = {"kind": "emotion", "emotion_key": "calma", "label": "calma"}
+    env.graph.resolve_emotion_label = AsyncMock(return_value="calma")
+    app.dependency_overrides.update(
+        {
+            get_workspace_runtime: lambda: env.runtime,
+            require_authenticated: lambda: "test-user",
+            get_repository: lambda: env.repo,
+        }
+    )
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            key = {"Idempotency-Key": str(uuid4())}
+            payload = {"content": "Nota original de prueba", "entry_trigger": trigger}
+            document = await client.post("/v2/documents", json=payload, headers=key)
+            assert document.status_code == 202, document.text
+            doc = document.json()["document"]
+            assert doc["entry_trigger"] == expected
+            assert doc["content"] == payload["content"]
+            assert "invitation_id" not in doc["metadata"]
+
+            file = await client.post(
+                "/v2/documents/files",
+                files={"file": ("note.txt", b"Adjunto sintetico", "text/plain")},
+                data={"entry_trigger": json.dumps(trigger)},
+                headers={"Idempotency-Key": str(uuid4())},
+            )
+            assert file.status_code == 202, file.text
+            assert file.json()["document"]["entry_trigger"] == expected
+
+            audio_key = {"Idempotency-Key": str(uuid4())}
+            audio_file = {"file": ("voice.webm", b"audio", "audio/webm")}
+            audio_data = {"entry_trigger": json.dumps(trigger)}
+            audio = await client.post(
+                "/v2/audio-notes", files=audio_file, data=audio_data, headers=audio_key
+            )
+            assert audio.status_code == 202, audio.text
+            note = audio.json()["audio_note"]
+            assert note["entry_trigger"] == expected and note["invitation_id"] is None
+
+            # A new request cannot use an emotion that disappeared. An accepted replay
+            # returns its original context even after the graph changed.
+            env.graph.resolve_emotion_label.side_effect = EmotionNotFoundError("absent")
+            replay = await client.post("/v2/documents", json=payload, headers=key)
+            assert replay.json()["document"]["id"] == doc["id"]
+            replay = await client.post(
+                "/v2/audio-notes", files=audio_file, data=audio_data, headers=audio_key
+            )
+            assert replay.json()["audio_note"]["id"] == note["id"]
+            assert env.graph.resolve_emotion_label.await_count == 3
+            missing = await client.post(
+                "/v2/documents", json=payload, headers={"Idempotency-Key": str(uuid4())}
+            )
+            assert (missing.status_code, missing.json()["detail"]) == (
+                404,
+                "entry_trigger_emotion_not_found",
+            )
+            conflict = await client.post(
+                "/v2/documents", json={"content": payload["content"]}, headers=key
+            )
+            assert conflict.status_code == 409
+            invalid = await client.post(
+                "/v2/documents",
+                json={**payload, "invitation_id": str(uuid4())},
+                headers={"Idempotency-Key": str(uuid4())},
+            )
+            assert (invalid.status_code, invalid.json()["detail"]) == (
+                409,
+                "entry_trigger_conflict",
+            )
+            invalid = await client.post(
+                "/v2/audio-notes",
+                files=audio_file,
+                data={"entry_trigger": '{"kind":"other"}'},
+                headers={"Idempotency-Key": str(uuid4())},
+            )
+            assert invalid.status_code == 422
+
+            parent = await env.repo.get(UUID(audio.json()["processing"]["id"]), env.owner)
+            waiting = await run_current(env, parent)
+            assert waiting.status == "waiting"
+            derived = await client.get(f"/v2/documents/{note['id']}")
+            assert derived.json()["entry_trigger"] == expected
+            assert derived.json()["content"] == "Quiero más autonomía."
+            assert env.providers.transcriptions == 1
+            assert (await client.get(f"/v2/audio-notes/{note['id']}")).json()[
+                "entry_trigger"
+            ] == expected
+    finally:
+        app.dependency_overrides.clear()
+
+
+async def test_entry_trigger_recovers_from_audio_receipt_without_looking_up_emotion(
+    ingestion, monkeypatch
+):
+    env = ingestion
+    env.graph.resolve_emotion_label = AsyncMock(return_value="calma")
+    originals = env.runtime.audio_note_store
+    write_metadata = originals._write_metadata
+
+    def interrupted(*args, **kwargs):
+        raise OSError("metadata unavailable")
+
+    monkeypatch.setattr(originals, "_write_metadata", interrupted)
+    case = SubmitAudioNote(env.submissions, env.runtime, 1024)
+    with pytest.raises(OSError):
+        await case.execute(
+            "voice.webm",
+            "audio/webm",
+            b"audio",
+            None,
+            uuid4(),
+            entry_trigger=EmotionTrigger(kind="emotion", emotion_key="calma"),
+        )
+    monkeypatch.setattr(originals, "_write_metadata", write_metadata)
+    env.graph.resolve_emotion_label.side_effect = AssertionError("accepted context is durable")
+    await recover_submissions(env.submissions, env.factory)
+    records = await env.repo.list_for_owner(env.owner)
+    assert len(records) == 1
+    note = await originals.get(records[0].resource_id)
+    assert note.entry_trigger.emotion_key == "calma"
+    assert env.graph.resolve_emotion_label.await_count == 1

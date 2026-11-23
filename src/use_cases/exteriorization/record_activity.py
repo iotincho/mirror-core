@@ -1,6 +1,6 @@
 """Record optional opinions and observations without waiting for document ingestion."""
 
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from src.core.exteriorization.models import InvitationError
 from src.core.exteriorization.question_contracts import (
@@ -10,6 +10,7 @@ from src.core.exteriorization.question_contracts import (
 from src.core.exteriorization.question_policy import (
     QuestionPolicy,
     TopicFeedback,
+    TopicState,
     apply_topic_feedback,
 )
 from src.core.processing.submissions import fingerprint
@@ -92,6 +93,90 @@ class RecordInvitationActivity:
                 now,
                 identifier,
                 sequence,
+            )
+            return body
+
+    async def pause_topic(self, owner, invitation_id, question_id, key):
+        request_hash = fingerprint(
+            {"invitation_id": str(invitation_id), "invitation_question_id": str(question_id)}
+        )
+        async with self.repository.transaction() as transaction:
+            await transaction.preference(owner)
+            invitation = await transaction.invitation(owner, invitation_id)
+            self.check_question(invitation, question_id)
+            previous = await transaction.activity_receipt(owner, "pause_topic", key, request_hash)
+            if previous is not None:
+                return previous
+            topic = await transaction.feedback_topic(owner, invitation_id, question_id)
+            if topic is None or invitation.kind != "scheduled":
+                raise InvitationError("invitation_topic_unavailable")
+            if topic.status in {"closed", "do_not_prompt"}:
+                raise InvitationError("invitation_topic_restricted")
+            now = await transaction.now()
+            sequence = topic.last_feedback_sequence + 1
+            updated = apply_topic_feedback(
+                topic,
+                TopicFeedback(
+                    user_id=owner,
+                    topic_id=topic.id,
+                    value="not_now",
+                    sequence=sequence,
+                    received_at=now,
+                ),
+                QuestionPolicy.model_validate(invitation.question_policy)
+                if invitation.question_policy
+                else QuestionPolicy(),
+            )
+            identifier = uuid4()
+            body = {
+                "id": str(identifier),
+                "invitation_id": str(invitation_id),
+                "invitation_question_id": str(question_id),
+                "paused_until": updated.paused_until.isoformat(),
+                # Stored in the owner-scoped receipt, not exposed by the response schema.
+                "previous_topic": topic.model_dump(mode="json"),
+                "applied_sequence": sequence,
+            }
+            await transaction.save_topic(updated)
+            await transaction.save_activity_receipt(
+                owner, "pause_topic", key, request_hash, body, identifier
+            )
+            await transaction.append_feedback(
+                owner, invitation_id, question_id, "not_now", now, identifier, sequence
+            )
+            return body
+
+    async def undo_topic_pause(self, owner, invitation_id, pause_id, key):
+        request_hash = fingerprint({"invitation_id": str(invitation_id), "pause_id": str(pause_id)})
+        async with self.repository.transaction() as transaction:
+            await transaction.preference(owner)
+            await transaction.invitation(owner, invitation_id)
+            previous = await transaction.activity_receipt(
+                owner, "undo_topic_pause", key, request_hash
+            )
+            if previous is not None:
+                return previous
+            pause = await transaction.activity_receipt_by_id(owner, "pause_topic", pause_id)
+            if pause is None or pause["invitation_id"] != str(invitation_id):
+                raise InvitationError("topic_pause_not_found")
+            question_id = UUID(pause["invitation_question_id"])
+            topic = await transaction.feedback_topic(owner, invitation_id, question_id)
+            before = TopicState.model_validate(pause["previous_topic"])
+            if (
+                topic is None
+                or topic.id != before.id
+                or before.user_id != owner
+                or topic.status != "paused"
+                or topic.last_feedback_sequence != pause["applied_sequence"]
+            ):
+                raise InvitationError("topic_pause_superseded")
+            restored = before.model_copy(
+                update={"last_feedback_sequence": topic.last_feedback_sequence + 1}
+            )
+            await transaction.save_topic(restored)
+            body = {"pause_id": str(pause_id), "invitation_id": str(invitation_id)}
+            await transaction.save_activity_receipt(
+                owner, "undo_topic_pause", key, request_hash, body, uuid4()
             )
             return body
 

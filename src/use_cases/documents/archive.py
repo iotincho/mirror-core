@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from src.core.documents.archive import ArchiveConflict, ArchivedDocument, DocumentArchive
 from src.core.documents.ports import DocumentAlreadyExistsError, DocumentNotFoundError
 from src.core.domain.documents import Document
+from src.core.journals.entries import metadata_reference, reference_manifest
 from src.core.processing.submissions import SubmissionConflict, fingerprint
 from src.use_cases.processing.submit_processing import imported_document_identity
 
@@ -20,12 +21,14 @@ class DocumentArchiveTransfer:
         *,
         graph=None,
         workflow_config=None,
+        journal_capture=None,
     ):
         self.documents = documents
         self.processing, self.user_id = processing, user_id
         self.submissions = submissions
         self.graph = graph
         self.workflow_config = workflow_config
+        self.journal_capture = journal_capture
 
     async def export(self):
         return DocumentArchive(
@@ -49,6 +52,11 @@ class DocumentArchiveTransfer:
         # resource lock as concurrent imports/deletions can race with this preflight.
         for document in archive.documents:
             await self.existing(document)
+            reference = metadata_reference(document.metadata)
+            if reference is not None:
+                if self.journal_capture is None:
+                    raise ArchiveConflict("No se puede validar la pertenencia del journal.")
+                await self.journal_capture.resolve(self.user_id, reference)
         created = existing = 0
         for document in archive.documents:
             async with self.processing.lock_resource(self.user_id, document.id) as acquired:
@@ -95,7 +103,10 @@ class DocumentArchiveTransfer:
                     resource_kind="document",
                     resource_id=document.id,
                     config=self.workflow_config(),
-                    manifest={"archive_identity": "original/1"},
+                    manifest={
+                        "archive_identity": "original/1",
+                        **reference_manifest(metadata_reference(document.metadata)),
+                    },
                 )
                 if receipt.accepted_at is None:
                     try:

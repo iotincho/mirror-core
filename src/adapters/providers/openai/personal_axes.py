@@ -35,11 +35,13 @@ class OpenAIAxisProvider(AsyncProvider):
 
     async def generate_criterion(self, data):
         return await self._generate(
-            GENERATOR_RULES, json.dumps(data, ensure_ascii=False), Criterion
+            GENERATOR_RULES, json.dumps(data, ensure_ascii=False), Criterion, "axis_criterion"
         )
 
     async def extract(self, document, profile):
-        return await self._generate(profile.instructions, document.content, FindingsResponse)
+        return await self._generate(
+            profile.instructions, document.content, FindingsResponse, "personal_axis"
+        )
 
     async def correct(self, document, profile, response, issues):
         return await self._generate(
@@ -54,17 +56,16 @@ class OpenAIAxisProvider(AsyncProvider):
                 ensure_ascii=False,
             ),
             FindingsResponse,
+            "personal_axis",
         )
 
-    async def _generate(self, instructions, data, schema):
+    async def _generate(self, instructions, data, schema, feature):
         if self._client is None:
             if not self._api_key or not self.model_name:
                 raise AxisProviderError("axis_provider_configuration")
-            from openai import AsyncOpenAI
-
-            self._client = AsyncOpenAI(api_key=self._api_key, timeout=self._timeout, max_retries=0)
+            self._client = self._openai_client(self._api_key, max_retries=0)
         try:
-            async with self._request_slot():
+            async with self._request_slot(feature, self.model_name):
                 response = await self._client.responses.parse(
                     model=self.model_name,
                     input=[

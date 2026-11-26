@@ -24,18 +24,14 @@ class OpenAIDocumentEmbeddingProvider(AsyncProvider):
         if self._client is None:
             if not self._api_key:
                 raise ValueError("embedding_api_key_required")
-            from openai import AsyncOpenAI
-
-            self._client = AsyncOpenAI(
-                api_key=self._api_key, timeout=self._timeout, max_retries=self._max_retries
-            )
+            self._client = self._openai_client(self._api_key, max_retries=self._max_retries)
         return self._client
 
     async def segment(self, blocks, profile, target):
         content = f"Target section size: {target} tokens.\n" + "\n".join(
             f"[BLOCK {index}]\n{text}" for index, text in enumerate(blocks, 1)
         )
-        async with self._request_slot():
+        async with self._request_slot("embedding_segmentation", self.segmentation_model):
             response = await self.client().responses.parse(
                 model=self.segmentation_model,
                 store=False,
@@ -52,7 +48,7 @@ class OpenAIDocumentEmbeddingProvider(AsyncProvider):
     async def embed(self, texts, configuration):
         if any(not text.strip() or token_count(text) > 8192 for text in texts):
             raise ValueError("embedding_input_token_limit")
-        async with self._request_slot():
+        async with self._request_slot("document_embeddings", configuration.model):
             response = await self.client().embeddings.create(
                 model=configuration.model,
                 dimensions=configuration.dimensions,

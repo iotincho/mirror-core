@@ -91,10 +91,11 @@ La primera observación fija `activity_since`. Los días anteriores son null; el
 
 ## Registro de consumo de IA
 
-La base del registro está disponible desde la revisión `20261126_28`. Mantener
-`AI_USAGE_ENABLED=false` hasta instrumentar las llamadas de todos los procesos.
-Al habilitarlo, el dispatcher abre un período desde el reloj de PostgreSQL. Al
-deshabilitarlo, cierra el período en su siguiente ciclo de mantenimiento.
+La base del registro está disponible desde la revisión `20261126_28`.
+`AI_USAGE_ENABLED` queda deshabilitado por defecto. Una vez actualizados los
+workers y el dispatcher, la variable debe tener el mismo valor en ambos y en
+los CLI que ejecuten modelos. El dispatcher abre o cierra el período en el
+primer ciclo después del reinicio con la nueva configuración.
 Volver a habilitarlo abre otro período. La migración deja el registro vacío y
 la cobertura comienza con la activación.
 
@@ -107,6 +108,21 @@ resultado confirmado. Al cerrar un período, aún se pueden finalizar intentos
 iniciados dentro de él. Al borrar una cuenta, se quita su referencia de los
 recibos y se conservan sus cantidades para el total global hasta el vencimiento.
 
+La medición abarca títulos, emociones y sus correcciones, segmentación, lotes
+de embeddings, transcripción, criterios y extracciones de ejes, y propuestas de
+pregunta diaria y de Journals. Los jobs aportan su cuenta y su ID de ejecución.
+El CLI de extracción usa el propietario del workspace resuelto. Las evaluaciones
+autorizadas se registran como consumo de plataforma con la categoría
+`daily_question_evaluation`. Las lecturas de Constelación, los respaldos curados
+y la persistencia que recupera un artefacto no realizan llamadas remotas.
+
+Cada envío del SDK registra su propio ID, incluso sus reintentos configurados.
+Una respuesta con uso se registra antes de validarla. El estado del recibo
+describe el intercambio con el proveedor. Una pérdida de conexión queda como
+resultado desconocido. Fallos de escritura se reportan con un código operativo
+y las escrituras de recuperación conservan el mismo ID de intento. Si PostgreSQL
+permanece indisponible, puede quedar un recibo incompleto o faltar el intento.
+
 El dispatcher aplica `AI_USAGE_RETENTION_DAYS` (90 por defecto, entero positivo)
 por fecha de inicio y en lotes de hasta 500, incluso con la captura deshabilitada.
 Los períodos de activación se conservan como metadata operativa. En Compose local,
@@ -114,6 +130,7 @@ las variables se configuran en `.env` para la interpolación de Compose. Para
 procesos ejecutados directamente, `Settings` las toma del entorno o de `.env`.
 El downgrade elimina los recibos y los períodos sin recuperación posterior.
 
+Pruebas de captura en `tests/test_openai_usage.py` con SDK y transporte simulado.
 Verificación aislada con `AI_USAGE_TEST_DATABASE_URL` y
 `tests/integration/test_ai_usage_postgres.py`. La URL debe identificar una base
 de pruebas con prefijo `ai_usage_test` en una instancia desechable. El test crea

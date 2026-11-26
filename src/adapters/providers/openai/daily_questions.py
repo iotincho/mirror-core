@@ -50,9 +50,9 @@ class OpenAIDailyQuestionProvider(AsyncProvider):
 
     async def propose(self, data):
         configuration = self.configuration
-        rules = PROPOSAL_RULES + (
-            JOURNAL_RULES if configuration.prompt_version == "journal-proposals-v1" else ""
-        )
+        journal = configuration.prompt_version == "journal-proposals-v1"
+        rules = PROPOSAL_RULES + (JOURNAL_RULES if journal else "")
+        feature = "journal_question" if journal else "daily_question"
         payload = encoded_input(data)
         # Reserve a conservative byte budget for instructions and the JSON schema.
         overhead = (
@@ -66,12 +66,8 @@ class OpenAIDailyQuestionProvider(AsyncProvider):
             if self._client is None:
                 if not self.api_key:
                     raise WorkflowFailure("question_provider_configuration")
-                from openai import AsyncOpenAI
-
-                self._client = AsyncOpenAI(
-                    api_key=self.api_key, timeout=self._timeout, max_retries=0
-                )
-            async with self._request_slot():
+                self._client = self._openai_client(self.api_key, max_retries=0)
+            async with self._request_slot(feature, configuration.model):
                 response = await self._client.responses.parse(
                     model=configuration.model,
                     input=[

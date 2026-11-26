@@ -211,7 +211,10 @@ Las observaciones técnicas se correlacionan sin volcar notas, audio o credencia
 
 `core/administration/ai_usage.py` define los datos técnicos de un intento y su
 resultado. PostgreSQL conserva recibos idempotentes y períodos de cobertura.
-El dispatcher compone el mantenimiento del registro con las opciones de entorno.
+Bootstrap vincula cada ejecución con el propietario del job o del workspace
+resuelto. El adaptador OpenAI captura el uso de cada intento HTTP del SDK antes
+de interpretar la respuesta. El dispatcher compone el mantenimiento del registro
+con las opciones de entorno.
 Los recibos tienen el mismo ciclo de retención aunque se borre la cuenta o el
 recurso procesado. Ver [contrato de administración](docs/admin-lan.md#registro-de-consumo-de-ia).
 

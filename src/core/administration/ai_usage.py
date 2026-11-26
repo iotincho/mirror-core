@@ -1,7 +1,7 @@
 """Content-free facts for a single attempt to call an AI provider."""
 
 from decimal import Decimal
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Protocol
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
@@ -35,3 +35,9 @@ class AiUsageResult(BaseModel):
     cached_input_tokens: TokenCount | None = None
     audio_input_tokens: TokenCount | None = None
     duration_seconds: Duration | None = None
+
+
+class AiUsageLedger(Protocol):
+    async def start(self, attempt: AiUsageAttempt) -> bool: ...
+
+    async def finish(self, attempt_id: UUID, result: AiUsageResult) -> bool: ...

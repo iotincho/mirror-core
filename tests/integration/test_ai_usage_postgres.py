@@ -6,17 +6,24 @@ import subprocess
 import sys
 from datetime import timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 from uuid import uuid4
 
+import httpx
 import pytest
+from openai import AsyncOpenAI
 from sqlalchemy import delete, func, insert, select, text, update
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from src.adapters.providers.openai.daily_questions import OpenAIDailyQuestionProvider
+from src.adapters.providers.openai.usage import MeteredOpenAIHttpClient
 from src.adapters.storage.postgres.accounts import User
 from src.adapters.storage.postgres.ai_usage import PostgresAiUsage
 from src.adapters.storage.postgres.ai_usage_models import AiUsageCoverage, AiUsageReceipt
 from src.core.administration.ai_usage import AiUsageAttempt, AiUsageResult
+from src.core.exteriorization.personalization import ProposalProviderConfiguration
+from src.core.processing.workflows import WorkflowRegistry
 
 pytestmark = pytest.mark.skipif(
     not os.getenv("AI_USAGE_TEST_DATABASE_URL"), reason="requires isolated AI usage PostgreSQL"
@@ -178,3 +185,94 @@ async def test_activation_replay_retention_and_downgrade(usage_database):
         assert await session.scalar(select(User.id).where(User.id == owner)) == owner
         assert await session.scalar(select(func.count()).select_from(AiUsageReceipt)) == 0
         assert await session.scalar(select(func.count()).select_from(AiUsageCoverage)) == 0
+
+
+@pytest.mark.anyio
+async def test_registered_question_workflows_record_daily_and_journal_usage(
+    usage_database, monkeypatch
+):
+    from src.bootstrap import ai_usage, daily_questions, workflows
+
+    sessions, migrate = usage_database
+    await migrate("upgrade", "head")
+    ledger = PostgresAiUsage(sessions)
+    await ledger.maintain(enabled=True, retention_days=90)
+    owners = (uuid4(), uuid4())
+    executions = (uuid4(), uuid4())
+    async with sessions.begin() as session:
+        await session.execute(
+            insert(User),
+            [
+                {"id": owner, "email": f"{n}@example.com", "hashed_password": "unused"}
+                for n, owner in enumerate(owners)
+            ],
+        )
+
+    async def handle(request):
+        return httpx.Response(
+            200,
+            json={
+                "id": "response_fixture",
+                "model": "effective-question-model",
+                "status": "completed",
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [{"type": "output_text", "text": '{"proposals":[]}'}],
+                    }
+                ],
+                "usage": {"input_tokens": 8, "output_tokens": 3, "total_tokens": 11},
+            },
+        )
+
+    settings = SimpleNamespace(
+        daily_question_mode="personalized", journals_enabled=True, ai_usage_enabled=True
+    )
+    monkeypatch.setattr(workflows, "get_settings", lambda: settings)
+    monkeypatch.setattr(ai_usage, "get_settings", lambda: settings)
+    monkeypatch.setattr(ai_usage, "get_session_maker", lambda: sessions)
+    async with AsyncOpenAI(
+        api_key="synthetic-key",
+        base_url="https://provider.test/v1",
+        max_retries=0,
+        http_client=MeteredOpenAIHttpClient(transport=httpx.MockTransport(handle)),
+    ) as client:
+
+        def preparation(version=1):
+            configuration = ProposalProviderConfiguration(
+                model="requested-question-model",
+                prompt_version="daily-proposals-v1" if version == 1 else "journal-proposals-v1",
+                max_input_tokens=24000,
+                max_output_tokens=3000,
+                timeout_seconds=10,
+                concurrency=2,
+            )
+            provider = OpenAIDailyQuestionProvider(None, configuration, client=client)
+
+            async def execute(context):
+                result, usage = await provider.propose({})
+                assert result.proposals == () and usage["input_tokens"] == 8
+
+            return SimpleNamespace(execute=execute)
+
+        monkeypatch.setattr(daily_questions, "build_question_preparation", preparation)
+        registry = WorkflowRegistry()
+        workflows.register_workflows(registry)
+        await asyncio.gather(
+            *(
+                registry.definitions[("question_preparation", i + 1)].run(
+                    SimpleNamespace(record=SimpleNamespace(user_id=owners[i], id=executions[i]))
+                )
+                for i in range(2)
+            )
+        )
+
+    async with sessions() as session:
+        rows = (await session.scalars(select(AiUsageReceipt))).all()
+        assert len(rows) == 2
+        by_owner = {row.user_id: row for row in rows}
+        for i, feature in enumerate(("daily_question", "journal_question")):
+            receipt = by_owner[owners[i]]
+            assert (receipt.execution_id, receipt.feature) == (executions[i], feature)
+            assert (receipt.input_tokens, receipt.output_tokens, receipt.total_tokens) == (8, 3, 11)
+            assert receipt.effective_model == "effective-question-model"

@@ -1,11 +1,12 @@
 """Explicit provider configuration and client ownership across composition changes."""
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import ANY, AsyncMock, Mock
 
 import pytest
 
 from src.adapters.providers.openai.document_title import OpenAIDocumentTitleProvider
+from src.adapters.providers.openai.usage import MeteredOpenAIHttpClient
 from src.core.domain.documents import NewDocument, build_document
 from src.core.extractors.document_title import TITLE_PROFILE, DocumentTitle
 from src.core.processing.errors import WorkflowFailure
@@ -35,7 +36,10 @@ async def test_explicit_limits_and_sdk_retry_policy_and_client_ownership(monkeyp
     if borrowed:
         factory.assert_not_called()
     else:
-        factory.assert_called_once_with(api_key="fake", timeout=9, max_retries=0)
+        factory.assert_called_once_with(api_key="fake", timeout=9, max_retries=0, http_client=ANY)
+        http_client = factory.call_args.kwargs["http_client"]
+        assert isinstance(http_client, MeteredOpenAIHttpClient)
+        await http_client.aclose()
     await provider.close()
     await provider.close()
     assert client.close.await_count == (0 if borrowed else 1)

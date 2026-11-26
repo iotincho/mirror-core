@@ -1,11 +1,13 @@
 """Compose production use cases with fresh workspace credentials and pinned config."""
 
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from functools import lru_cache
 from uuid import UUID
 
 from src.adapters.storage.arcadedb.document_embeddings import ArcadeDBDocumentEmbeddingStore
 from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
+from src.bootstrap.ai_usage import ai_usage_scope
 from src.bootstrap.audio import build_audio_processor as ProcessAudioNote
 from src.bootstrap.audio import build_transcriber as OpenAITranscriptionProvider
 from src.bootstrap.documents import build_document_title_extractor as compose_title_extractor
@@ -185,12 +187,19 @@ def register_workflows(registry):
     from src.use_cases.exteriorization.prepare_questions import PrepareQuestions
     from src.use_cases.processing.context import ExecutionContext
 
-    registry.register(
+    def register(name, version, definition):
+        async def run(context):
+            with ai_usage_scope(context.record.user_id, context.record.id):
+                await definition.run(context)
+
+        registry.register(name, version, replace(definition, run=run))
+
+    register(
         "axis_history_note",
         1,
         build_history_workflow(worker_runtime, workflow_extractor).definition,
     )
-    registry.register(
+    register(
         "axis_preview", 1, build_preview_workflow(worker_runtime, get_axis_provider).definition
     )
 
@@ -216,28 +225,28 @@ def register_workflows(registry):
         if get_settings().daily_question_mode == "personalized" and get_settings().journals_enabled:
             await build_question_preparation(2).execute(context)
 
-    registry.register(
+    register(
         "question_preparation",
         1,
         WorkflowDefinition(prepare_questions, PrepareQuestions.transitions),
     )
-    registry.register(
+    register(
         "question_preparation",
         2,
         WorkflowDefinition(prepare_journal_questions, PrepareQuestions.transitions),
     )
     registry.register("document", 1, WorkflowDefinition(retired_extraction, frozenset()))
     registry.register("document", 2, ProcessDocument(worker_runtime).definition)
-    registry.register(
+    register(
         "document", 3, ProcessDocumentLayers(worker_runtime, workflow_extractor).definition
     )
     registry.register("document", 4, ProcessDocumentExtractors(worker_runtime).definition)
     registry.register(
         "document", 5, ProcessDocumentExtractors(worker_runtime, keyed=True).definition
     )
-    registry.register(
+    register(
         "extractor", 1, ProcessExtractor(worker_runtime, workflow_extractor).definition
     )
     # Audio reuses its transcript and passes the accepted layer configuration to its child.
-    registry.register("audio", 1, ProcessAudioNote(worker_runtime, workflow_providers).definition)
-    registry.register("audio", 2, ProcessAudioNote(worker_runtime, workflow_providers).definition)
+    register("audio", 1, ProcessAudioNote(worker_runtime, workflow_providers).definition)
+    register("audio", 2, ProcessAudioNote(worker_runtime, workflow_providers).definition)

@@ -27,7 +27,7 @@ class OpenAITranscriptionProvider(AsyncProvider):
     async def transcribe(self, source) -> str:
         client = self._get_client()
         try:
-            async with self._request_slot():
+            async with self._request_slot("transcription", self.model_name):
                 # Transcode WebM off the event loop; retain only bytes during SDK retries.
                 upload = await source.prepare(timeout=self._timeout)
                 response = await client.audio.transcriptions.create(
@@ -46,9 +46,5 @@ class OpenAITranscriptionProvider(AsyncProvider):
             return self._client
         if not self._api_key:
             raise TranscriptionProviderError("OpenAI requires OPENAI_API_KEY")
-        from openai import AsyncOpenAI
-
-        self._client = AsyncOpenAI(
-            api_key=self._api_key, timeout=self._timeout, max_retries=self._sdk_max_retries
-        )
+        self._client = self._openai_client(self._api_key, max_retries=self._sdk_max_retries)
         return self._client

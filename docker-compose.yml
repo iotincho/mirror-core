@@ -88,6 +88,10 @@ services:
         scripts = ScriptDirectory.from_config(Config("alembic.ini"))
         scripts.get_revision("20261006_06")
         scripts.get_revision("20261016_11")
+        scripts.get_revision("20261126_28")
+        usage_paths = {"/api/admin/usage", "/api/admin/usage/users"}
+        assert usage_paths <= admin_app.openapi()["paths"].keys()
+        assert usage_paths.isdisjoint(public_app.openapi()["paths"])
         assert execute_processing.task_name == "processing.execute"
 
   api:

@@ -148,6 +148,10 @@ intentos muestra cero. Los segundos de audio se muestran aparte en el panel.
 La disponibilidad se infiere de los períodos y recibos del registro.
 
 Pruebas de captura en `tests/test_openai_usage.py` con SDK y transporte simulado.
+La imagen de producción y `entrypoint-check` verifican la revisión `20261126_28`
+y que ambas rutas de consumo pertenezcan a la API administrativa. Para preparar
+la activación en el servidor, seguir la sección «Consumo de IA por túnel» de
+`mirror-deploy/ADMIN-LAN.md`.
 Verificación aislada con `AI_USAGE_TEST_DATABASE_URL` y
 `tests/integration/test_ai_usage_postgres.py`. La URL debe identificar una base
 de pruebas con prefijo `ai_usage_test` en una instancia desechable. El test crea

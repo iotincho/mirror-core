@@ -189,6 +189,7 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@postgres:5432/${POSTGRES_DB:?}
       ADMIN_INVENTORY_MAX_AGE_SECONDS: ${ADMIN_INVENTORY_MAX_AGE_SECONDS:?}
+      AI_USAGE_RETENTION_DAYS: ${AI_USAGE_RETENTION_DAYS:-90}
       PERSONAL_AXES_ENABLED: ${PERSONAL_AXES_ENABLED:-false}
       JOURNALS_ENABLED: ${JOURNALS_ENABLED:-true}
     networks: [administration, admin-database]

@@ -4,7 +4,7 @@ import asyncio
 import os
 import subprocess
 import sys
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 from uuid import uuid4
@@ -19,9 +19,12 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from src.adapters.providers.openai.daily_questions import OpenAIDailyQuestionProvider
 from src.adapters.providers.openai.usage import MeteredOpenAIHttpClient
 from src.adapters.storage.postgres.accounts import User
+from src.adapters.storage.postgres.administration_models import MetricCoverage
 from src.adapters.storage.postgres.ai_usage import PostgresAiUsage
 from src.adapters.storage.postgres.ai_usage_models import AiUsageCoverage, AiUsageReceipt
+from src.adapters.storage.postgres.ai_usage_queries import PostgresAiUsageQueries
 from src.core.administration.ai_usage import AiUsageAttempt, AiUsageResult
+from src.core.administration.ai_usage_queries import AI_USAGE_RETENTION_CUTOFF
 from src.core.exteriorization.personalization import ProposalProviderConfiguration
 from src.core.processing.workflows import WorkflowRegistry
 
@@ -178,6 +181,8 @@ async def test_activation_replay_retention_and_downgrade(usage_database):
     async with sessions() as session:
         assert await session.get(AiUsageReceipt, audio.attempt_id) is None
         assert await session.get(AiUsageReceipt, attempt.attempt_id) is not None
+        cutoff = await session.get(MetricCoverage, AI_USAGE_RETENTION_CUTOFF)
+        assert cutoff.since >= datetime.now(UTC) - timedelta(days=8)
 
     await migrate("downgrade", "20261120_27")
     await migrate("upgrade", "head")
@@ -276,3 +281,146 @@ async def test_registered_question_workflows_record_daily_and_journal_usage(
             assert (receipt.execution_id, receipt.feature) == (executions[i], feature)
             assert (receipt.input_tokens, receipt.output_tokens, receipt.total_tokens) == (8, 3, 11)
             assert receipt.effective_model == "effective-question-model"
+
+
+@pytest.mark.anyio
+async def test_admin_usage_calendar_breakdowns_ranking_and_retained_coverage(usage_database):
+    from src.bootstrap.administration import app, get_ai_usage
+    from src.use_cases.administration.ai_usage import AiUsageAdministration
+
+    sessions, migrate = usage_database
+    await migrate("upgrade", "head")
+
+    def timestamp(day, hour):
+        return datetime(2026, 11, day, hour, tzinfo=UTC)
+
+    owner, other = uuid4(), uuid4()
+    now = timestamp(26, 15)
+
+    async with sessions.begin() as session:
+        await session.execute(
+            insert(User),
+            [
+                {"id": owner, "email": "first@example.com", "hashed_password": "unused"},
+                {"id": other, "email": "second@example.com", "hashed_password": "unused"},
+            ],
+        )
+        await session.execute(
+            insert(AiUsageCoverage),
+            [
+                {"started_at": timestamp(24, 15), "ended_at": timestamp(25, 4)},
+                {"started_at": timestamp(25, 11), "ended_at": None},
+            ],
+        )
+        measured = {"outcome": "succeeded", "provider": "openai", "requested_model": "alias"}
+        await session.execute(
+            insert(AiUsageReceipt),
+            [
+                dict(
+                    measured,
+                    attempt_id=uuid4(),
+                    user_id=owner,
+                    feature="emotions",
+                    started_at=timestamp(24, 17),
+                    finished_at=timestamp(24, 17),
+                    input_tokens=10,
+                    output_tokens=2,
+                    effective_model="effective",
+                ),
+                dict(
+                    measured,
+                    attempt_id=uuid4(),
+                    user_id=other,
+                    feature="transcription",
+                    started_at=timestamp(25, 2),
+                    finished_at=timestamp(25, 2),
+                    duration_seconds=90.5,
+                ),
+                dict(
+                    measured,
+                    attempt_id=uuid4(),
+                    feature="daily_question_evaluation",
+                    started_at=timestamp(25, 12),
+                    finished_at=timestamp(25, 12),
+                    total_tokens=5,
+                ),
+                {
+                    "attempt_id": uuid4(),
+                    "user_id": owner,
+                    "feature": "emotions",
+                    "provider": "openai",
+                    "requested_model": "alias",
+                    "started_at": timestamp(25, 13),
+                },
+            ],
+        )
+
+    async def read_service():
+        async with sessions.begin() as session:
+            await session.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY"))
+            yield AiUsageAdministration(PostgresAiUsageQueries(session, 90, now))
+
+    app.dependency_overrides[get_ai_usage] = read_service
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://admin.test"
+        ) as client:
+            path = "/api/admin/usage"
+            response = await client.get(path, params={"period_days": 7})
+            assert response.status_code == 200 and response.headers["cache-control"] == "no-store"
+            global_usage = response.json()
+            assert global_usage["coverage"] == "partial"
+            assert global_usage["totals"] == {
+                "attempts": 4,
+                "unmeasured_attempts": 1,
+                "input_tokens": 10,
+                "output_tokens": 2,
+                "total_tokens": 17,
+                "duration_seconds": 90.5,
+            }
+            days = {day["date"]: day for day in global_usage["daily"]}
+            assert len(days) == 7
+            assert days["2026-11-23"]["coverage"] == "unavailable"
+            assert days["2026-11-23"]["total_tokens"] is None
+            assert (
+                days["2026-11-24"]["duration_seconds"] == 90.5
+            )  # 02:00 UTC is still the previous day.
+            assert days["2026-11-24"]["total_tokens"] == 12
+            assert days["2026-11-25"]["unmeasured_attempts"] == 1
+            assert days["2026-11-26"]["coverage"] == "complete"
+            assert days["2026-11-26"]["total_tokens"] == 0
+            assert {item["model"]: item["total_tokens"] for item in global_usage["by_model"]} == {
+                "alias": 5,
+                "effective": 12,
+            }
+            assert {row["feature"] for row in global_usage["by_feature"]} == {
+                "daily_question_evaluation",
+                "emotions",
+                "transcription",
+            }
+            scoped = (await client.get(path, params={"period_days": 7, "user_id": other})).json()
+            assert scoped["user_id"] == str(other)
+            assert scoped["totals"]["total_tokens"] is None
+            assert scoped["totals"]["duration_seconds"] == 90.5
+            assert scoped["totals"]["unmeasured_attempts"] == 0
+            assert (await client.get(path, params={"period_days": 8})).status_code == 422
+            assert (await client.get(path, params={"user_id": uuid4()})).status_code == 404
+
+            for page, expected in enumerate(([str(owner)], [str(other)], []), start=1):
+                ranking = (
+                    await client.get(f"{path}/users", params={"page": page, "per_page": 1})
+                ).json()
+                assert ranking["total"] == 2
+                assert [row["user_id"] for row in ranking["items"]] == expected
+
+            async with sessions.begin() as session:
+                await session.execute(
+                    insert(MetricCoverage).values(
+                        name=AI_USAGE_RETENTION_CUTOFF, since=timestamp(25, 11)
+                    )
+                )
+            limited = (await client.get(path)).json()
+            assert limited["totals"]["total_tokens"] == 5
+            assert limited["daily"][-3]["coverage"] == "unavailable"
+    finally:
+        app.dependency_overrides.pop(get_ai_usage, None)

@@ -125,10 +125,27 @@ permanece indisponible, puede quedar un recibo incompleto o faltar el intento.
 
 El dispatcher aplica `AI_USAGE_RETENTION_DAYS` (90 por defecto, entero positivo)
 por fecha de inicio y en lotes de hasta 500, incluso con la captura deshabilitada.
+Configurar la misma retención en el dispatcher y en `admin-api`. El límite de
+purga se guarda en la misma transacción que los borrados y nunca retrocede.
+Si la retención se amplía, los datos que ya se purgaron siguen fuera de cobertura.
 Los períodos de activación se conservan como metadata operativa. En Compose local,
 las variables se configuran en `.env` para la interpolación de Compose. Para
 procesos ejecutados directamente, `Settings` las toma del entorno o de `.env`.
 El downgrade elimina los recibos y los períodos sin recuperación posterior.
+
+`GET /api/admin/usage?period_days=30` devuelve `totals`, `daily`, `by_model`
+y `by_feature`. `user_id` aplica el mismo cálculo a una cuenta existente.
+`GET /api/admin/usage/users?period_days=30&page=1&per_page=10` pagina el ranking
+de cuentas con intentos, por tokens conocidos de mayor a menor, con nulos al final
+y desempate por UUID. El total global incluye los intentos sin cuenta atribuible.
+Las dos lecturas aceptan 7 o 30 días de Buenos Aires, hasta la hora de consulta.
+
+`complete` corresponde a un intervalo observado sin intentos de uso incompleto.
+`partial` indica un corte de cobertura o intentos sin total de tokens ni duración
+medida. `unavailable` indica falta de cobertura y conserva las cantidades en
+`null`. Los agregados suman sólo las cantidades conocidas. Un día medido sin
+intentos muestra cero. Los segundos de audio se muestran aparte en el panel.
+La disponibilidad se infiere de los períodos y recibos del registro.
 
 Pruebas de captura en `tests/test_openai_usage.py` con SDK y transporte simulado.
 Verificación aislada con `AI_USAGE_TEST_DATABASE_URL` y

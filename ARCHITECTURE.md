@@ -214,7 +214,9 @@ resultado. PostgreSQL conserva recibos idempotentes y períodos de cobertura.
 Bootstrap vincula cada ejecución con el propietario del job o del workspace
 resuelto. El adaptador OpenAI captura el uso de cada intento HTTP del SDK antes
 de interpretar la respuesta. El dispatcher compone el mantenimiento del registro
-con las opciones de entorno.
+con las opciones de entorno. La aplicación administrativa consulta los agregados
+de PostgreSQL en su transacción de sólo lectura. El límite de datos purgados se
+conserva junto a las métricas de cobertura.
 Los recibos tienen el mismo ciclo de retención aunque se borre la cuenta o el
 recurso procesado. Ver [contrato de administración](docs/admin-lan.md#registro-de-consumo-de-ia).
 

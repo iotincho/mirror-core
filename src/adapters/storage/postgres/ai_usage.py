@@ -7,9 +7,11 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from src.adapters.storage.postgres.administration_models import MetricCoverage
 from src.adapters.storage.postgres.ai_usage_models import AiUsageCoverage, AiUsageReceipt
 from src.adapters.storage.postgres.boundaries import database_call
 from src.core.administration.ai_usage import AiUsageAttempt, AiUsageResult
+from src.core.administration.ai_usage_queries import AI_USAGE_RETENTION_CUTOFF
 
 
 class PostgresAiUsage:
@@ -70,13 +72,22 @@ class PostgresAiUsage:
                     )
                 )
 
+            cutoff = func.now() - timedelta(days=retention_days)
             expired = (
                 select(AiUsageReceipt.attempt_id)
-                .where(AiUsageReceipt.started_at < func.now() - timedelta(days=retention_days))
+                .where(AiUsageReceipt.started_at < cutoff)
                 .order_by(AiUsageReceipt.started_at, AiUsageReceipt.attempt_id)
                 .limit(500)
                 .with_for_update(skip_locked=True)
             )
-            await session.execute(
+            removed = await session.execute(
                 delete(AiUsageReceipt).where(AiUsageReceipt.attempt_id.in_(expired))
             )
+            if removed.rowcount > 0:
+                marker = insert(MetricCoverage).values(name=AI_USAGE_RETENTION_CUTOFF, since=cutoff)
+                await session.execute(
+                    marker.on_conflict_do_update(
+                        index_elements=[MetricCoverage.name],
+                        set_={"since": func.greatest(MetricCoverage.since, marker.excluded.since)},
+                    )
+                )

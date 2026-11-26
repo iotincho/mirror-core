@@ -207,6 +207,14 @@ La API pública y administrativa se ensamblan por separado. Compartir núcleo y
 casos de uso no registra automáticamente rutas administrativas en el proceso público.
 Las observaciones técnicas se correlacionan sin volcar notas, audio o credenciales.
 
+### Registro de consumo de IA
+
+`core/administration/ai_usage.py` define los datos técnicos de un intento y su
+resultado. PostgreSQL conserva recibos idempotentes y períodos de cobertura.
+El dispatcher compone el mantenimiento del registro con las opciones de entorno.
+Los recibos tienen el mismo ciclo de retención aunque se borre la cuenta o el
+recurso procesado. Ver [contrato de administración](docs/admin-lan.md#registro-de-consumo-de-ia).
+
 ### Journals y contexto de preguntas
 
 `core/journals` posee templates versionados, snapshots de recorridos, etapas y

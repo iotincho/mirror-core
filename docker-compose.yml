@@ -29,6 +29,8 @@ x-processing: &processing
     DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-el_espejo}:${POSTGRES_PASSWORD:-el-espejo-local-password}@postgres:5432/${POSTGRES_DB:-el_espejo}
     RABBITMQ_URL: amqp://${RABBITMQ_USER:-processing}:${RABBITMQ_PASSWORD:-processing-local-password}@rabbitmq:5672/
     PROCESSING_CONCURRENCY: ${PROCESSING_CONCURRENCY:-4}
+    AI_USAGE_ENABLED: ${AI_USAGE_ENABLED:-false}
+    AI_USAGE_RETENTION_DAYS: ${AI_USAGE_RETENTION_DAYS:-90}
     ARCADEDB_HTTP_URL: http://arcadedb:2480
     ARCADEDB_USERNAME: root
     ARCADEDB_ROOT_PASSWORD: ${ARCADEDB_ROOT_PASSWORD:-el-espejo-local-password}

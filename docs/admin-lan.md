@@ -89,6 +89,36 @@ La PWA envía una observación al entrar o volver al primer plano, con un máxim
 
 La primera observación fija `activity_since`. Los días anteriores son null; el primer día puede ser parcial. El total de usuarios que accedieron expresa lo observado desde esa fecha, no actividad histórica reconstruida. Se conservan 90 días de agregados diarios; si se deshabilita o se dejan instancias sin actualizar, puede haber huecos que no se reconstruyen. La señal registra apertura/retorno al foreground y no prueba actividad continua durante toda una sesión.
 
+## Registro de consumo de IA
+
+La base del registro está disponible desde la revisión `20261126_28`. Mantener
+`AI_USAGE_ENABLED=false` hasta instrumentar las llamadas de todos los procesos.
+Al habilitarlo, el dispatcher abre un período desde el reloj de PostgreSQL. Al
+deshabilitarlo, cierra el período en su siguiente ciclo de mantenimiento.
+Volver a habilitarlo abre otro período. La migración deja el registro vacío y
+la cobertura comienza con la activación.
+
+Cada intento admite un recibo con ID técnico estable, cuenta beneficiaria,
+funcionalidad, proveedor, modelos solicitado y efectivo, fechas y resultado.
+El recibo admite tokens por categoría y duración en segundos. `NULL` conserva
+la ausencia de datos y `0` representa uso medido. Se guarda sólo metadata
+técnica. Repetir la escritura de un intento conserva su primera atribución y
+resultado confirmado. Al cerrar un período, aún se pueden finalizar intentos
+iniciados dentro de él. Al borrar una cuenta, se quita su referencia de los
+recibos y se conservan sus cantidades para el total global hasta el vencimiento.
+
+El dispatcher aplica `AI_USAGE_RETENTION_DAYS` (90 por defecto, entero positivo)
+por fecha de inicio y en lotes de hasta 500, incluso con la captura deshabilitada.
+Los períodos de activación se conservan como metadata operativa. En Compose local,
+las variables se configuran en `.env` para la interpolación de Compose. Para
+procesos ejecutados directamente, `Settings` las toma del entorno o de `.env`.
+El downgrade elimina los recibos y los períodos sin recuperación posterior.
+
+Verificación aislada con `AI_USAGE_TEST_DATABASE_URL` y
+`tests/integration/test_ai_usage_postgres.py`. La URL debe identificar una base
+de pruebas con prefijo `ai_usage_test` en una instancia desechable. El test crea
+y elimina una base temporal en esa instancia.
+
 ## Recuperación e integridad
 
 El sincronizador guarda un checkpoint por cuenta en PostgreSQL y tiene exclusión mutua mediante advisory lock. Solo persiste IDs, fechas, categorías y flags. No guarda título, texto, audio ni metadata libre. Fallos de lectura, JSON inválido, identidad incorrecta, symlinks o falta del volumen invalidan cobertura sin borrar el inventario previo. Reejecutar recupera las cuentas fallidas.

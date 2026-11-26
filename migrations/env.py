@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from src.adapters.storage.postgres import administration_models as admin_models  # noqa: F401
 from src.adapters.storage.postgres import (
+    ai_usage_models,  # noqa: F401
     invitation_models,  # noqa: F401
     journal_models,  # noqa: F401
     notification_models,  # noqa: F401

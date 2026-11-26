@@ -12,8 +12,14 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from src.adapters.storage.postgres.accounts import User
-from src.adapters.storage.postgres.invitation_models import Invitation, InvitationPreference
+from src.adapters.storage.postgres.invitation_models import (
+    Invitation,
+    InvitationPreference,
+    InvitationResponse,
+)
+from src.adapters.storage.postgres.invitation_notifications import add_invitation_notification
 from src.adapters.storage.postgres.invitations import InvitationRepository
+from src.adapters.storage.postgres.models import ProcessingReceipt
 from src.adapters.storage.postgres.notification_models import Announcement, Notification
 from src.adapters.storage.postgres.notifications import add_notification
 from src.adapters.storage.postgres.workspace_models import UserWorkspace
@@ -64,7 +70,8 @@ async def inbox():
     yield repository, owners
     app.dependency_overrides.clear()
     async with sessions.begin() as session:
-        await session.execute(delete(Invitation).where(Invitation.user_id.in_(owners)))
+        for model in (ProcessingReceipt, InvitationResponse, Invitation):
+            await session.execute(delete(model).where(model.user_id.in_(owners)))
         await session.execute(delete(User).where(User.id.in_(owners)))
     await engine.dispose()
 
@@ -191,17 +198,93 @@ async def test_daily_without_push_and_opening_marks_inbox_read(inbox):
     item = page.items[0]
     invitation = await service.get_invitation(owner, item.action.invitation_id)
     assert invitation.question == item.body == item.summary
-    assert item.expires_at - item.published_at == timedelta(days=1)
-    # A transport TTL of two hours does not expire the inbox action.
-    async with repository.store.sessions.begin() as session:
-        await session.execute(
-            update(Invitation)
-            .where(Invitation.id == invitation.id)
-            .values(expires_at=now - timedelta(minutes=1))
-        )
+    assert item.expires_at == invitation.expires_at
     await service.open_invitation(owner, invitation.id)
     assert (await repository.summary(owner))["unread_count"] == 0
     assert (await repository.list(owner)).items[0].read_at is not None
+
+    async with repository.store.sessions.begin() as session:
+        await session.execute(
+            update(Notification)
+            .where(Notification.id == item.id)
+            .values(expires_at=now + timedelta(days=15), read_at=None)
+        )
+    assert (await repository.list(owner)).items[0].expires_at == invitation.expires_at
+
+    async with repository.store.sessions.begin() as session:
+        await session.execute(
+            update(Invitation).where(Invitation.id == invitation.id).values(expires_at=now)
+        )
+    assert (await repository.list(owner)).items == []
+    assert (await repository.summary(owner))["unread_count"] == 0
+    assert (await service.get_invitation(owner, invitation.id)).question == invitation.question
+
+
+@pytest.mark.parametrize("operation", ["upload_document", "upload_audio", "linked_document"])
+async def test_invitation_stops_showing_after_an_accepted_response(inbox, operation):
+    repository, (owner, stranger) = inbox
+    invitations = InvitationRepository(repository.store.sessions)
+    now = datetime.now(UTC)
+    invitation = Invitation(
+        id=uuid4(),
+        user_id=owner,
+        kind="scheduled",
+        local_date=now.date(),
+        timezone="UTC",
+        scheduled_at=now,
+        created_at=now,
+        expires_at=now + timedelta(minutes=30),
+        occurrence_key=f"test:{owner}",
+        candidate_id="test",
+        category="test",
+        question="Pregunta",
+        engine_version="test",
+        catalog_version="test",
+    )
+    async with repository.store.sessions.begin() as session:
+        session.add(invitation)
+        await add_invitation_notification(session, invitation)
+
+    def receipt(user, upload, accepted_at=None):
+        return ProcessingReceipt(
+            id=uuid4(),
+            user_id=user,
+            operation=upload,
+            key=uuid4(),
+            request_hash="test",
+            resource_kind="audio" if upload == "upload_audio" else "document",
+            resource_id=uuid4(),
+            config={},
+            manifest={"invitation_id": str(invitation.id)},
+            lease_expires_at=now,
+            accepted_at=accepted_at,
+        )
+
+    pending = receipt(owner, "upload_audio" if operation == "upload_audio" else "upload_document")
+    async with repository.store.sessions.begin() as session:
+        session.add_all([pending, receipt(stranger, "upload_audio", now)])
+    assert [item.action.invitation_id for item in (await repository.list(owner)).items] == [
+        invitation.id
+    ]
+    assert (await repository.summary(owner))["unread_count"] == 1
+
+    async with repository.store.sessions.begin() as session:
+        if operation == "linked_document":
+            session.add(
+                InvitationResponse(
+                    user_id=owner,
+                    document_id=uuid4(),
+                    invitation_id=invitation.id,
+                )
+            )
+        else:
+            (await session.get(ProcessingReceipt, pending.id)).accepted_at = now
+
+    assert (await repository.list(owner)).items == []
+    assert (await repository.summary(owner))["unread_count"] == 0
+    assert (await ConfigureInvitations(invitations).get_invitation(owner, invitation.id)).id == (
+        invitation.id
+    )
 
 
 async def test_onboarding_completion_is_distinct_from_reading(inbox):

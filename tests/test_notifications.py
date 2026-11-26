@@ -15,17 +15,23 @@ from src.core.notifications.rules import NotificationError, decode_cursor, encod
 
 @pytest.mark.anyio
 @pytest.mark.parametrize("kind", ["scheduled", "test"])
-async def test_invitation_inbox_expiry_is_one_day(kind):
+async def test_invitation_inbox_reuses_original_expiry(kind):
     created = datetime(2026, 10, 28, 20, 30, tzinfo=UTC)
+    expires = created + timedelta(minutes=5 if kind == "test" else 90)
     invitation = SimpleNamespace(
-        id=uuid4(), user_id=uuid4(), kind=kind, question="Pregunta de prueba",
-        created_at=created, first_opened_at=None,
+        id=uuid4(),
+        user_id=uuid4(),
+        kind=kind,
+        question="Pregunta de prueba",
+        created_at=created,
+        expires_at=expires,
+        first_opened_at=None,
     )
     session = SimpleNamespace(execute=AsyncMock())
     await add_invitation_notification(session, invitation)
     values = session.execute.await_args.args[0].compile().params
     assert values["published_at"] == created
-    assert values["expires_at"] == created + timedelta(hours=24)
+    assert values["expires_at"] == expires
 
 
 def test_publication_defaults_to_fifteen_days_and_actions_are_closed():

@@ -181,3 +181,5 @@ def test_development_entrypoint_check_is_isolated_and_covers_compose_commands():
     assert 'execute_processing.task_name == "processing.execute"' in preflight
     assert 'get_revision("20261006_06")' in preflight
     assert 'get_revision("20261016_11")' in preflight
+    assert 'get_revision("20261126_28")' in preflight
+    assert 'usage_paths.isdisjoint(public_app.openapi()["paths"])' in preflight

@@ -4,6 +4,7 @@ import asyncio
 import logging
 import signal
 
+from src.adapters.storage.postgres.ai_usage import PostgresAiUsage
 from src.adapters.storage.postgres.submissions import SubmissionRepository
 from src.bootstrap.acceptance import recover_submissions
 from src.bootstrap.daily_questions import (
@@ -11,7 +12,7 @@ from src.bootstrap.daily_questions import (
     prepared_question_selector,
     question_policy,
 )
-from src.bootstrap.database import close_database
+from src.bootstrap.database import close_database, get_session_maker
 from src.bootstrap.invitations import get_invitation_repository
 from src.bootstrap.journals import build_journal_queries, reconcile_journals
 from src.bootstrap.messaging import broker
@@ -42,11 +43,21 @@ async def main():
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, stop.set)
+    settings = get_settings()
+    ai_usage = PostgresAiUsage(get_session_maker())
     connected = False
     try:
         while not stop.is_set():
             try:
                 repository = get_repository()
+                try:
+                    await ai_usage.maintain(
+                        enabled=settings.ai_usage_enabled,
+                        retention_days=settings.ai_usage_retention_days,
+                    )
+                except Exception as error:
+                    report_issue("ai_usage_maintenance_failed", error)
+                    logger.warning("AI usage maintenance deferred")
                 try:
                     await expire_axis_previews(repository, get_settings())
                 except Exception as error:

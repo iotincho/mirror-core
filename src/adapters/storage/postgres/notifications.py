@@ -4,11 +4,15 @@ from contextlib import asynccontextmanager
 from datetime import timedelta
 from uuid import uuid4
 
-from sqlalchemy import func, or_, select, tuple_, update
+from sqlalchemy import String, Uuid, case, cast, func, or_, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 
 from src.adapters.storage.postgres.accounts import User
-from src.adapters.storage.postgres.invitation_models import InvitationPreference
+from src.adapters.storage.postgres.invitation_models import (
+    Invitation,
+    InvitationPreference,
+    InvitationResponse,
+)
 from src.adapters.storage.postgres.models import ProcessingReceipt
 from src.adapters.storage.postgres.notification_models import (
     Announcement,
@@ -22,12 +26,40 @@ from src.core.notifications.models import DEFAULT_LIFETIME_DAYS, NotificationRea
 from src.core.notifications.states import AnnouncementState
 
 
-def visible(owner, now):
+def available_until():
+    response = select(InvitationResponse.document_id).where(
+        InvitationResponse.user_id == Invitation.user_id,
+        InvitationResponse.invitation_id == Invitation.id,
+    )
+    accepted_upload = select(ProcessingReceipt.id).where(
+        ProcessingReceipt.user_id == Invitation.user_id,
+        ProcessingReceipt.operation.in_(["upload_document", "upload_audio"]),
+        ProcessingReceipt.is_original.is_(True),
+        ProcessingReceipt.accepted_at.is_not(None),
+        ProcessingReceipt.manifest["invitation_id"].astext == cast(Invitation.id, String),
+    )
+    invitation_expiry = (
+        select(Invitation.expires_at)
+        .where(
+            Invitation.user_id == Notification.user_id,
+            Invitation.id == cast(Notification.action["invitation_id"].as_string(), Uuid),
+            ~response.exists(),
+            ~accepted_upload.exists(),
+        )
+        .correlate(Notification)
+        .scalar_subquery()
+    )
+    return case(
+        (Notification.kind == "invitation", invitation_expiry), else_=Notification.expires_at
+    )
+
+
+def visible(owner, now, expires_at):
     return (
         Notification.user_id == owner,
         Notification.published_at <= now,
         Notification.created_at <= now,
-        Notification.expires_at > now,
+        expires_at > now,
         Notification.dismissed_at.is_(None),
     )
 
@@ -118,26 +150,30 @@ class NotificationTransaction(SnapshotTracker):
             select(func.count())
             .select_from(Notification)
             .where(
-                *visible(owner, now),
+                *visible(owner, now, available_until()),
                 Notification.read_at.is_(None),
             )
         )
 
     async def page(self, owner, now, cursor, unread_only, limit):
-        query = select(Notification).where(*visible(owner, now))
+        expires_at = available_until()
+        query = select(Notification, expires_at).where(*visible(owner, now, expires_at))
         unread = Notification.read_at.is_(None)
         if unread_only:
             query = query.where(unread)
         if cursor is not None:
             query = query.where(tuple_(unread, Notification.published_at, Notification.id) < cursor)
-        rows = await self.session.scalars(
+        rows = await self.session.execute(
             query.order_by(
                 unread.desc(),
                 Notification.published_at.desc(),
                 Notification.id.desc(),
             ).limit(limit)
         )
-        return [NotificationRead.model_validate(row) for row in rows]
+        return [
+            NotificationRead.model_validate(row).model_copy(update={"expires_at": expiry})
+            for row, expiry in rows
+        ]
 
     async def mark(self, owner, identifier, dismiss, now):
         column = Notification.dismissed_at if dismiss else Notification.read_at
@@ -156,7 +192,7 @@ class NotificationTransaction(SnapshotTracker):
         await self.session.execute(
             update(Notification)
             .where(
-                *visible(owner, now),
+                *visible(owner, now, available_until()),
                 Notification.published_at <= through,
                 Notification.created_at <= through,
                 Notification.read_at.is_(None),

@@ -2,9 +2,9 @@
 
 Implementa mirror-pwa #46. El centro es una bandeja PostgreSQL por usuario, independiente
 del permiso push, con novedades, onboarding y preguntas diarias. La vigencia por defecto
-es **15 días** desde la publicación, salvo las preguntas diarias, que duran **24 horas**.
-Al vencer, el elemento deja de aparecer en el listado
-y contador; esto no borra físicamente la fila ni la invitación o las notas vinculadas.
+es **15 días** desde la publicación. Los avisos de preguntas usan el `expires_at`
+original de la invitación. Al vencer, el aviso sale del listado y del contador.
+La invitación y las notas vinculadas siguen disponibles en el historial.
 
 ## Persistencia y estados
 
@@ -65,15 +65,15 @@ transacción. Las pruebas manuales aparecen como «Pregunta diaria de prueba» e
 con la misma pregunta e ID del push, pero no consumen la rotación ni habilitan el horario.
 Reintentar una solicitud aceptada no duplica el aviso ni recupera uno descartado. Si una
 prueba anterior a esta integración no tenía aviso, su replay lo incorpora conservando
-fecha y lectura. Los nuevos avisos de preguntas programadas y de prueba duran 24 horas
-desde la publicación. Los avisos ya existentes conservan su vencimiento. El envío de
-prueba mantiene su ventana de 5 minutos.
+fecha y lectura. El listado y el contador consultan el vencimiento de la invitación
+vinculada también para los avisos históricos. La pregunta programada vence hasta dos
+horas después del horario previsto, con límite en la medianoche local. La prueba
+vence a los cinco minutos.
 
-El plazo de push existente (hasta dos horas, limitado por medianoche local) continúa
-siendo independiente de las 24 horas del aviso. El historial puede abrir la pregunta y
-vincular una respuesta después del vencimiento de envío. Abrir por push también marca
-el elemento correspondiente como leído. No se modifican el worker del navegador ni
-el procesamiento de notas para abrir desde la bandeja.
+La bandeja retira los avisos de preguntas con una respuesta vinculada o un recibo
+aceptado para el documento o audio original, sin esperar la transcripción.
+Abrir por push registra lectura. El historial permite abrir una pregunta vencida y
+vincular una respuesta, incluso si el aviso ya salió de la bandeja.
 
 ## Publicar una novedad
 

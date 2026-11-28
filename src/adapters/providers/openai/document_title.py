@@ -25,13 +25,9 @@ class OpenAIDocumentTitleProvider(AsyncProvider):
                 from src.core.processing.errors import WorkflowFailure
 
                 raise WorkflowFailure("provider_configuration", retryable=True)
-            from openai import AsyncOpenAI
-
-            self._client = AsyncOpenAI(
-                api_key=self._api_key, timeout=self._timeout, max_retries=self._max_retries
-            )
+            self._client = self._openai_client(self._api_key, max_retries=self._max_retries)
         try:
-            async with self._request_slot():
+            async with self._request_slot("document_title", self.model_name):
                 response = await self._client.responses.parse(
                     model=self.model_name,
                     input=[

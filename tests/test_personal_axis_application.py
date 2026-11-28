@@ -161,7 +161,11 @@ async def test_provider_borrows_injected_client_and_owns_created_client(monkeypa
     await provider.close()
     await provider.close()
     created.close.assert_awaited_once()
-    assert factory == [{"api_key": "synthetic", "timeout": 37, "max_retries": 0}]
+    assert len(factory) == 1
+    options = factory[0]
+    http_client = options.pop("http_client")
+    assert options == {"api_key": "synthetic", "timeout": 37, "max_retries": 0}
+    await http_client.aclose()
     assert created.responses.parse.call_args.kwargs["store"] is False
 
 

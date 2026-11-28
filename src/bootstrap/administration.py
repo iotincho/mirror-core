@@ -8,9 +8,11 @@ from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.responses import JSONResponse
 
+from src.adapters.access.api.administration.ai_usage import build_router as build_usage_router
 from src.adapters.access.api.administration.journals import build_router as build_journal_router
 from src.adapters.access.api.administration.routes import build_router
 from src.adapters.storage.postgres.administration import AdministrationRepository
+from src.adapters.storage.postgres.ai_usage_queries import PostgresAiUsageQueries
 from src.adapters.storage.postgres.health import PostgresHealth
 from src.adapters.storage.postgres.journals import PostgresJournals
 from src.bootstrap.admin_database import (
@@ -21,6 +23,7 @@ from src.bootstrap.admin_database import (
 )
 from src.bootstrap.administration_settings import get_admin_settings
 from src.core.processing.errors import StorageUnavailable
+from src.use_cases.administration.ai_usage import AiUsageAdministration
 from src.use_cases.administration.query import Administration
 from src.use_cases.journals.administration import AdministerJournals
 
@@ -42,6 +45,12 @@ def get_read_administration(session=Depends(admin_session)):
 
 def get_write_administration(session=Depends(admin_write_session)):
     return administration(session)
+
+
+def get_ai_usage(session=Depends(admin_session)):
+    return AiUsageAdministration(
+        PostgresAiUsageQueries(session, get_admin_settings().ai_usage_retention_days)
+    )
 
 
 def get_read_journals():
@@ -66,6 +75,7 @@ async def lifespan(app):
 app = FastAPI(title="El Espejo · Administración LAN", lifespan=lifespan)
 router = build_router(get_read_administration, get_write_administration)
 app.include_router(router)
+app.include_router(build_usage_router(get_ai_usage))
 app.include_router(build_journal_router(get_read_journals, get_write_journals))
 
 

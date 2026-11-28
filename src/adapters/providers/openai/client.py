@@ -4,6 +4,8 @@ import asyncio
 from contextlib import asynccontextmanager
 from typing import Any
 
+from src.adapters.providers.openai.usage import MeteredOpenAIHttpClient, openai_operation
+
 
 class AsyncProvider:
     """An injected client is borrowed; an adapter-created client is closed by its host."""
@@ -17,12 +19,23 @@ class AsyncProvider:
         self._max_concurrency = max_concurrency
         self._semaphore: asyncio.Semaphore | None = None
 
+    def _openai_client(self, api_key, *, max_retries):
+        from openai import AsyncOpenAI
+
+        return AsyncOpenAI(
+            api_key=api_key,
+            timeout=self._timeout,
+            max_retries=max_retries,
+            http_client=MeteredOpenAIHttpClient(timeout=self._timeout),
+        )
+
     @asynccontextmanager
-    async def _request_slot(self):
+    async def _request_slot(self, feature: str, model: str):
         if self._semaphore is None:
             self._semaphore = asyncio.Semaphore(self._max_concurrency)
         async with self._semaphore:
-            yield
+            with openai_operation(feature, model):
+                yield
 
     async def close(self) -> None:
         if self._owns_client and self._client is not None:

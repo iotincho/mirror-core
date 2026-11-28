@@ -19,6 +19,9 @@ class AdministrationSettings(BaseSettings):
     inventory_max_age_seconds: int = Field(
         default=300, ge=30, validation_alias="ADMIN_INVENTORY_MAX_AGE_SECONDS"
     )
+    ai_usage_retention_days: int = Field(
+        default=90, ge=1, validation_alias="AI_USAGE_RETENTION_DAYS"
+    )
     personal_axes_enabled: bool = Field(default=False, validation_alias="PERSONAL_AXES_ENABLED")
     journals_enabled: bool = Field(default=False, validation_alias="JOURNALS_ENABLED")
 

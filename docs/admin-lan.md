@@ -89,6 +89,74 @@ La PWA envía una observación al entrar o volver al primer plano, con un máxim
 
 La primera observación fija `activity_since`. Los días anteriores son null; el primer día puede ser parcial. El total de usuarios que accedieron expresa lo observado desde esa fecha, no actividad histórica reconstruida. Se conservan 90 días de agregados diarios; si se deshabilita o se dejan instancias sin actualizar, puede haber huecos que no se reconstruyen. La señal registra apertura/retorno al foreground y no prueba actividad continua durante toda una sesión.
 
+## Registro de consumo de IA
+
+La base del registro está disponible desde la revisión `20261126_28`.
+`AI_USAGE_ENABLED` queda deshabilitado por defecto. Una vez actualizados los
+workers y el dispatcher, la variable debe tener el mismo valor en ambos y en
+los CLI que ejecuten modelos. El dispatcher abre o cierra el período en el
+primer ciclo después del reinicio con la nueva configuración.
+Volver a habilitarlo abre otro período. La migración deja el registro vacío y
+la cobertura comienza con la activación.
+
+Cada intento admite un recibo con ID técnico estable, cuenta beneficiaria,
+funcionalidad, proveedor, modelos solicitado y efectivo, fechas y resultado.
+El recibo admite tokens por categoría y duración en segundos. `NULL` conserva
+la ausencia de datos y `0` representa uso medido. Se guarda sólo metadata
+técnica. Repetir la escritura de un intento conserva su primera atribución y
+resultado confirmado. Al cerrar un período, aún se pueden finalizar intentos
+iniciados dentro de él. Al borrar una cuenta, se quita su referencia de los
+recibos y se conservan sus cantidades para el total global hasta el vencimiento.
+
+La medición abarca títulos, emociones y sus correcciones, segmentación, lotes
+de embeddings, transcripción, criterios y extracciones de ejes, y propuestas de
+pregunta diaria y de Journals. Los jobs aportan su cuenta y su ID de ejecución.
+El CLI de extracción usa el propietario del workspace resuelto. Las evaluaciones
+autorizadas se registran como consumo de plataforma con la categoría
+`daily_question_evaluation`. Las lecturas de Constelación, los respaldos curados
+y la persistencia que recupera un artefacto no realizan llamadas remotas.
+
+Cada envío del SDK registra su propio ID, incluso sus reintentos configurados.
+Una respuesta con uso se registra antes de validarla. El estado del recibo
+describe el intercambio con el proveedor. Una pérdida de conexión queda como
+resultado desconocido. Fallos de escritura se reportan con un código operativo
+y las escrituras de recuperación conservan el mismo ID de intento. Si PostgreSQL
+permanece indisponible, puede quedar un recibo incompleto o faltar el intento.
+
+El dispatcher aplica `AI_USAGE_RETENTION_DAYS` (90 por defecto, entero positivo)
+por fecha de inicio y en lotes de hasta 500, incluso con la captura deshabilitada.
+Configurar la misma retención en el dispatcher y en `admin-api`. El límite de
+purga se guarda en la misma transacción que los borrados y nunca retrocede.
+Si la retención se amplía, los datos que ya se purgaron siguen fuera de cobertura.
+Los períodos de activación se conservan como metadata operativa. En Compose local,
+las variables se configuran en `.env` para la interpolación de Compose. Para
+procesos ejecutados directamente, `Settings` las toma del entorno o de `.env`.
+El downgrade elimina los recibos y los períodos sin recuperación posterior.
+
+`GET /api/admin/usage?period_days=30` devuelve `totals`, `daily`, `by_model`
+y `by_feature`. `user_id` aplica el mismo cálculo a una cuenta existente.
+`GET /api/admin/usage/users?period_days=30&page=1&per_page=10` pagina el ranking
+de cuentas con intentos, por tokens conocidos de mayor a menor, con nulos al final
+y desempate por UUID. El total global incluye los intentos sin cuenta atribuible.
+Las dos lecturas aceptan 7 o 30 días de Buenos Aires, hasta la hora de consulta.
+
+`complete` corresponde a un intervalo observado sin intentos de uso incompleto.
+`partial` indica un corte de cobertura o intentos sin total de tokens ni duración
+medida. `unavailable` indica falta de cobertura y conserva las cantidades en
+`null`. Los agregados suman sólo las cantidades conocidas. Un día medido sin
+intentos muestra cero. Los segundos de audio se muestran aparte en el panel.
+La disponibilidad se infiere de los períodos y recibos del registro.
+
+Pruebas de captura en `tests/test_openai_usage.py` con SDK y transporte simulado.
+La imagen de producción y `entrypoint-check` verifican la revisión `20261126_28`
+y que ambas rutas de consumo pertenezcan a la API administrativa. Para preparar
+la activación en el servidor, seguir la sección «Consumo de IA por túnel» de
+`mirror-deploy/ADMIN-LAN.md`.
+Verificación aislada con `AI_USAGE_TEST_DATABASE_URL` y
+`tests/integration/test_ai_usage_postgres.py`. La URL debe identificar una base
+de pruebas con prefijo `ai_usage_test` en una instancia desechable. El test crea
+y elimina una base temporal en esa instancia.
+
 ## Recuperación e integridad
 
 El sincronizador guarda un checkpoint por cuenta en PostgreSQL y tiene exclusión mutua mediante advisory lock. Solo persiste IDs, fechas, categorías y flags. No guarda título, texto, audio ni metadata libre. Fallos de lectura, JSON inválido, identidad incorrecta, symlinks o falta del volumen invalidan cobertura sin borrar el inventario previo. Reejecutar recupera las cuentas fallidas.

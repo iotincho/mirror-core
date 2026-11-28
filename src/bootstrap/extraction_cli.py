@@ -1,9 +1,11 @@
 """Compose explicit extractor commands; only bootstrap builds concrete resources."""
 
 from contextlib import asynccontextmanager
+from uuid import uuid4
 
 from src.adapters.storage.filesystem.layer_artifacts import LayerArtifacts
 from src.adapters.storage.postgres.extraction_commands import CommandProcessing
+from src.bootstrap.ai_usage import ai_usage_scope
 from src.bootstrap.database import close_database
 from src.bootstrap.extraction import build_emotion_extractor, build_emotions_provider
 from src.bootstrap.processing import get_repository
@@ -45,6 +47,8 @@ async def extractor(runtime, name, specification, *, extracting):
 
 async def execute(command):
     settings = get_settings()
+    if command.action == "extract" and command.run is None:
+        command.run = uuid4()
     configuration = (
         EmbeddingConfiguration(
             model=settings.openai_embedding_model,
@@ -57,9 +61,16 @@ async def execute(command):
         if command.action == "extract" and command.extractor == "document_embeddings"
         else None
     )
+
+    @asynccontextmanager
+    async def attributed_runtime(owner):
+        async with worker_runtime(owner) as runtime:
+            with ai_usage_scope(runtime.context.user_id, command.run):
+                yield runtime
+
     case = RunExtraction(
         CommandProcessing(get_repository()),
-        worker_runtime,
+        attributed_runtime,
         lambda runtime: LayerArtifacts(runtime.context.filesystem_root / "layers"),
         extractor,
         configuration.model_dump() if configuration else {},

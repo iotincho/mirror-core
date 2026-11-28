@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     platform_activity_enabled: bool = Field(
         default=False, validation_alias="PLATFORM_ACTIVITY_ENABLED"
     )
+    ai_usage_enabled: bool = Field(default=False, validation_alias="AI_USAGE_ENABLED")
+    ai_usage_retention_days: int = Field(
+        default=90, ge=1, validation_alias="AI_USAGE_RETENTION_DAYS"
+    )
     environment: str = Field(default="development", validation_alias="ENVIRONMENT")
     sentry_dsn: str = Field(default="", validation_alias="SENTRY_DSN", repr=False)
     sentry_release: str = Field(default="", validation_alias="SENTRY_RELEASE")

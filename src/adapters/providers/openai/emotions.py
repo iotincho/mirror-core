@@ -61,13 +61,9 @@ Return the complete corrected extraction, not a patch.""",
         if self._client is None:
             if not self._api_key or self.model_name == "unconfigured":
                 raise EmotionProviderError("OpenAI requires OPENAI_API_KEY and OPENAI_MODEL")
-            from openai import AsyncOpenAI
-
-            self._client = AsyncOpenAI(
-                api_key=self._api_key, timeout=self._timeout, max_retries=self._max_retries
-            )
+            self._client = self._openai_client(self._api_key, max_retries=self._max_retries)
         try:
-            async with self._request_slot():
+            async with self._request_slot("emotions", self.model_name):
                 response = await self._client.responses.parse(
                     model=self.model_name,
                     input=messages,
